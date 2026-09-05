@@ -1,0 +1,8 @@
+.git
+.env
+npm-debug.log*
+**/.next/cache
+**/*.tsbuildinfo
+**/coverage
+**/.turbo
+docs

@@ -1,0 +1,48 @@
+{
+  "name": "@cafexa/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "start:dev": "nest start --watch",
+    "typecheck": "tsc --noEmit",
+    "migration:run": "typeorm-ts-node-commonjs -d src/database/data-source.ts migration:run",
+    "migration:revert": "typeorm-ts-node-commonjs -d src/database/data-source.ts migration:revert",
+    "migration:show": "typeorm-ts-node-commonjs -d src/database/data-source.ts migration:show",
+    "tenant:provision": "ts-node src/cli/provision-tenant.ts",
+    "platform:bootstrap": "ts-node src/cli/bootstrap-platform-owner.ts",
+    "test": "node --test -r ts-node/register src/config/environment.schema.spec.ts src/auth/kavenegar-sms.provider.spec.ts src/tenants/hostname.util.spec.ts src/tenants/proxy-trust.util.spec.ts src/authorization/authorization.guards.spec.ts src/auth/auth-crypto.service.spec.ts src/auth/auth-token.service.spec.ts src/auth/iran-phone.util.spec.ts src/subscriptions/subscription-lifecycle.spec.ts src/site/theme.util.spec.ts src/menu/menu-validation.util.spec.ts src/reservations/reservation-time.util.spec.ts src/media/media-image.util.spec.ts src/media/media.service.spec.ts src/payments/payment-gateway.spec.ts src/platform-orders/platform-orders.service.spec.ts src/identity/platform-access.service.spec.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1120.0",
+    "@img/sharp-libvips-linuxmusl-x64": "^1.3.3",
+    "@img/sharp-linuxmusl-x64": "^0.35.4",
+    "@img/sharp-win32-x64": "^0.35.4",
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/config": "^4.0.4",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/jwt": "^11.0.2",
+    "@nestjs/platform-express": "^11.0.0",
+    "@nestjs/typeorm": "^11.0.3",
+    "@types/multer": "^2.2.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.4",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^17.4.2",
+    "joi": "^18.2.5",
+    "pg": "^8.23.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.0",
+    "sharp": "^0.35.4",
+    "typeorm": "^0.3.31"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.0"
+  }
+}

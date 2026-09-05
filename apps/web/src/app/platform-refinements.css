@@ -1,0 +1,171 @@
+:root {
+  --platform-lime: #0466c8;
+  --platform-lime-hover: #0353a4;
+}
+
+.platform-brand > span,
+.platform-nav .nav-cta,
+.primary-button,
+.price-card > a,
+.form-submit button {
+  color: #fff;
+}
+
+.platform-nav .nav-cta:hover,
+.primary-button:hover,
+.price-card > a:hover,
+.form-submit button:hover {
+  background: var(--platform-lime-hover);
+  color: #fff;
+}
+
+.platform-hero h1 {
+  max-width: 68rem;
+  font-size: clamp(2.75rem, 5.4vw, 5.15rem);
+  line-height: 1.16;
+}
+
+.platform-hero-copy > p:last-of-type {
+  font-size: clamp(.92rem, 1.2vw, 1.06rem);
+}
+
+.platform-manifesto > p {
+  max-width: 66rem;
+  font-size: clamp(1.9rem, 3.7vw, 3.65rem);
+  line-height: 1.65;
+}
+
+.section-heading {
+  grid-template-columns: minmax(0, 1.45fr) minmax(18rem, .75fr);
+}
+
+.section-heading h2,
+.process-heading h2,
+.pricing-copy h2,
+.request-copy h2 {
+  max-width: none;
+  font-size: clamp(1.75rem, 2.7vw, 2.7rem);
+  line-height: 1.35;
+  text-wrap: balance;
+}
+
+.platform-benefits .section-heading h2 {
+  grid-column: 1 / -1;
+  max-width: 31ch;
+}
+
+.request-copy h2 {
+  font-size: clamp(1.7rem, 2.35vw, 2.35rem);
+}
+
+.benefit-bento h3 {
+  max-width: 20ch;
+  font-size: clamp(1.45rem, 2.2vw, 2.15rem);
+}
+
+.demo-card h3 {
+  font-size: clamp(1.4rem, 2vw, 1.75rem);
+}
+
+.price-card > strong b {
+  font-size: clamp(2.25rem, 4vw, 3.65rem);
+}
+
+.product-browser > img {
+  width: 100%;
+  height: calc(100% - 3.2rem);
+  display: block;
+  object-fit: cover;
+  object-position: top center;
+}
+
+.product-phone {
+  padding: 1.1rem .55rem .55rem;
+  overflow: hidden;
+}
+
+.product-phone > img {
+  width: 100%;
+  height: calc(100% - 1rem);
+  display: block;
+  object-fit: cover;
+  object-position: top center;
+  border-radius: 1.7rem;
+}
+
+.product-phone .phone-top {
+  position: relative;
+  z-index: 2;
+  margin: -.55rem auto .45rem;
+}
+
+.services-accordion article > img {
+  width: 100%;
+  height: 13rem;
+  display: block;
+  object-fit: contain;
+  object-position: center;
+  opacity: .86;
+  transform: scale(.9);
+  transition: opacity .35s ease, transform .65s cubic-bezier(.22, 1, .36, 1);
+}
+
+.services-accordion article:hover > img,
+.services-accordion article:focus > img {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.platform-benefits .section-heading > p,
+.benefit-bento article > strong,
+.support-pulse {
+  color: var(--platform-lime);
+}
+
+.support-pulse i {
+  background: var(--platform-lime);
+  box-shadow: 0 0 0 .35rem rgb(4 102 200 / 16%);
+}
+
+.cost-lines i { background: #c7dcf2; }
+.cost-lines i:nth-child(2) { background: #6ba4dc; }
+.cost-lines i:nth-child(3) { background: var(--platform-lime); }
+.price-card { border-color: rgb(4 102 200 / 32%); }
+.service-checks input:checked + span { border-color: var(--platform-lime); background: rgb(4 102 200 / 16%); }
+
+@media (max-width: 62rem) {
+  .section-heading h2,
+  .process-heading h2,
+  .pricing-copy h2,
+  .request-copy h2 { max-width: 24ch; }
+}
+
+@media (max-width: 44rem) {
+  .platform-hero h1 {
+    max-width: 23rem;
+    font-size: clamp(2.15rem, 10.5vw, 3rem);
+    line-height: 1.25;
+  }
+
+  .platform-manifesto > p {
+    font-size: clamp(1.65rem, 7.6vw, 2.3rem);
+  }
+
+  .section-heading h2,
+  .process-heading h2,
+  .pricing-copy h2,
+  .request-copy h2 {
+    max-width: none;
+    font-size: clamp(1.65rem, 7vw, 2.15rem);
+    line-height: 1.45;
+  }
+
+  .services-accordion article { min-height: 22rem; }
+  .services-accordion article > img { height: 11rem; }
+  .product-phone { padding: .7rem .35rem .35rem; }
+  .product-phone > img { border-radius: 1rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .services-accordion article > img { transition: none; }
+}
