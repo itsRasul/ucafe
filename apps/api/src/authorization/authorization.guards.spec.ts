@@ -28,7 +28,7 @@ const tenant = {
   status: CoffeeShopStatus.Active,
   locale: "fa-IR",
   timezone: "Asia/Tehran",
-  hostname: "tenant-a.cafexa.localhost",
+  hostname: "tenant-a.u-cafe.localhost",
   domainType: DomainType.PlatformSubdomain,
 };
 

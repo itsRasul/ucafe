@@ -10,7 +10,7 @@ export class PlatformBootstrapService {
   async claimFirstOwner(rawPhone: string): Promise<{ userId: string; roleKey: string }> {
     const phone = normalizeIranianMobile(rawPhone);
     return this.dataSource.transaction(async (manager) => {
-      await manager.query("SELECT pg_advisory_xact_lock(hashtext($1))", ["cafexa:platform-owner-bootstrap"]);
+      await manager.query("SELECT pg_advisory_xact_lock(hashtext($1))", ["ucafe:platform-owner-bootstrap"]);
       const user = await manager.findOneBy(User, { phone });
       if (!user?.phoneVerifiedAt) throw new NotFoundException("The phone must complete OTP authentication before platform bootstrap");
 

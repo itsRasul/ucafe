@@ -1,4 +1,4 @@
-# Cafexa architecture
+# ucafe architecture
 
 Status labels: **Implemented**, **Partial**, **Planned**.
 
@@ -96,7 +96,7 @@ An explicit seven-day trial leads to suspension if unpaid. Paid service is prepa
 
 ## Files, caching and jobs
 
-- **Implemented:** the `cafexa-media` bucket remains private. Image bytes are decoded and limited to JPEG/PNG/WebP, 8 MB and 24 megapixels, with role-specific minimum dimensions. The API creates small/large AVIF and WebP crops, stores only tenant/asset-prefixed keys, and serves immutable variants through hostname-resolved public routes. Logo and hero are single slots; gallery is capped at eight; focal points and gallery order are bounded metadata. Missing/deleted media uses the existing stable CSS layout.
+- **Implemented:** the `ucafe-media` bucket remains private. Image bytes are decoded and limited to JPEG/PNG/WebP, 8 MB and 24 megapixels, with role-specific minimum dimensions. The API creates small/large AVIF and WebP crops, stores only tenant/asset-prefixed keys, and serves immutable variants through hostname-resolved public routes. Logo and hero are single slots; gallery is capped at eight; focal points and gallery order are bounded metadata. Missing/deleted media uses the existing stable CSS layout.
 - **Implemented:** uploads are currently processed synchronously in the API because Phase 10 excludes a worker pipeline. Original upload bytes are not retained or publicly served.
 - Redis is configured and used by authentication for rate limiting/ephemeral OTP controls; broader tenant-config caching is planned.
 - Reservation confirmation delivery currently runs as a bounded API-hosted outbox dispatcher; unique reservation/type keys prevent duplicate jobs, stale claims recover, and failures retry three times with exponential backoff. A dedicated horizontally coordinated worker remains launch hardening.

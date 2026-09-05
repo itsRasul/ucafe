@@ -20,7 +20,7 @@ export class PaymentsService {
       const plan = await manager.findOneBy(SubscriptionPlan, { key: input.planKey, status: PlanStatus.Active });
       if (!plan) throw new ConflictException("Plan is unavailable");
       let intent = await repository.save(repository.create({ coffeeShopId, planId: plan.id, planKeySnapshot: plan.key, planNameSnapshot: plan.name, amountToman: plan.priceToman, provider: "ZARINPAL", idempotencyKey: input.idempotencyKey, status: PaymentIntentStatus.Pending, expiresAt: new Date(Date.now() + 15 * 60_000) }));
-      const requested = await this.gateway.request({ amountRial: this.toRial(intent.amountToman), callbackUrl: this.callbackUrl(intent.id), description: `اشتراک ${plan.name} کافکسا` });
+      const requested = await this.gateway.request({ amountRial: this.toRial(intent.amountToman), callbackUrl: this.callbackUrl(intent.id), description: `اشتراک ${plan.name} یو کافه` });
       intent.authority = requested.authority;
       intent = await repository.save(intent);
       return this.project(intent, requested.paymentUrl);

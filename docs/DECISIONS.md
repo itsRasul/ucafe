@@ -1,4 +1,4 @@
-# Cafexa decision log
+# ucafe decision log
 
 Entries distinguish confirmed decisions from pending questions. Dates reflect the repository checkpoint; earlier decisions are numbered where exact conversation dates were not retained.
 
@@ -86,7 +86,7 @@ Entries distinguish confirmed decisions from pending questions. Dates reflect th
 
 - **Status:** accepted and runtime-verified on 2026-08-27
 - **Options:** enable browser CORS to port 3001; expose configured API URL; proxy through Next.js.
-- **Decision:** interactive web calls use `/api/backend/[...path]`, forwarding to internal API and carrying tenant hostname via `x-cafexa-tenant-host`.
+- **Decision:** interactive web calls use `/api/backend/[...path]`, forwarding to internal API and carrying tenant hostname via `x-ucafe-tenant-host`.
 - **Reasoning:** avoids local CORS failure and matches a single-origin production topology.
 - **Consequences:** the local availability, OTP and reservation flow works through the proxy; proxy/header trust must still be hardened in production.
 
@@ -168,13 +168,13 @@ Entries distinguish confirmed decisions from pending questions. Dates reflect th
 - **Reasoning:** commented-out production logic would not compile or remain contract-tested. A provider interface keeps simulation behavior structurally equivalent while allowing suspended tenants to reach an unscoped callback without weakening platform/tenant RBAC.
 - **Consequences:** duplicate checkout keys return the same authority, repeated callbacks do not add credit, and Zarinpal code 101 is treated as an idempotent successful verification. Production activation requires `PAYMENT_PROVIDER=zarinpal`, a valid `ZARINPAL_MERCHANT_ID`, a public HTTPS callback base and a live acceptance test. Recurring billing, postpaid usage and customer order payments remain excluded.
 
-## P-002 — Jalali date presentation
+## P-002 — Dedicated Jalali datepicker package
 
-- **Status:** pending
-- **Options:** Gregorian ISO display; Jalali display backed by ISO API values.
-- **Decision:** none yet.
-- **Reasoning:** Persian-first UX suggests Jalali, but it was not explicitly confirmed and the MVP currently uses native ISO date input.
-- **Consequences:** do not add a date library until decided.
+- **Status:** accepted and implemented on 2026-09-06
+- **Options:** keep lightweight Jalali text entry; add a visual Jalali picker package.
+- **Decision:** use `@majidh1/jalalidatepicker` for public reservation and tenant-admin reservation date fields.
+- **Reasoning:** it is a small dependency-free Jalali datepicker and keeps the existing frontend ISO conversion boundary intact.
+- **Consequences:** the picker displays/accepts Jalali dates, while API requests continue to send ISO `YYYY-MM-DD`; no schema migration is required.
 
 ## P-003 — Customer cancellation
 
@@ -236,8 +236,8 @@ Entries distinguish confirmed decisions from pending questions. Dates reflect th
 ## D-028 — Separate platform marketing home and privacy-safe order requests
 
 - **Status:** accepted and implemented on 2026-09-03
-- **Decision:** the base Cafexa hostname renders a dedicated Persian-first agency/platform landing page while tenant subdomains retain the shared coffee-shop storefront. The public landing reads the active Silver price from subscription-plan data and accepts consultation/order requests through a separate unauthenticated platform endpoint. Each request stores normalized mobile data using the existing authenticated-encryption and blind-hash primitives, starts in `NEW`, and exposes no phone data in its response.
-- **Reasoning:** Cafexa needs its own acquisition surface without mixing platform messaging into tenant storefronts, and future operators need durable leads even though the management UI and automated payment flow are postponed. Reusing the existing plan and cryptography sources avoids price drift and a second PII design.
+- **Decision:** the base ucafe hostname renders a dedicated Persian-first agency/platform landing page while tenant subdomains retain the shared coffee-shop storefront. The public landing reads the active Silver price from subscription-plan data and accepts consultation/order requests through a separate unauthenticated platform endpoint. Each request stores normalized mobile data using the existing authenticated-encryption and blind-hash primitives, starts in `NEW`, and exposes no phone data in its response.
+- **Reasoning:** ucafe needs its own acquisition surface without mixing platform messaging into tenant storefronts, and future operators need durable leads even though the management UI and automated payment flow are postponed. Reusing the existing plan and cryptography sources avoids price drift and a second PII design.
 - **Consequences:** public requests are DTO-validated, honeypot-filtered and rate-limited per phone hash over a short duplicate window. The current form creates neither a tenant nor a payment; viewing, decrypting and transitioning requests requires a future permission-protected platform-admin phase. The base-domain design carries a small GSAP client enhancement with a complete reduced-motion fallback.
 
 ## D-029 — Fixed permission catalog with scoped custom roles
@@ -253,3 +253,18 @@ Entries distinguish confirmed decisions from pending questions. Dates reflect th
 - **Decision:** a `users.manage` operator may create a phone user with one initial platform or tenant role, and a `roles.manage` operator may replace the same-scope permission assignments of any role. Protected/system role names, keys and deletion remain immutable, and a platform-role change is rejected if no active operator would retain both role-management and permission-catalog access. The protected platform user list/detail now returns complete phone values.
 - **Reasoning:** platform owners need practical account onboarding and permission control over the seeded roles as well as custom roles; the prior mask and system-role lock prevented those operations.
 - **Consequences:** tenant-role user creation also creates an invited membership for the selected coffee shop and OTP verification activates it. User creation and role changes are transactional and audited without phone values. Full phones remain confined to `users.read`-guarded platform endpoints; public/reservation responses and logs retain their existing privacy rules.
+
+## D-031 — Platform rebrand to ucafe
+
+- **Status:** accepted and implemented on 2026-09-05
+- **Decision:** replace the former English/Persian product name across the repository with `ucafe` and `یو کافه`; domain-like examples and environment defaults use the hyphenated `u-cafe` form, including `u-cafe.ir` and `u-cafe.localhost`.
+- **Reasoning:** the product brand and production domain changed, so visible copy, package/workspace names, Docker defaults, scripts, internal keys and documentation should no longer carry the old platform identity.
+- **Consequences:** existing local Docker volumes/databases created under the old Compose project or database names may need a deliberate migration or recreation before live local containers use the new defaults. The source code itself does not add a schema migration for this rename.
+
+## D-032 — Jalali reservation date boundary
+
+- **Status:** accepted and implemented on 2026-09-05
+- **Options:** keep Gregorian ISO inputs; use Jalali UI values while preserving ISO API/database values; migrate persistence to Jalali strings.
+- **Decision:** reservation public and tenant-admin screens accept/display Jalali dates, converting at the frontend boundary to the existing ISO `YYYY-MM-DD` API contract.
+- **Reasoning:** Persian-first reservation UX needs Jalali dates, while availability rules, PostgreSQL date storage and existing tests already rely on ISO values.
+- **Consequences:** no schema migration is required. Backend DTOs, capacity locks and filters stay unchanged; future visual datepicker packages must still submit ISO values to the API.

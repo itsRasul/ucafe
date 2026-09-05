@@ -32,7 +32,7 @@ export function PlatformOrderForm() {
         if (response.status === 429) throw new Error("درخواست شما به‌تازگی ثبت شده است. لطفاً کمی بعد دوباره تلاش کنید.");
         throw new Error("ثبت درخواست انجام نشد. اطلاعات را بررسی و دوباره تلاش کنید.");
       }
-      form.reset(); setState("success"); setMessage("درخواست شما ثبت شد. تیم کافکسا در اولین فرصت با شما تماس می‌گیرد.");
+      form.reset(); setState("success"); setMessage("درخواست شما ثبت شد. تیم یو کافه در اولین فرصت با شما تماس می‌گیرد.");
     } catch (error) {
       setState("error"); setMessage(error instanceof Error ? error.message : "ارتباط با سرور برقرار نشد. دوباره تلاش کنید.");
     }

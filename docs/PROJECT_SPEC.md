@@ -1,8 +1,8 @@
-# Cafexa product specification
+# ucafe product specification
 
 ## Product definition
 
-Cafexa (کافکسا) is a multi-tenant SaaS that gives Iranian coffee shops a premium Persian-first website without deploying a separate frontend per tenant. A placeholder platform domain is `cafexa.com`; local development uses `cafexa.localhost`. The first launch must remain a focused MVP.
+ucafe (یو کافه) is a multi-tenant SaaS that gives Iranian coffee shops a premium Persian-first website without deploying a separate frontend per tenant. A placeholder platform domain is `u-cafe.ir`; local development uses `u-cafe.localhost`. The first launch must remain a focused MVP.
 
 The product promise is a fast, modern, soft, visually memorable website that helps a cafe look more professional than competitors while customers can immediately view the menu, find the cafe, and reserve a table.
 

@@ -38,7 +38,7 @@ function loadApiPath(apiBaseUrl: string, host: string, path: string): Promise<{ 
 export const loadPublicPageData = cache(async (): Promise<PublicPageData> => {
   const host = (await headers()).get("host")?.toLowerCase() ?? "";
   const hostname = host.replace(/:\d+$/, "").replace(/\.$/, "");
-  const baseDomain = process.env.PLATFORM_BASE_DOMAIN ?? "cafexa.localhost";
+  const baseDomain = process.env.PLATFORM_BASE_DOMAIN ?? "u-cafe.localhost";
   if (!hostname.endsWith(`.${baseDomain}`)) return { isTenant: false };
 
   const apiBaseUrl = process.env.API_INTERNAL_URL ?? "http://localhost:3001/api/v1";

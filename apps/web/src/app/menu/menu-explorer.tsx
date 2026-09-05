@@ -113,7 +113,7 @@ export function MenuExplorer({ menu, initialItemId }: { menu: PublicMenu; initia
     triggerRef.current = trigger;
     const url = new URL(window.location.href);
     url.searchParams.set("item", itemId);
-    history.pushState({ ...history.state, cafexaMenuItem: itemId }, "", `${url.pathname}${url.search}${url.hash}`);
+    history.pushState({ ...history.state, ucafeMenuItem: itemId }, "", `${url.pathname}${url.search}${url.hash}`);
     setSelectedItemId(itemId);
   }
 

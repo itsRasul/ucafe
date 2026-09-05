@@ -1,4 +1,4 @@
-# Cafexa launch and operations runbook
+# ucafe launch and operations runbook
 
 ## Release gate
 
@@ -24,13 +24,13 @@ The API configuration intentionally refuses to boot in production with either si
 5. Run `scripts/smoke.ps1` against the deployment hostname, then verify OTP, reservation confirmation and a low-value Zarinpal acceptance settlement.
 6. Watch structured `http_request` events, error rate, p95 latency, dependency health, notification retry exhaustion and payment verification failures.
 
-The reverse proxy must terminate TLS, redirect HTTP to HTTPS, preserve the external `Host`, set `X-Forwarded-For`/`Proto`, remove inbound `X-Cafexa-Tenant-Host` and `X-Cafexa-Proxy-Secret`, and expose only web plus the Zarinpal callback. The web service and API share `INTERNAL_PROXY_SECRET` over a private network; the API must not be publicly reachable except for explicitly routed public endpoints.
+The reverse proxy must terminate TLS, redirect HTTP to HTTPS, preserve the external `Host`, set `X-Forwarded-For`/`Proto`, remove inbound `X-ucafe-Tenant-Host` and `X-ucafe-Proxy-Secret`, and expose only web plus the Zarinpal callback. The web service and API share `INTERNAL_PROXY_SECRET` over a private network; the API must not be publicly reachable except for explicitly routed public endpoints.
 
 ## Backup and restore
 
 Run `./scripts/backup.ps1` from the repository. Encrypt completed backups, copy them off-host and retain daily/weekly/monthly sets according to the hosting policy. S3/MinIO versioning or a provider snapshot is required in addition to PostgreSQL backups.
 
-Test a database dump without touching Cafexa data:
+Test a database dump without touching ucafe data:
 
 ```powershell
 $backup = ./scripts/backup.ps1

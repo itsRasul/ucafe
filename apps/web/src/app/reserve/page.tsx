@@ -10,7 +10,7 @@ function load(apiBaseUrl: string, host: string, path: string): Promise<{ status:
 
 export default async function ReservePage() {
   const host = (await headers()).get("host") ?? ""; const hostname = host.replace(/:\d+$/, "");
-  const baseDomain = process.env.PLATFORM_BASE_DOMAIN ?? "cafexa.localhost"; if (!hostname.endsWith(`.${baseDomain}`)) notFound();
+  const baseDomain = process.env.PLATFORM_BASE_DOMAIN ?? "u-cafe.localhost"; if (!hostname.endsWith(`.${baseDomain}`)) notFound();
   const api = process.env.API_INTERNAL_URL ?? "http://localhost:3001/api/v1";
   const [contextResponse, siteResponse] = await Promise.all([load(api, host, "/public/context"), load(api, host, "/public/site")]);
   if (contextResponse.status !== 200 || siteResponse.status !== 200 || !(JSON.parse(contextResponse.body) as TenantContext).available) notFound();

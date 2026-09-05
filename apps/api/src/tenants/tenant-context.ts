@@ -13,6 +13,6 @@ export interface TenantContext {
 }
 
 export interface TenantContextRequest {
-  headers: { host?: string; "x-cafexa-tenant-host"?: string | string[]; "x-cafexa-proxy-secret"?: string | string[] };
+  headers: { host?: string; "x-ucafe-tenant-host"?: string | string[]; "x-ucafe-proxy-secret"?: string | string[] };
   [TENANT_CONTEXT]?: TenantContext;
 }

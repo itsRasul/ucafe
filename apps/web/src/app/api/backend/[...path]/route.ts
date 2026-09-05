@@ -10,7 +10,7 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
   const cookie = incomingHeaders.get("cookie");
   const response = await fetch(url, {
     method: request.method,
-    headers: { "x-cafexa-tenant-host": incomingHeaders.get("host") ?? "", "x-cafexa-proxy-secret": process.env.INTERNAL_PROXY_SECRET ?? "", "content-type": incomingHeaders.get("content-type") ?? "application/json", ...(authorization ? { authorization } : {}), ...(cookie ? { cookie } : {}) },
+    headers: { "x-ucafe-tenant-host": incomingHeaders.get("host") ?? "", "x-ucafe-proxy-secret": process.env.INTERNAL_PROXY_SECRET ?? "", "content-type": incomingHeaders.get("content-type") ?? "application/json", ...(authorization ? { authorization } : {}), ...(cookie ? { cookie } : {}) },
     body: request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer(),
     cache: "no-store",
   });

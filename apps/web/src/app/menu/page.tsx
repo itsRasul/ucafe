@@ -6,7 +6,7 @@ import { Picture, SuspendedSite, TenantFooter, TenantHeader, tenantThemeStyle } 
 
 export async function generateMetadata(): Promise<Metadata> {
   const data = await loadPublicPageData();
-  if (!data.isTenant || !data.context?.available || !data.site) return { title: "منوی کافه | کافکسا" };
+  if (!data.isTenant || !data.context?.available || !data.site) return { title: "منوی کافه | یو کافه" };
   return { title: `منوی ${data.site.name}`, description: `منوی کامل ${data.site.name}، دسته‌بندی‌ها، قیمت‌ها و جزئیات آیتم‌ها` };
 }
 

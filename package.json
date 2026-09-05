@@ -1,14 +1,14 @@
 {
-  "name": "cafexa",
+  "name": "ucafe",
   "version": "0.1.0",
   "private": true,
-  "description": "Cafexa multi-tenant coffee-shop SaaS platform",
+  "description": "ucafe multi-tenant coffee-shop SaaS platform",
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
-    "dev": "npm run dev --workspace=@cafexa/web",
-    "dev:web": "npm run dev --workspace=@cafexa/web",
-    "dev:api": "npm run start:dev --workspace=@cafexa/api",
-    "dev:worker": "npm run start:dev --workspace=@cafexa/worker",
+    "dev": "npm run dev --workspace=@ucafe/web",
+    "dev:web": "npm run dev --workspace=@ucafe/web",
+    "dev:api": "npm run start:dev --workspace=@ucafe/api",
+    "dev:worker": "npm run start:dev --workspace=@ucafe/worker",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present"

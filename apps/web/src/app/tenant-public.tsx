@@ -79,8 +79,8 @@ export function TenantHeader({ site, onHomePage = false }: { site: PublicSite; o
     {site.content.announcementText && <div className="tenant-announcement">{site.content.announcementText}</div>}
     <nav className="tenant-nav" aria-label="ناوبری اصلی">
       <a className="tenant-brand" href="/" aria-label={`صفحه اصلی ${site.name}`}>
-        {logo ? <Picture asset={logo} fallback="menu" alt={`نشان ${site.name}`} className="tenant-logo" eager /> : <span className="tenant-brand-mark" aria-hidden="true">ک</span>}
-        <span><strong>{site.name}</strong><small>Cafexa coffee house</small></span>
+        {logo ? <Picture asset={logo} fallback="menu" alt={`نشان ${site.name}`} className="tenant-logo" eager /> : <span className="tenant-brand-mark" aria-hidden="true">یو</span>}
+        <span><strong>{site.name}</strong><small>ucafe coffee house</small></span>
       </a>
       <div className="tenant-nav-links"><a href={`${prefix}#about`}>درباره ما</a><a href="/menu" aria-current={onHomePage ? undefined : "page"}>منو</a><a href={`${prefix}#gallery`}>گالری</a><a href={`${prefix}#visit`}>تماس و نشانی</a></div>
       <a className="nav-reserve" href="/reserve">رزرو میز</a>
@@ -91,9 +91,9 @@ export function TenantHeader({ site, onHomePage = false }: { site: PublicSite; o
 
 export function TenantFooter({ site }: { site: PublicSite }) {
   const logo = site.media.find((asset) => asset.kind === "LOGO");
-  return <footer className="tenant-footer"><div className="footer-grid"><div className="footer-brand">{logo ? <Picture asset={logo} fallback="menu" alt={`نشان ${site.name}`} /> : <span className="tenant-brand-mark" aria-hidden="true">ک</span>}<strong>{site.name}</strong><p>{site.content.heroSubtitle ?? "یک فنجان دقیق، یک مکث واقعی."}</p></div><nav aria-label="دسترسی سریع"><strong>دسترسی سریع</strong><a href="/#about">درباره ما</a><a href="/menu">منو</a><a href="/#gallery">گالری</a><a href="/reserve">رزرو میز</a></nav><div><strong>تماس با ما</strong>{site.contact.phone && <a href={`tel:${site.contact.phone}`}>{site.contact.phone}</a>}{site.contact.address && <address>{site.contact.address}</address>}</div></div><div className="footer-base"><span>ساخته‌شده با CAFEXA</span><a href="#top">بازگشت به بالا ↑</a></div></footer>;
+  return <footer className="tenant-footer"><div className="footer-grid"><div className="footer-brand">{logo ? <Picture asset={logo} fallback="menu" alt={`نشان ${site.name}`} /> : <span className="tenant-brand-mark" aria-hidden="true">یو</span>}<strong>{site.name}</strong><p>{site.content.heroSubtitle ?? "یک فنجان دقیق، یک مکث واقعی."}</p></div><nav aria-label="دسترسی سریع"><strong>دسترسی سریع</strong><a href="/#about">درباره ما</a><a href="/menu">منو</a><a href="/#gallery">گالری</a><a href="/reserve">رزرو میز</a></nav><div><strong>تماس با ما</strong>{site.contact.phone && <a href={`tel:${site.contact.phone}`}>{site.contact.phone}</a>}{site.contact.address && <address>{site.contact.address}</address>}</div></div><div className="footer-base"><span>ساخته‌شده با ucafe</span><a href="#top">بازگشت به بالا ↑</a></div></footer>;
 }
 
 export function SuspendedSite({ context }: { context: TenantContext }) {
-  return <main className="unavailable-shell"><section className="unavailable-card" aria-labelledby="unavailable-title"><div className="coffee-mark" aria-hidden="true"><span /></div><p className="eyebrow">CAFEXA · کافکسا</p><h1 id="unavailable-title">{context.unavailable?.title ?? "این وب‌سایت در حال حاضر در دسترس نیست"}</h1><p className="intro">{context.unavailable?.message ?? "لطفاً کمی بعد دوباره مراجعه کنید."}</p><div className="quiet-divider" aria-hidden="true" /><p className="quiet-note">از شکیبایی شما سپاسگزاریم</p></section></main>;
+  return <main className="unavailable-shell"><section className="unavailable-card" aria-labelledby="unavailable-title"><div className="coffee-mark" aria-hidden="true"><span /></div><p className="eyebrow">ucafe · یو کافه</p><h1 id="unavailable-title">{context.unavailable?.title ?? "این وب‌سایت در حال حاضر در دسترس نیست"}</h1><p className="intro">{context.unavailable?.message ?? "لطفاً کمی بعد دوباره مراجعه کنید."}</p><div className="quiet-divider" aria-hidden="true" /><p className="quiet-note">از شکیبایی شما سپاسگزاریم</p></section></main>;
 }

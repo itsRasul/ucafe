@@ -1,6 +1,6 @@
-# Cafexa (کافکسا)
+# ucafe (یو کافه)
 
-Cafexa is a multi-tenant SaaS platform for premium coffee-shop websites.
+ucafe is a multi-tenant SaaS platform for premium coffee-shop websites.
 
 ## Status
 

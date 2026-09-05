@@ -12,7 +12,7 @@ import { NotificationDelivery } from "../notifications/entities";
 import { PaymentIntent } from "../payments/entities";
 import { PlatformOrderRequest } from "../platform-orders/entities";
 
-const localDatabaseUrl = "postgresql://cafexa:cafexa@localhost:5432/cafexa";
+const localDatabaseUrl = "postgresql://ucafe:ucafe@localhost:5432/ucafe";
 
 export default new DataSource({
   type: "postgres",

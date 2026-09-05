@@ -1,4 +1,4 @@
-# Cafexa implementation plan
+# ucafe implementation plan
 
 Each phase is intended for one reviewable session. Do not start a later phase until the current phase meets `AGENTS.md` Definition of Done.
 
@@ -98,7 +98,7 @@ Each phase is intended for one reviewable session. Do not start a later phase un
 - **Database:** none.
 - **Dependencies:** completed 7A and functioning Docker API/web.
 - **Deliverables/acceptance:** full browser flow creates a pending reservation; mobile/desktop RTL presentation works; no sensitive data is exposed; API/web containers healthy.
-- **Validate:** `npm run typecheck --workspace=@cafexa/api`, web type-check/build, API tests, `docker compose up -d --build api web`, interactive availability + OTP + creation, console/error check.
+- **Validate:** `npm run typecheck --workspace=@ucafe/api`, web type-check/build, API tests, `docker compose up -d --build api web`, interactive availability + OTP + creation, console/error check.
 - **Completion note:** same-origin tenant-host forwarding and the complete availability → OTP → pending-reservation browser flow were verified against rebuilt Docker services on 2026-08-27.
 - **Do not:** owner dashboard, SMS production integration or table maps.
 

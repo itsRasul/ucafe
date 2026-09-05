@@ -4,7 +4,7 @@ import { TenantsService } from "../tenants/tenants.service";
 
 async function run() {
   const [name, slug] = process.argv.slice(2);
-  if (!name || !slug) throw new Error('Usage: npm run tenant:provision --workspace=@cafexa/api -- "Cafe name" "cafe-slug"');
+  if (!name || !slug) throw new Error('Usage: npm run tenant:provision --workspace=@ucafe/api -- "Cafe name" "cafe-slug"');
 
   const app = await NestFactory.createApplicationContext(AppModule, { logger: ["error", "warn", "log"] });
   try {

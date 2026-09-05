@@ -7,7 +7,7 @@ class WorkerModule {}
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(WorkerModule);
   app.enableShutdownHooks();
-  Logger.log("Cafexa worker is ready", "Bootstrap");
+  Logger.log("ucafe worker is ready", "Bootstrap");
 }
 
 void bootstrap();

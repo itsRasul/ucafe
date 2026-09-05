@@ -1,4 +1,4 @@
-name: cafexa
+name: ucafe
 
 services:
   api:
@@ -10,9 +10,9 @@ services:
     environment:
       NODE_ENV: development
       API_PORT: 3001
-      PLATFORM_NAME: Cafexa
-      PLATFORM_NAME_FA: کافکسا
-      PLATFORM_BASE_DOMAIN: cafexa.localhost
+      PLATFORM_NAME: ucafe
+      PLATFORM_NAME_FA: یو کافه
+      PLATFORM_BASE_DOMAIN: u-cafe.localhost
       ACCESS_TOKEN_SECRET: development-only-access-secret-change-before-production
       AUTH_PEPPER: development-only-auth-pepper-change-before-production
       PII_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
@@ -25,16 +25,16 @@ services:
       OTP_IP_HOURLY_LIMIT: 20
       TRUST_PROXY_HOPS: 0
       INTERNAL_PROXY_SECRET: development-only-internal-proxy-secret-change-me
-      DATABASE_URL: postgresql://cafexa:cafexa@postgres:5432/cafexa
+      DATABASE_URL: postgresql://ucafe:ucafe@postgres:5432/ucafe
       REDIS_URL: redis://redis:6379
       S3_ENDPOINT: http://minio:9000
       S3_REGION: us-east-1
-      S3_BUCKET: cafexa-media
-      S3_ACCESS_KEY: cafexa
+      S3_BUCKET: ucafe-media
+      S3_ACCESS_KEY: ucafe
       S3_SECRET_KEY: change-me-in-local-env
       SMS_PROVIDER: development
-      KAVENEGAR_OTP_TEMPLATE: cafexa-otp
-      KAVENEGAR_RESERVATION_CONFIRMED_TEMPLATE: cafexa-reservation-confirmed
+      KAVENEGAR_OTP_TEMPLATE: ucafe-otp
+      KAVENEGAR_RESERVATION_CONFIRMED_TEMPLATE: ucafe-reservation-confirmed
       PAYMENT_PROVIDER: simulated
       PAYMENT_CALLBACK_BASE_URL: http://localhost:3001
     ports:
@@ -58,7 +58,7 @@ services:
       NODE_ENV: production
       PORT: 3000
       API_INTERNAL_URL: http://api:3001/api/v1
-      PLATFORM_BASE_DOMAIN: cafexa.localhost
+      PLATFORM_BASE_DOMAIN: u-cafe.localhost
       INTERNAL_PROXY_SECRET: development-only-internal-proxy-secret-change-me
     ports:
       - "3000:3000"
@@ -70,15 +70,15 @@ services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: cafexa
-      POSTGRES_USER: cafexa
-      POSTGRES_PASSWORD: cafexa
+      POSTGRES_DB: ucafe
+      POSTGRES_USER: ucafe
+      POSTGRES_PASSWORD: ucafe
     ports:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cafexa -d cafexa"]
+      test: ["CMD-SHELL", "pg_isready -U ucafe -d ucafe"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -99,7 +99,7 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: cafexa
+      MINIO_ROOT_USER: ucafe
       MINIO_ROOT_PASSWORD: change-me-in-local-env
     ports:
       - "9000:9000"

@@ -1,6 +1,6 @@
 ARG NODE_IMAGE=node:22-alpine
 FROM ${NODE_IMAGE}
-WORKDIR /cafexa
+WORKDIR /ucafe
 COPY node_modules ./node_modules
 COPY apps/api/dist ./apps/api/dist
 EXPOSE 3001

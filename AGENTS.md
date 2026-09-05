@@ -1,4 +1,4 @@
-# Cafexa execution rules
+# ucafe execution rules
 
 Read `docs/PROJECT_SPEC.md`, `docs/ARCHITECTURE.md`, `docs/PLAN.md`, `docs/PROGRESS.md`, and `docs/DECISIONS.md` before changing code. `docs/PROGRESS.md` is the continuation checkpoint.
 
@@ -40,8 +40,8 @@ npm run dev:web
 npm run build
 npm run typecheck
 npm test
-npm run migration:show --workspace=@cafexa/api
-npm run migration:run --workspace=@cafexa/api
+npm run migration:show --workspace=@ucafe/api
+npm run migration:run --workspace=@ucafe/api
 docker compose up -d --build
 docker compose ps
 ```

@@ -9,7 +9,7 @@ type ApiError = { message?: string | string[] };
 type SessionContext = { access: Access; api: <T>(path: string, init?: RequestInit) => Promise<T>; signOut: () => Promise<void> };
 
 const AdminSessionContext = createContext<SessionContext | null>(null);
-const accessKey = "cafexa_owner_access";
+const accessKey = "ucafe_owner_access";
 
 function messageFor(response: Response, body: ApiError) {
   const detail = Array.isArray(body.message) ? body.message[0] : body.message;
@@ -98,18 +98,18 @@ function AdminLogin({ onAuthenticated }: { onAuthenticated: (token: string) => P
 
   return <main className="admin-entry auth-entry">
     <aside className="auth-visual" aria-label="فضای آرام یک کافه">
-      <img src="/auth/cafexa-auth-cafe.jpg" alt="میز چوبی کافه با قهوه، کروسان و کتاب" />
-      <div className="auth-visual-caption" aria-hidden="true"><span>CAFEXA</span><p>مدیریت کافه، ساده و یک‌جا.</p></div>
+      <img src="/auth/ucafe-auth-cafe.jpg" alt="میز چوبی کافه با قهوه، کروسان و کتاب" />
+      <div className="auth-visual-caption" aria-hidden="true"><span>ucafe</span><p>مدیریت کافه، ساده و یک‌جا.</p></div>
     </aside>
     <section className="admin-login auth-card" aria-labelledby="admin-login-title">
-      <div className="auth-brand" aria-label="کافکسا">
+      <div className="auth-brand" aria-label="یو کافه">
         <span className="auth-brand-mark" aria-hidden="true" />
-        <strong dir="ltr">Cafexa</strong>
+        <strong dir="ltr">ucafe</strong>
       </div>
 
       <div className="auth-copy">
         <p className="eyebrow">پنل مدیریت کافه</p>
-        <h1 id="admin-login-title">{challengeId ? "کد تأیید" : "ورود به کافکسا"}</h1>
+        <h1 id="admin-login-title">{challengeId ? "کد تأیید" : "ورود به یو کافه"}</h1>
         <p>{challengeId ? <>کد شش‌رقمی ارسال‌شده به <bdi dir="ltr">{phone}</bdi> را وارد کنید.</> : "برای دسترسی به بخش‌های مجاز، شماره ثبت‌شده کافه را وارد کنید."}</p>
       </div>
 

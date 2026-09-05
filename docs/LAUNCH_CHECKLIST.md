@@ -1,4 +1,4 @@
-# Cafexa MVP launch checklist
+# ucafe MVP launch checklist
 
 ## Automated gates
 

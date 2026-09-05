@@ -22,9 +22,9 @@ test("Zarinpal adapter sends the documented request and verification payloads", 
   }) as typeof fetch;
   context.after(() => { global.fetch = originalFetch; });
   const gateway = new ZarinpalGateway(new ConfigService({ ZARINPAL_MERCHANT_ID: "00000000-0000-0000-0000-000000000000" }));
-  const requested = await gateway.request({ amountRial: 2_500_000, callbackUrl: "https://cafexa.test/callback", description: "Silver" });
+  const requested = await gateway.request({ amountRial: 2_500_000, callbackUrl: "https://u-cafe.test/callback", description: "Silver" });
   assert.equal(requested.paymentUrl, "https://www.zarinpal.com/pg/StartPay/A000-test");
-  assert.deepEqual(calls[0]?.body, { merchant_id: "00000000-0000-0000-0000-000000000000", amount: 2_500_000, callback_url: "https://cafexa.test/callback", description: "Silver" });
+  assert.deepEqual(calls[0]?.body, { merchant_id: "00000000-0000-0000-0000-000000000000", amount: 2_500_000, callback_url: "https://u-cafe.test/callback", description: "Silver" });
   assert.equal((await gateway.verify({ authority: "A000-test", amountRial: 2_500_000 })).reference, "98765");
   assert.deepEqual(calls[1]?.body, { merchant_id: "00000000-0000-0000-0000-000000000000", amount: 2_500_000, authority: "A000-test" });
 });

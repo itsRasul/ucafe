@@ -1,4 +1,4 @@
-param([string]$TenantHost = "phase4c-cafe.cafexa.localhost")
+param([string]$TenantHost = "phase4c-cafe.u-cafe.localhost")
 $ErrorActionPreference = "Stop"
 $api = Invoke-WebRequest "http://localhost:3001/api/v1/health/ready"
 $web = Invoke-WebRequest "http://localhost:3000/health"

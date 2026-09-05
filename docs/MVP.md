@@ -1,8 +1,8 @@
-# Cafexa MVP
+# ucafe MVP
 
 ## Product promise
 
-Cafexa provisions a premium Persian-first website for an independent coffee shop without deploying a separate application for each tenant.
+ucafe provisions a premium Persian-first website for an independent coffee shop without deploying a separate application for each tenant.
 
 ## Launch scope
 

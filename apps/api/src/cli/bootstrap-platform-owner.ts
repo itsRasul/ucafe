@@ -4,7 +4,7 @@ import { PlatformBootstrapService } from "../authorization/platform-bootstrap.se
 
 async function run() {
   const [phone] = process.argv.slice(2);
-  if (!phone) throw new Error('Usage: npm run platform:bootstrap --workspace=@cafexa/api -- "09121234567"');
+  if (!phone) throw new Error('Usage: npm run platform:bootstrap --workspace=@ucafe/api -- "09121234567"');
 
   const app = await NestFactory.createApplicationContext(AppModule, { logger: ["error", "warn", "log"] });
   try {

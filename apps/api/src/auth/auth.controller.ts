@@ -7,7 +7,7 @@ import { AuthenticationResult, AuthenticationService } from "./authentication.se
 import { RequestOtpDto } from "./dto/request-otp.dto";
 import { VerifyOtpDto } from "./dto/verify-otp.dto";
 
-const REFRESH_COOKIE = "cafexa_refresh";
+const REFRESH_COOKIE = "ucafe_refresh";
 
 @Controller("auth")
 export class AuthController {

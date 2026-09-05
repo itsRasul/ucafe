@@ -20,7 +20,7 @@ export class TenantContextMiddleware implements NestMiddleware {
   ) {}
 
   async use(request: TenantContextRequest, _response: Response, next: NextFunction): Promise<void> {
-    const forwardedTenantHost = trustedForwardedTenantHost(request.headers["x-cafexa-tenant-host"], request.headers["x-cafexa-proxy-secret"], this.config.getOrThrow<string>("INTERNAL_PROXY_SECRET"));
+    const forwardedTenantHost = trustedForwardedTenantHost(request.headers["x-ucafe-tenant-host"], request.headers["x-ucafe-proxy-secret"], this.config.getOrThrow<string>("INTERNAL_PROXY_SECRET"));
     const rawHost = forwardedTenantHost ?? request.headers.host;
     if (!rawHost) return next();
 
