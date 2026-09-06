@@ -1,8 +1,47 @@
+# ARG NODE_IMAGE=node:22-alpine
+# FROM ${NODE_IMAGE}
+# WORKDIR /ucafe
+# COPY apps/web/.next/standalone ./
+# COPY apps/web/.next/static ./apps/web/.next/static
+# COPY apps/web/public ./apps/web/public
+# EXPOSE 3000
+# CMD ["node", "apps/web/server.js"]
+
+
+
+
+
+
 ARG NODE_IMAGE=node:22-alpine
-FROM ${NODE_IMAGE}
+
+# -------------------------
+# Build stage
+# -------------------------
+FROM ${NODE_IMAGE} AS builder
+
 WORKDIR /ucafe
-COPY apps/web/.next/standalone ./
-COPY apps/web/.next/static ./apps/web/.next/static
-COPY apps/web/public ./apps/web/public
+
+COPY . .
+
+RUN npm ci
+
+RUN npm run build --workspace=@ucafe/web
+
+
+# -------------------------
+# Production stage
+# -------------------------
+FROM ${NODE_IMAGE} AS runner
+
+WORKDIR /ucafe
+
+ENV NODE_ENV=production
+ENV PORT=3000
+
+COPY --from=builder /ucafe/apps/web/.next/standalone ./
+COPY --from=builder /ucafe/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder /ucafe/apps/web/public ./apps/web/public
+
 EXPOSE 3000
+
 CMD ["node", "apps/web/server.js"]
