@@ -1,4 +1,5 @@
 import type { PublicOffering } from "./tenant-public-data";
+import { BrandLogo } from "./brand-logo";
 import { PlatformLandingMotion } from "./platform-landing-motion";
 import { PlatformMobileNav } from "./platform-mobile-nav";
 import { PlatformOrderForm } from "./platform-order-form";
@@ -24,7 +25,7 @@ export function PlatformLanding({ offering }: { offering: PublicOffering | null 
     <PlatformLandingMotion />
     <header className="platform-header">
       <nav className="platform-nav" aria-label="راهبری اصلی">
-        <a className="platform-brand" href="#top" aria-label="یو کافه، صفحه اصلی"><span>U</span><strong>یو کافه</strong><small>ucafe</small></a>
+        <a className="platform-brand" href="#top" aria-label="یو کافه، صفحه اصلی"><BrandLogo className="platform-brand-logo" variant="mark" /><strong>یو کافه</strong><small>ucafe</small></a>
         <div className="platform-nav-links"><a href="#services">خدمات</a><a href="#process">روند همکاری</a><a href="#pricing">تعرفه</a></div>
         <a className="nav-cta" href="#request">درخواست مشاوره</a>
         <PlatformMobileNav />
@@ -90,6 +91,6 @@ export function PlatformLanding({ offering }: { offering: PublicOffering | null 
 
     <section className="platform-request" id="request" aria-labelledby="request-title"><div className="request-copy"><p>شروع یک همکاری خوب</p><h2 id="request-title">کافه‌تان را معرفی کنید؛ ما در اولین فرصت تماس می‌گیریم.</h2><span>این فرم قرارداد یا پرداخت نیست. فقط کمک می‌کند گفت‌وگوی اول دقیق‌تر و کوتاه‌تر باشد.</span></div><PlatformOrderForm /></section>
 
-    <footer className="platform-footer"><a className="platform-brand" href="#top"><span>U</span><strong>یو کافه</strong><small>ucafe</small></a><p>خانه دیجیتال کافه‌های حرفه‌ای</p><div><a href="#services">خدمات</a><a href="#pricing">تعرفه</a><a href="#request">درخواست همکاری</a></div><small>© {new Date().getFullYear()} یو کافه. تمامی حقوق محفوظ است.</small></footer>
+    <footer className="platform-footer"><a className="platform-brand" href="#top"><BrandLogo className="platform-brand-logo" variant="mark" /><strong>یو کافه</strong><small>ucafe</small></a><p>خانه دیجیتال کافه‌های حرفه‌ای</p><div><a href="#services">خدمات</a><a href="#pricing">تعرفه</a><a href="#request">درخواست همکاری</a></div><small>© {new Date().getFullYear()} یو کافه. تمامی حقوق محفوظ است.</small></footer>
   </main>;
 }

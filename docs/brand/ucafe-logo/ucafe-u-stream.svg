@@ -1,0 +1,11 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" style="color:#f7f2e8">
+  <title id="title">ucafe U Stream logo</title>
+  <desc id="desc">A refined U monogram with internal flowing signal lines.</desc>
+  <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 27 22 V 56 C 27 74 38 84 50 84 C 62 84 73 74 73 56 V 22" stroke-width="5"/>
+    <path d="M 37 24 V 57 C 37 67 43 73 50 73 C 57 73 63 67 63 57 V 24" stroke-width="2.8" opacity="0.62"/>
+    <path d="M 47 25 V 56 C 47 60 48 63 50 65" stroke-width="2.2" opacity="0.34"/>
+    <path d="M 82 38 C 72 37 68 34 63 29" stroke-width="2.8" opacity="0.78"/>
+  </g>
+  <circle cx="83" cy="38" r="3.2" fill="currentColor"/>
+</svg>

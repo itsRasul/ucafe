@@ -1,0 +1,11 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" style="color:#f7f2e8">
+  <title id="title">ucafe U Orbit logo</title>
+  <desc id="desc">A futuristic U mark with an offset orbit and small digital node.</desc>
+  <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 28 24 V 57 C 28 74 39 84 50 84 C 61 84 72 74 72 57 V 24" stroke-width="9"/>
+    <path d="M 23 50 A 31 31 0 1 1 70 77" stroke-width="3" opacity="0.72"/>
+    <path d="M 75 24 A 39 39 0 0 1 86 48" stroke-width="3" opacity="0.32"/>
+  </g>
+  <circle cx="77" cy="27" r="4.5" fill="currentColor"/>
+  <circle cx="22" cy="50" r="2.5" fill="currentColor" opacity="0.55"/>
+</svg>

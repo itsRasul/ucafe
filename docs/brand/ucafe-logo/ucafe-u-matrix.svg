@@ -1,0 +1,23 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" style="color:#f7f2e8">
+  <title id="title">ucafe U Matrix logo</title>
+  <desc id="desc">A dot-matrix U mark suggesting a digital cafe network.</desc>
+  <defs>
+    <circle id="dot" r="3.2" fill="currentColor"/>
+  </defs>
+  <g>
+    <use href="#dot" x="31" y="22"/>
+    <use href="#dot" x="31" y="34"/>
+    <use href="#dot" x="31" y="46"/>
+    <use href="#dot" x="32" y="58"/>
+    <use href="#dot" x="36" y="69"/>
+    <use href="#dot" x="45" y="77"/>
+    <use href="#dot" x="56" y="77"/>
+    <use href="#dot" x="65" y="69"/>
+    <use href="#dot" x="69" y="58"/>
+    <use href="#dot" x="69" y="46"/>
+    <use href="#dot" x="69" y="34"/>
+    <use href="#dot" x="69" y="22"/>
+    <use href="#dot" x="50" y="67" opacity="0.36"/>
+    <use href="#dot" x="50" y="55" opacity="0.22"/>
+  </g>
+</svg>

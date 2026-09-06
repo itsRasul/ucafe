@@ -1,0 +1,11 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" style="color:#f7f2e8">
+  <title id="title">ucafe U Signal logo</title>
+  <desc id="desc">An angular U monogram with an espresso-like signal pulse.</desc>
+  <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 27 20 L 27 57 C 27 74 38 84 50 84 C 62 84 73 74 73 57 L 73 20" stroke-width="6"/>
+    <path d="M 19 40 H 37" stroke-width="3" opacity="0.3"/>
+    <path d="M 63 40 H 81" stroke-width="3" opacity="0.3"/>
+    <path d="M 40 41 C 45 33 55 33 60 41 C 64 47 69 47 75 42" stroke-width="3"/>
+    <path d="M 40 53 C 45 45 55 45 60 53 C 64 59 69 59 75 54" stroke-width="2.2" opacity="0.42"/>
+  </g>
+</svg>

@@ -2,6 +2,7 @@
 
 import { ClipboardEvent, FormEvent, KeyboardEvent, createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { BrandLogo } from "../brand-logo";
 
 export type TenantPermission = "site.manage" | "menu.read" | "menu.manage" | "reservations.read" | "reservations.manage" | "staff.manage" | "subscription.read" | "subscription.checkout";
 type Access = { tenant: { slug: string; status: string; locale: string; timezone: string }; permissions: TenantPermission[] };
@@ -103,7 +104,7 @@ function AdminLogin({ onAuthenticated }: { onAuthenticated: (token: string) => P
     </aside>
     <section className="admin-login auth-card" aria-labelledby="admin-login-title">
       <div className="auth-brand" aria-label="یو کافه">
-        <span className="auth-brand-mark" aria-hidden="true" />
+        <BrandLogo className="auth-brand-logo" variant="mark" />
         <strong dir="ltr">ucafe</strong>
       </div>
 

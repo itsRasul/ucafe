@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ucafe - U Logo Concepts</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #080b12;
+      --panel: #101620;
+      --ink: #f7f2e8;
+      --muted: #9eaaae;
+      --line: rgba(247, 242, 232, 0.14);
+      --cyan: #20d3cf;
+      --coffee: #c99a5b;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(32, 211, 207, 0.14), transparent 28rem),
+        radial-gradient(circle at 85% 80%, rgba(201, 154, 91, 0.12), transparent 24rem),
+        var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    main {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 72px 0;
+    }
+
+    header {
+      display: grid;
+      gap: 16px;
+      margin-bottom: 44px;
+    }
+
+    .eyebrow {
+      color: var(--cyan);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 780px;
+      font-size: clamp(42px, 8vw, 86px);
+      line-height: 0.92;
+      font-weight: 750;
+    }
+
+    .intro {
+      max-width: 660px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.7;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    article {
+      min-height: 360px;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--panel) 88%, transparent);
+      display: grid;
+      align-content: space-between;
+      transition: border-color 180ms ease, transform 180ms ease;
+    }
+
+    article:hover {
+      border-color: rgba(32, 211, 207, 0.55);
+      transform: translateY(-3px);
+    }
+
+    .mark {
+      inline-size: 150px;
+      block-size: 150px;
+      display: grid;
+      place-items: center;
+      color: var(--ink);
+      margin-bottom: 28px;
+    }
+
+    .mark svg {
+      width: 100%;
+      height: 100%;
+      filter: drop-shadow(0 14px 36px rgba(32, 211, 207, 0.16));
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 21px;
+      line-height: 1.15;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.65;
+      font-size: 14px;
+    }
+
+    .tag {
+      display: inline-flex;
+      width: fit-content;
+      margin-top: 18px;
+      padding: 6px 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--coffee);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    footer {
+      margin-top: 40px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 860px) {
+      main { padding: 48px 0; }
+      .grid { grid-template-columns: 1fr; }
+      article { min-height: 0; }
+      .mark { inline-size: 128px; block-size: 128px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="eyebrow">ucafe brand exploration</div>
+      <h1>Futuristic U marks for a modern cafe platform.</h1>
+      <p class="intro">Six distinct vector concepts built around the letter U: digital, modular, signal-led, and cafe-adjacent without becoming a generic coffee cup.</p>
+    </header>
+
+    <section class="grid" aria-label="ucafe logo concepts">
+      <article>
+        <div>
+          <div class="mark"><img src="ucafe-u-orbit.svg" alt="ucafe U Orbit logo"></div>
+          <h2>U Orbit</h2>
+          <p>A bold U with an offset orbit for platform energy, tenant motion, and a sharper future-facing silhouette.</p>
+        </div>
+        <span class="tag">recommended primary</span>
+      </article>
+
+      <article>
+        <div>
+          <div class="mark"><img src="ucafe-u-capsule.svg" alt="ucafe U Capsule logo"></div>
+          <h2>U Capsule</h2>
+          <p>Rounded modular blocks make the U feel like a product icon: compact, scalable, and friendly enough for cafe owners.</p>
+        </div>
+        <span class="tag">app icon</span>
+      </article>
+
+      <article>
+        <div>
+          <div class="mark"><img src="ucafe-u-stream.svg" alt="ucafe U Stream logo"></div>
+          <h2>U Stream</h2>
+          <p>Nested U strokes suggest data flow, reservations, and menu updates moving through one clean operating system.</p>
+        </div>
+        <span class="tag">premium SaaS</span>
+      </article>
+
+      <article>
+        <div>
+          <div class="mark"><img src="ucafe-u-matrix.svg" alt="ucafe U Matrix logo"></div>
+          <h2>U Matrix</h2>
+          <p>A dot-matrix U with a softer bottom curve, built for digital networks and multi-tenant structure.</p>
+        </div>
+        <span class="tag">digital system</span>
+      </article>
+
+      <article>
+        <div>
+          <div class="mark"><img src="ucafe-u-signal.svg" alt="ucafe U Signal logo"></div>
+          <h2>U Signal</h2>
+          <p>A strong U frame crossed by a subtle espresso-steam signal, blending coffee culture with a modern tech read.</p>
+        </div>
+        <span class="tag">cafe-tech blend</span>
+      </article>
+
+      <article>
+        <div>
+          <div class="mark"><img src="ucafe-u-nodes.svg" alt="ucafe U Nodes logo"></div>
+          <h2>U Nodes</h2>
+          <p>Connected endpoints turn the U into a small tenant network: cafes, branches, menus, and guests in one loop.</p>
+        </div>
+        <span class="tag">platform network</span>
+      </article>
+    </section>
+
+    <footer>SVG files use currentColor, so they can inherit any brand color in the app.</footer>
+  </main>
+</body>
+</html>

@@ -1,0 +1,17 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" style="color:#f7f2e8">
+  <title id="title">ucafe U Nodes logo</title>
+  <desc id="desc">A connected U symbol for a multi-tenant cafe platform.</desc>
+  <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 29 25 V 57 C 29 75 40 84 50 84 C 60 84 71 75 71 57 V 25" stroke-width="4"/>
+    <path d="M 29 34 Q 50 20 71 34" stroke-width="2.2" opacity="0.46"/>
+    <path d="M 33 69 Q 50 57 67 69" stroke-width="2.2" opacity="0.46"/>
+  </g>
+  <g fill="currentColor">
+    <circle cx="29" cy="25" r="4.2"/>
+    <circle cx="71" cy="25" r="4.2"/>
+    <circle cx="50" cy="84" r="5"/>
+    <circle cx="38" cy="27" r="2.2" opacity="0.38"/>
+    <circle cx="62" cy="27" r="2.2" opacity="0.38"/>
+    <circle cx="78" cy="48" r="2.8" opacity="0.58"/>
+  </g>
+</svg>

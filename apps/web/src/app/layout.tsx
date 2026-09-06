@@ -8,6 +8,13 @@ import "@majidh1/jalalidatepicker/dist/jalalidatepicker.min.css";
 export const metadata: Metadata = {
   title: "یو کافه | ucafe",
   description: "پلتفرم حرفه‌ای وب‌سایت کافی‌شاپ‌ها",
+  icons: {
+    icon: [
+      { url: "/brand/ucafe-icon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/brand/ucafe-icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/brand/ucafe-icon-180.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
