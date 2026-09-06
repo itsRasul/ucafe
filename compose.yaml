@@ -6,7 +6,8 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
       args:
-        NODE_IMAGE: backend-app:latest
+        # NODE_IMAGE: backend-app:latest
+        NODE_IMAGE: node:22-alpine
     environment:
       NODE_ENV: development
       API_PORT: 3001
@@ -53,7 +54,8 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        NODE_IMAGE: backend-app:latest
+        # NODE_IMAGE: backend-app:latest
+        NODE_IMAGE: node:22-alpine
     environment:
       NODE_ENV: production
       PORT: 3000
