@@ -268,3 +268,17 @@ Entries distinguish confirmed decisions from pending questions. Dates reflect th
 - **Decision:** reservation public and tenant-admin screens accept/display Jalali dates, converting at the frontend boundary to the existing ISO `YYYY-MM-DD` API contract.
 - **Reasoning:** Persian-first reservation UX needs Jalali dates, while availability rules, PostgreSQL date storage and existing tests already rely on ISO values.
 - **Consequences:** no schema migration is required. Backend DTOs, capacity locks and filters stay unchanged; future visual datepicker packages must still submit ISO values to the API.
+
+## D-033 — Reference-matched owner admin visual system
+
+- **Status:** accepted and implemented on 2026-09-06
+- **Decision:** redesign only the tenant owner/staff admin under `/admin` as a compact Persian RTL SaaS console closely matching the supplied light reference: pale sidebar, top toolbar, cyan active states, thin dividers, dense panels and restrained controls.
+- **Reasoning:** cafe owners need the existing operational workflows to feel clearer and more professional without changing product behavior or mixing platform administration into tenant management.
+- **Consequences:** the change is frontend visual/structural only. Existing owner-admin routes, permission filtering, OTP/session behavior, Jalali date UI boundary, site/media/menu/reservation/subscription API calls, platform admin and public storefront behavior remain unchanged; no schema migration is required.
+
+## D-034 — Reference-matched platform admin visual system
+
+- **Status:** accepted and implemented on 2026-09-06
+- **Decision:** redesign only the platform admin under `/platform` as a compact Persian RTL SaaS control center matching the supplied light reference: pale sidebar, compact topbar/search, cyan active states, dense list/detail operations, restrained status badges, refreshed entry/login states and mobile bottom navigation.
+- **Reasoning:** platform operators need provisioning, subscription, user, role and audit workflows to feel clearer and more operationally polished without changing platform authority, tenant isolation or backend contracts.
+- **Consequences:** the change is frontend visual/structural only. Existing platform views, OTP/session handling, permission filtering, tenant provisioning, subscription lifecycle, plan, user, role, permission-catalog and audit API calls remain unchanged; `/admin`, public storefronts, schemas and migrations are untouched.
