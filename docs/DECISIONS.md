@@ -282,3 +282,10 @@ Entries distinguish confirmed decisions from pending questions. Dates reflect th
 - **Decision:** redesign only the platform admin under `/platform` as a compact Persian RTL SaaS control center matching the supplied light reference: pale sidebar, compact topbar/search, cyan active states, dense list/detail operations, restrained status badges, refreshed entry/login states and mobile bottom navigation.
 - **Reasoning:** platform operators need provisioning, subscription, user, role and audit workflows to feel clearer and more operationally polished without changing platform authority, tenant isolation or backend contracts.
 - **Consequences:** the change is frontend visual/structural only. Existing platform views, OTP/session handling, permission filtering, tenant provisioning, subscription lifecycle, plan, user, role, permission-catalog and audit API calls remain unchanged; `/admin`, public storefronts, schemas and migrations are untouched.
+
+## D-035 — Shared ucafe logo asset
+
+- **Status:** accepted and implemented on 2026-09-06
+- **Decision:** use the user-supplied transparent SVG logo as the shared visible ucafe brand asset across the platform landing, tenant storefront fallback branding, unavailable state, owner admin, platform admin and authentication entry states. Keep small generated PNG fallbacks for favicon/apple-touch metadata.
+- **Reasoning:** one canonical displayed asset avoids mismatched text/CSS placeholder marks while the SVG wrapper lets layout scale the supplied transparent logo consistently.
+- **Consequences:** tenant-uploaded cafe logos still take precedence in tenant public header/footer where available; the shared ucafe mark appears only where the platform brand or fallback logo is needed. No schema, API or media-upload behavior changes are required.

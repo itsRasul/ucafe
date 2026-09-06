@@ -7,7 +7,7 @@ export function BrandLogo({ className, variant = "lockup" }: BrandLogoProps) {
   return (
     <img
       className={className}
-      src={variant === "mark" ? "/brand/ucafe-icon-512.png" : "/brand/ucafe-logo.png"}
+      src="/brand/ucafe-logo.svg"
       alt=""
       aria-hidden="true"
       width={variant === "mark" ? 512 : 1381}

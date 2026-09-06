@@ -5,7 +5,7 @@
 .admin-frame{width:min(100%,108rem);min-height:calc(100svh - clamp(1.5rem,4vw,4.8rem));margin:auto;display:grid;grid-template-columns:14rem minmax(0,1fr);overflow:hidden;border:1px solid #dfe6ee;border-radius:1.15rem;background:#fbfcfe;box-shadow:0 1.5rem 4rem rgb(15 23 42/14%)}
 .admin-sidebar{min-width:0;display:flex;flex-direction:column;justify-content:space-between;padding:1rem .85rem;background:#f5f7fa;border-left:1px solid #e2e8f0;color:#334155}
 .admin-brand{min-height:3rem;display:flex;align-items:center;gap:.65rem;color:#0f172a;text-decoration:none}
-.admin-brand-logo{width:2.35rem;height:2.35rem;flex:0 0 auto;object-fit:contain;filter:drop-shadow(0 .28rem .55rem rgb(15 23 42/16%))}
+.admin-brand-logo{width:1.85rem;height:1.85rem;flex:0 0 auto;object-fit:contain;filter:drop-shadow(0 .2rem .45rem rgb(15 23 42/14%))}
 .admin-brand div{display:grid;gap:.1rem}.admin-brand strong{font-size:.98rem;font-weight:900;letter-spacing:0}.admin-brand small{font-size:.68rem;color:#64748b}
 .admin-sidebar nav{display:grid;gap:.25rem;margin-top:1.65rem}.admin-sidebar nav a{min-height:2.45rem;display:flex;align-items:center;gap:.55rem;padding:.55rem .65rem;border-radius:.55rem;color:#475569;text-decoration:none;font-size:.82rem;font-weight:700;transition:background-color .16s ease,color .16s ease}
 .admin-sidebar nav a i,.admin-bottom-nav i,.admin-topbar .nav-icon{width:1.15rem;height:1.15rem;position:relative;display:block;flex:0 0 auto;color:#64748b}
@@ -58,5 +58,5 @@
 @media(max-width:46rem){.auth-entry{min-height:100dvh;grid-template-columns:1fr;grid-template-rows:minmax(14rem,34dvh) auto;overflow:visible}.auth-visual{grid-row:1}.auth-visual::after{background:linear-gradient(180deg,rgb(15 12 9/5%),rgb(15 12 9/42%))}.auth-visual img{object-position:center 59%}.auth-visual-caption{inset:auto 1.4rem 3.2rem}.auth-visual-caption p{font-size:1.2rem}.auth-card{grid-row:2;z-index:2;width:100%;min-height:calc(66dvh + 2rem);margin:-2rem 0 0;padding:2.25rem max(1.25rem,6vw) 2rem;border-width:0;border-radius:2rem 2rem 0 0;box-shadow:0 -1rem 3rem rgb(34 24 19/9%)}.auth-brand{margin-bottom:2.4rem}.auth-brand strong{font-size:1.45rem}.auth-brand-mark{width:2.6rem;height:2.6rem}.auth-brand-mark::before{inset:.55rem auto auto .62rem}.auth-brand-mark::after{inset:.55rem .62rem auto auto}.auth-copy h1{font-size:1.75rem}.auth-card form{margin-top:1.6rem}.auth-otp-inputs{gap:clamp(.3rem,2vw,.55rem)}.auth-card .auth-otp-inputs input{border-radius:.75rem}}
 @media(max-width:22rem){.auth-card{padding-inline:1rem}.auth-otp-inputs{gap:.25rem}.auth-card .auth-otp-inputs input{border-radius:.6rem;font-size:1rem}}
 @media(prefers-reduced-motion:reduce){.auth-card button,.auth-back-link span,.auth-card input{transition:none}}
-.auth-brand-logo{width:3rem;height:3rem;object-fit:contain;filter:drop-shadow(0 .4rem .85rem rgb(64 38 24/16%))}
-@media(max-width:46rem){.auth-brand-logo{width:2.7rem;height:2.7rem}}
+.auth-brand-logo{width:2.35rem;height:2.35rem;object-fit:contain;filter:drop-shadow(0 .3rem .65rem rgb(64 38 24/14%))}
+@media(max-width:46rem){.auth-brand-logo{width:2.1rem;height:2.1rem}}
