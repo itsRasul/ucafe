@@ -9,7 +9,7 @@ services:
         NODE_IMAGE: node:22-alpine
 
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       API_PORT: 3001
 
       PLATFORM_NAME: ucafe
@@ -71,7 +71,7 @@ services:
         NODE_IMAGE: node:22-alpine
 
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: 3000
 
       API_INTERNAL_URL: http://api:3001/api/v1
