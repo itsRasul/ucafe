@@ -1,24 +1,1232 @@
-:root{--oat:#f4eee4;--ivory:#fffaf1;--espresso:#251a15;--caramel:#a85f35;--sage:#68745e}*{box-sizing:border-box}body{margin:0;color:var(--espresso);background:radial-gradient(circle at 15% 10%,rgb(168 95 53/12%),transparent 30rem),var(--oat);font-family:Tahoma,Arial,sans-serif}main{min-height:100svh;display:grid;place-items:center;padding:2rem 1.25rem}section{width:min(100%,64rem);padding:clamp(2rem,7vw,6rem);border:1px solid rgb(37 26 21/10%);border-radius:clamp(1.5rem,4vw,3.5rem);background:rgb(255 250 241/82%);box-shadow:0 2rem 6rem rgb(37 26 21/10%)}.eyebrow{color:var(--caramel);font:700 .78rem/1.5 Arial,sans-serif;letter-spacing:.16em}h1{max-width:15ch;margin:0;font-size:clamp(2.5rem,8vw,6rem);line-height:1.12;letter-spacing:-.035em}.intro{max-width:38rem;color:rgb(37 26 21/76%);font-size:clamp(1rem,2vw,1.25rem);line-height:2}ul{display:grid;gap:.75rem;padding:0;list-style:none}li::before{content:"";display:inline-block;width:.55rem;height:.55rem;margin-inline-end:.75rem;border-radius:50%;background:var(--sage)}.status{display:inline-block;margin-top:1rem;padding:.7rem 1rem;border-radius:99rem;background:rgb(104 116 94/12%);color:var(--sage)}.unavailable-shell{overflow:hidden;background:radial-gradient(circle at 50% -10%,rgb(168 95 53/20%),transparent 34rem),linear-gradient(145deg,#f7f0e6,#e9dfd0)}.unavailable-card{position:relative;max-width:46rem;text-align:center;padding-block:clamp(3rem,10vw,7rem);overflow:hidden}.unavailable-card::before{content:"";position:absolute;inset:auto -10% -45% 35%;height:18rem;border-radius:50%;background:rgb(104 116 94/8%);filter:blur(2px)}.unavailable-card h1{max-width:13ch;margin-inline:auto;font-size:clamp(2.2rem,7vw,4.8rem)}.unavailable-card .intro{margin:1.5rem auto 0}.coffee-mark{width:5.5rem;height:5.5rem;display:grid;place-items:center;margin:0 auto 2rem;border-radius:50%;background:var(--espresso);box-shadow:0 1rem 2.5rem rgb(37 26 21/18%)}.coffee-mark span{width:2rem;height:1.5rem;border:2px solid var(--ivory);border-radius:.2rem .2rem .7rem .7rem;position:relative}.coffee-mark span::after{content:"";position:absolute;inset:.2rem -1rem auto auto;width:.8rem;height:.75rem;border:2px solid var(--ivory);border-right:0;border-radius:.6rem 0 0 .6rem}.quiet-divider{width:3rem;height:1px;margin:2.5rem auto 1rem;background:rgb(37 26 21/20%)}.quiet-note{margin:0;color:rgb(37 26 21/55%);font-size:.9rem}@media(prefers-reduced-motion:no-preference){section{animation:enter .5s ease-out both}.coffee-mark{animation:float 4s ease-in-out infinite}@keyframes enter{from{opacity:0;transform:translateY(12px)}}@keyframes float{50%{transform:translateY(-5px)}}}@media(max-width:40rem){.unavailable-card{padding-inline:1.5rem}.unavailable-card h1{font-size:clamp(2rem,11vw,3rem)}}
-.tenant-home{display:block;padding:0;background:var(--tenant-surface);color:var(--tenant-on-surface)}.tenant-announcement{padding:.7rem 1rem;text-align:center;background:var(--tenant-accent);color:var(--tenant-on-accent);font-size:.88rem}.tenant-home section{border:0;border-radius:0;box-shadow:none;background:transparent}.tenant-hero{min-height:92svh;display:flex;flex-direction:column;justify-content:space-between;background:radial-gradient(circle at 15% 20%,color-mix(in srgb,var(--tenant-accent) 25%,transparent),transparent 35rem),var(--tenant-primary)!important;color:var(--tenant-on-primary)}.tenant-hero nav{display:flex;justify-content:space-between;gap:1rem;align-items:center;padding-bottom:4rem}.tenant-hero nav span{font-size:.82rem;opacity:.72}.tenant-hero-copy h1{max-width:13ch}.tenant-hero .eyebrow,.tenant-hero .intro{color:inherit}.tenant-hero .intro{opacity:.78}.tenant-actions{display:flex;flex-wrap:wrap;gap:.75rem;margin-top:2rem}.tenant-actions a{padding:.9rem 1.3rem;border-radius:1rem;background:var(--tenant-accent);color:var(--tenant-on-accent);text-decoration:none}.tenant-actions .secondary-action{background:transparent;color:inherit;border:1px solid color-mix(in srgb,currentColor 30%,transparent)}.tenant-about{display:grid;gap:1rem;padding-block:clamp(4rem,10vw,8rem)!important}.tenant-about h2,.tenant-info h2{margin:0;font-size:clamp(2rem,5vw,4rem)}.tenant-about>p:last-child{max-width:48rem;line-height:2;color:color-mix(in srgb,currentColor 72%,transparent)}.tenant-info{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(2rem,8vw,8rem);background:color-mix(in srgb,var(--tenant-primary) 8%,var(--tenant-surface))!important}.tenant-info a{display:block;width:max-content;margin-top:.75rem;color:inherit}.tenant-info dl{margin:1.5rem 0 0}.tenant-info dl div{display:flex;justify-content:space-between;gap:2rem;padding:.7rem 0;border-bottom:1px solid color-mix(in srgb,currentColor 12%,transparent)}.tenant-info dd{margin:0}.radius-rounded .tenant-actions a{border-radius:99rem}.radius-editorial .tenant-actions a{border-radius:.15rem}@media(max-width:44rem){.tenant-info{grid-template-columns:1fr}.tenant-hero{min-height:85svh}.tenant-hero nav{padding-bottom:3rem}}
-.tenant-menu{padding-block:clamp(4rem,10vw,8rem)!important;background:color-mix(in srgb,var(--tenant-accent) 5%,var(--tenant-surface))!important}.tenant-menu header{display:grid;gap:.5rem;margin-bottom:3rem}.tenant-menu h2{margin:0;font-size:clamp(2.2rem,6vw,4.5rem)}.tenant-menu header>p:last-child,.category-heading p,.menu-item p{color:color-mix(in srgb,currentColor 65%,transparent)}.menu-categories{display:grid;gap:4rem}.menu-category{display:grid;grid-template-columns:minmax(10rem,1fr) minmax(0,2.2fr);gap:clamp(1.5rem,6vw,5rem)}.category-heading h3{position:sticky;top:1rem;margin:0;font-size:clamp(1.5rem,3vw,2.3rem)}.menu-items{display:grid}.menu-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1.5rem;padding:1.5rem 0;border-bottom:1px solid color-mix(in srgb,currentColor 13%,transparent)}.menu-item:first-child{padding-top:0}.menu-item.unavailable{opacity:.5}.item-title{display:flex;flex-wrap:wrap;align-items:center;gap:.65rem}.item-title h4{margin:0;font-size:1.15rem}.item-title span{padding:.25rem .55rem;border-radius:99rem;background:var(--tenant-accent);color:var(--tenant-on-accent);font-size:.7rem}.menu-item p{margin:.5rem 0 0;line-height:1.8}.menu-item small{display:block;margin-top:.5rem;color:var(--tenant-accent)}.item-prices{display:grid;justify-items:end;align-content:start;gap:.35rem;white-space:nowrap}.item-prices span{font-size:.88rem}.menu-empty{padding:3rem;border:1px dashed color-mix(in srgb,currentColor 20%,transparent);text-align:center}.radius-rounded .menu-empty{border-radius:2rem}.radius-soft .menu-empty{border-radius:1rem}@media(max-width:44rem){.menu-category{grid-template-columns:1fr;gap:1rem}.category-heading h3{position:static}.menu-item{grid-template-columns:1fr;gap:.8rem}.item-prices{justify-items:start}.tenant-menu{padding-inline:1.25rem!important}}
+:root {
+    --oat: #f4eee4;
+    --ivory: #fffaf1;
+    --espresso: #251a15;
+    --caramel: #a85f35;
+    --sage: #68745e
+}
 
-.reserve-page{min-height:100svh;padding:clamp(1rem,4vw,3rem);background:radial-gradient(circle at 80% 0,color-mix(in srgb,var(--tenant-accent) 22%,transparent),transparent 28rem),var(--tenant-surface);color:var(--tenant-on-surface)}.reserve-card{width:min(100%,44rem);min-height:min(48rem,calc(100svh - 2rem));padding:clamp(1.25rem,5vw,3rem);background:color-mix(in srgb,var(--tenant-surface) 92%,white);border:1px solid color-mix(in srgb,var(--tenant-on-surface) 10%,transparent);border-radius:2rem;box-shadow:0 2rem 6rem color-mix(in srgb,var(--tenant-primary) 12%,transparent)}.reserve-header{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:1rem}.reserve-header>a{display:grid;place-items:center;width:2.75rem;height:2.75rem;border:1px solid color-mix(in srgb,currentColor 14%,transparent);border-radius:50%;color:inherit;text-decoration:none;font-size:1.3rem}.reserve-header .eyebrow{margin:0}.reserve-header h1{margin:.15rem 0 0;font-size:clamp(1.5rem,5vw,2.2rem);letter-spacing:0}.reserve-header>span{font-size:.78rem;opacity:.55}.reserve-progress{height:3px;margin:1.5rem 0 3rem;border-radius:99rem;background:color-mix(in srgb,currentColor 9%,transparent);overflow:hidden}.reserve-progress i{display:block;height:100%;background:var(--tenant-accent);transition:width .3s ease}.reserve-card h2{margin:0;font-size:clamp(1.7rem,6vw,2.7rem)}.form-hint{margin:.65rem 0 2rem;color:color-mix(in srgb,currentColor 62%,transparent);line-height:1.8}.reserve-card form{display:grid;gap:1.1rem}.reserve-card label{display:grid;gap:.55rem;font-weight:700;font-size:.9rem}.reserve-card label small{font-weight:400;opacity:.55}.reserve-card input,.reserve-card select,.reserve-card textarea{width:100%;min-height:3.25rem;padding:.75rem 1rem;border:1px solid color-mix(in srgb,currentColor 15%,transparent);border-radius:.9rem;background:color-mix(in srgb,var(--tenant-surface) 86%,white);color:inherit;font:inherit;outline:none}.reserve-card textarea{min-height:6rem;resize:vertical}.reserve-card input:focus,.reserve-card select:focus,.reserve-card textarea:focus{border-color:var(--tenant-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--tenant-accent) 16%,transparent)}.reserve-card button,.reservation-success>a{min-height:3.25rem;padding:.8rem 1.2rem;border:0;border-radius:.9rem;background:var(--tenant-accent);color:var(--tenant-on-accent);font:700 .95rem/1.4 inherit;cursor:pointer;text-decoration:none;text-align:center}.reserve-card form>button{margin-top:.65rem}.reserve-card button:disabled{opacity:.45;cursor:not-allowed}.slot-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.65rem;margin:2rem 0}.slot-grid button{background:transparent;color:inherit;border:1px solid color-mix(in srgb,currentColor 16%,transparent);font-family:Arial,sans-serif}.slot-grid button.selected{background:var(--tenant-accent);color:var(--tenant-on-accent);border-color:transparent}.form-actions{display:grid;grid-template-columns:auto 1fr;gap:.75rem}.reserve-card .text-button{background:transparent;color:inherit;border:1px solid color-mix(in srgb,currentColor 14%,transparent)}.reserve-card .text-button.full{width:100%;margin-top:.75rem}.empty-slots{padding:2rem;text-align:center;border:1px dashed color-mix(in srgb,currentColor 18%,transparent);border-radius:1rem}.form-message{padding:.85rem 1rem;border-radius:.75rem}.form-message.error{background:#a83b2b18;color:#8b2e21}.otp-input{text-align:center;font:700 2rem/1 Arial,sans-serif!important;letter-spacing:.5rem}.reservation-success{text-align:center;padding-block:clamp(2rem,7vw,5rem)}.reservation-success>div{display:grid;place-items:center;width:4.5rem;height:4.5rem;margin:0 auto 1.5rem;border-radius:50%;background:var(--tenant-accent);color:var(--tenant-on-accent);font-size:2rem}.reservation-success h2{margin:.5rem 0 1rem}.reservation-success p:not(.eyebrow){line-height:1.9}.reservation-success>a{display:inline-block;margin-top:1rem}@media(max-width:36rem){.reserve-page{padding:0;place-items:stretch}.reserve-card{min-height:100svh;border:0;border-radius:0;box-shadow:none}.slot-grid{grid-template-columns:repeat(3,1fr)}}@media(prefers-reduced-motion:reduce){.reserve-progress i{transition:none}}
+* {
+    box-sizing: border-box
+}
 
-.admin-reservations-page{display:block;min-height:100svh;padding:clamp(1rem,3vw,2.5rem);background:radial-gradient(circle at 90% -10%,rgb(168 95 53/18%),transparent 32rem),#eee6da;color:var(--espresso)}.admin-login,.admin-reservations-shell{width:min(100%,78rem);margin:auto;padding:clamp(1.25rem,4vw,3rem);border:1px solid rgb(37 26 21/10%);border-radius:1.75rem;background:#fffaf3;box-shadow:0 1.5rem 5rem rgb(37 26 21/9%)}.admin-login{max-width:30rem;margin-top:clamp(2rem,10vh,7rem)}.admin-login h1,.admin-topbar h1{max-width:none;margin:.25rem 0;font-size:clamp(2rem,6vw,3.5rem)}.admin-login>p:not(.eyebrow){color:rgb(37 26 21/65%);line-height:1.8}.admin-login form{display:grid;gap:1rem;margin-top:2rem}.admin-login label,.reservation-detail label,.reservation-settings label,.reservation-filters label{display:grid;gap:.5rem;font-size:.88rem;font-weight:700}.admin-reservations-page input,.admin-reservations-page select,.admin-reservations-page textarea{width:100%;min-height:3rem;padding:.7rem .85rem;border:1px solid rgb(37 26 21/16%);border-radius:.75rem;background:#fff;color:inherit;font:inherit;outline:0}.admin-reservations-page input:focus,.admin-reservations-page select:focus,.admin-reservations-page textarea:focus{border-color:var(--caramel);box-shadow:0 0 0 3px rgb(168 95 53/13%)}.admin-reservations-page button{min-height:3rem;padding:.7rem 1rem;border:0;border-radius:.75rem;background:var(--espresso);color:#fffaf1;font:700 .9rem/1.4 inherit;cursor:pointer}.admin-reservations-page button:disabled{opacity:.5;cursor:not-allowed}.admin-link-button{background:transparent!important;color:inherit!important;border:1px solid rgb(37 26 21/14%)!important}.admin-topbar{display:flex;align-items:center;justify-content:space-between;gap:1rem}.admin-tabs{display:flex;gap:.5rem;margin:2rem 0;padding:.35rem;border-radius:.9rem;background:rgb(37 26 21/5%)}.admin-tabs button{flex:1;background:transparent;color:inherit}.admin-tabs button.active{background:#fff;box-shadow:0 .25rem 1rem rgb(37 26 21/8%)}.admin-message{margin:1rem 0;padding:.85rem 1rem;border-radius:.75rem}.admin-message.error{background:#a83b2b16;color:#852e22}.admin-message.success{background:#52704a18;color:#3c6035}.admin-workspace{display:grid;grid-template-columns:minmax(18rem,.9fr) minmax(22rem,1.1fr);gap:1.25rem}.reservation-filters{display:grid;grid-template-columns:1fr 1fr auto;align-items:end;gap:.65rem;margin-bottom:1rem}.reservation-list{display:grid;gap:.6rem}.reservation-list>button{display:flex;align-items:center;justify-content:space-between;gap:1rem;text-align:right;background:#fff;color:inherit;border:1px solid rgb(37 26 21/10%)}.reservation-list>button.selected{border-color:var(--caramel);box-shadow:0 0 0 2px rgb(168 95 53/10%)}.reservation-list>button>span{display:grid;gap:.35rem}.reservation-list>button>span:last-child{justify-items:end}.reservation-list small{color:rgb(37 26 21/56%);font-weight:400}.status-pill{display:inline-block;width:max-content;padding:.3rem .55rem;border-radius:99rem;background:#77695b18;color:#5e5146;font-size:.7rem}.status-pending{background:#b9742718;color:#8a5316}.status-confirmed{background:#52704a18;color:#3c6035}.status-rejected,.status-canceled,.status-no_show{background:#a83b2b16;color:#852e22}.reservation-detail{min-height:28rem;padding:clamp(1rem,3vw,2rem);border-radius:1.25rem;background:#f5eee4}.detail-title,.settings-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem}.detail-title h2,.settings-heading h2{margin:.2rem 0;font-size:clamp(1.5rem,4vw,2.3rem)}.reservation-detail dl{margin:1.5rem 0}.reservation-detail dl div{display:flex;justify-content:space-between;gap:1rem;padding:.75rem 0;border-bottom:1px solid rgb(37 26 21/10%)}.reservation-detail dd{margin:0;font-weight:700}.detail-note{margin:1.25rem 0;padding:1rem;border-radius:.9rem;background:#fff}.detail-note p{margin:.5rem 0 0;color:rgb(37 26 21/65%);line-height:1.8}.reservation-detail textarea{min-height:5rem;resize:vertical}.status-actions{display:flex;flex-wrap:wrap;gap:.6rem;margin-top:1rem}.status-actions button{flex:1}.status-actions .danger{background:#8a3529}.status-actions .quiet{background:transparent;color:inherit;border:1px solid rgb(37 26 21/16%)}.terminal-status{padding:1rem;border-radius:.75rem;background:rgb(37 26 21/6%);color:rgb(37 26 21/65%)}.admin-empty{padding:3rem 1rem;text-align:center;color:rgb(37 26 21/58%)}.admin-empty p{line-height:1.7}.reservation-settings{display:grid;gap:2rem}.toggle{display:flex!important;align-items:center;grid-auto-flow:column}.toggle input{width:1.2rem;min-height:1.2rem}.settings-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}.settings-grid label>span{display:grid;grid-template-columns:1fr auto;align-items:center}.settings-grid small{padding:0 .7rem;color:rgb(37 26 21/55%)}.reservation-settings>button{justify-self:end;min-width:12rem}@media(max-width:55rem){.admin-workspace{grid-template-columns:1fr}.reservation-detail{min-height:auto}.settings-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:38rem){.admin-reservations-page{padding:0}.admin-login,.admin-reservations-shell{min-height:100svh;border:0;border-radius:0}.reservation-filters{grid-template-columns:1fr 1fr}.reservation-filters button{grid-column:1/-1}.settings-grid{grid-template-columns:1fr}.settings-heading{align-items:flex-start;flex-direction:column}.status-actions{display:grid}.reservation-list>button{min-height:4.5rem}}@media(prefers-reduced-motion:reduce){.admin-reservations-page *{scroll-behavior:auto!important}}
+body {
+    margin: 0;
+    color: var(--espresso);
+    background: radial-gradient(circle at 15% 10%, rgb(168 95 53/12%), transparent 30rem), var(--oat);
+    font-family: Tahoma, Arial, sans-serif
+}
 
-@font-face{font-family:Vazir;src:url("/fonts/vazir/Vazir-Light.woff2") format("woff2");font-weight:300;font-style:normal;font-display:swap}
-@font-face{font-family:Vazir;src:url("/fonts/vazir/Vazir.woff2") format("woff2");font-weight:400;font-style:normal;font-display:swap}
-@font-face{font-family:Vazir;src:url("/fonts/vazir/Vazir-Medium.woff2") format("woff2");font-weight:500 600;font-style:normal;font-display:swap}
-@font-face{font-family:Vazir;src:url("/fonts/vazir/Vazir-Bold.woff2") format("woff2");font-weight:700 900;font-style:normal;font-display:swap}
+main {
+    min-height: 100svh;
+    display: grid;
+    place-items: center;
+    padding: 2rem 1.25rem
+}
 
-html,body,button,input,select,textarea,code{font-family:Vazir,Tahoma,Arial,sans-serif}
-.eyebrow,.slot-grid button,.otp-input{font-family:Vazir,Tahoma,Arial,sans-serif!important}
-h1{font-size:clamp(2rem,5.5vw,4rem)}
-.unavailable-card h1{font-size:clamp(1.9rem,5vw,3.1rem)}
-.reserve-header h1{font-size:clamp(1.3rem,3.5vw,1.8rem)}
-.reserve-card h2{font-size:clamp(1.4rem,4vw,2rem)}
-.otp-input{font-size:1.5rem!important}
-.reservation-success>div{font-size:1.6rem}
-.admin-login h1,.admin-topbar h1{font-size:clamp(1.65rem,4vw,2.5rem)}
-.detail-title h2,.settings-heading h2{font-size:clamp(1.3rem,3vw,1.85rem)}
-@media(max-width:40rem){.unavailable-card h1{font-size:clamp(1.75rem,8vw,2.4rem)}}
+section {
+    width: min(100%, 64rem);
+    padding: clamp(2rem, 7vw, 6rem);
+    border: 1px solid rgb(37 26 21/10%);
+    border-radius: clamp(1.5rem, 4vw, 3.5rem);
+    background: rgb(255 250 241/82%);
+    box-shadow: 0 2rem 6rem rgb(37 26 21/10%)
+}
+
+section.platform-shell {
+    width: 100%
+}
+
+.eyebrow {
+    color: var(--caramel);
+    font: 700 .78rem/1.5 Arial, sans-serif;
+    letter-spacing: .16em
+}
+
+h1 {
+    max-width: 15ch;
+    margin: 0;
+    font-size: clamp(2.5rem, 8vw, 6rem);
+    line-height: 1.12;
+    letter-spacing: -.035em
+}
+
+.intro {
+    max-width: 38rem;
+    color: rgb(37 26 21/76%);
+    font-size: clamp(1rem, 2vw, 1.25rem);
+    line-height: 2
+}
+
+ul {
+    display: grid;
+    gap: .75rem;
+    padding: 0;
+    list-style: none
+}
+
+li::before {
+    content: "";
+    display: inline-block;
+    width: .55rem;
+    height: .55rem;
+    margin-inline-end: .75rem;
+    border-radius: 50%;
+    background: var(--sage)
+}
+
+.status {
+    display: inline-block;
+    margin-top: 1rem;
+    padding: .7rem 1rem;
+    border-radius: 99rem;
+    background: rgb(104 116 94/12%);
+    color: var(--sage)
+}
+
+.unavailable-shell {
+    overflow: hidden;
+    background: radial-gradient(circle at 50% -10%, rgb(168 95 53/20%), transparent 34rem), linear-gradient(145deg, #f7f0e6, #e9dfd0)
+}
+
+.unavailable-card {
+    position: relative;
+    max-width: 46rem;
+    text-align: center;
+    padding-block: clamp(3rem, 10vw, 7rem);
+    overflow: hidden
+}
+
+.unavailable-card::before {
+    content: "";
+    position: absolute;
+    inset: auto -10% -45% 35%;
+    height: 18rem;
+    border-radius: 50%;
+    background: rgb(104 116 94/8%);
+    filter: blur(2px)
+}
+
+.unavailable-card h1 {
+    max-width: 13ch;
+    margin-inline: auto;
+    font-size: clamp(2.2rem, 7vw, 4.8rem)
+}
+
+.unavailable-card .intro {
+    margin: 1.5rem auto 0
+}
+
+.coffee-mark {
+    width: 5.5rem;
+    height: 5.5rem;
+    display: grid;
+    place-items: center;
+    margin: 0 auto 2rem;
+    border-radius: 50%;
+    background: var(--espresso);
+    box-shadow: 0 1rem 2.5rem rgb(37 26 21/18%)
+}
+
+.coffee-mark span {
+    width: 2rem;
+    height: 1.5rem;
+    border: 2px solid var(--ivory);
+    border-radius: .2rem .2rem .7rem .7rem;
+    position: relative
+}
+
+.coffee-mark span::after {
+    content: "";
+    position: absolute;
+    inset: .2rem -1rem auto auto;
+    width: .8rem;
+    height: .75rem;
+    border: 2px solid var(--ivory);
+    border-right: 0;
+    border-radius: .6rem 0 0 .6rem
+}
+
+.quiet-divider {
+    width: 3rem;
+    height: 1px;
+    margin: 2.5rem auto 1rem;
+    background: rgb(37 26 21/20%)
+}
+
+.quiet-note {
+    margin: 0;
+    color: rgb(37 26 21/55%);
+    font-size: .9rem
+}
+
+@media(prefers-reduced-motion:no-preference) {
+    section {
+        animation: enter .5s ease-out both
+    }
+
+    .coffee-mark {
+        animation: float 4s ease-in-out infinite
+    }
+
+    @keyframes enter {
+        from {
+            opacity: 0;
+            transform: translateY(12px)
+        }
+    }
+
+    @keyframes float {
+        50% {
+            transform: translateY(-5px)
+        }
+    }
+}
+
+@media(max-width:40rem) {
+    .unavailable-card {
+        padding-inline: 1.5rem
+    }
+
+    .unavailable-card h1 {
+        font-size: clamp(2rem, 11vw, 3rem)
+    }
+}
+
+.tenant-home {
+    display: block;
+    padding: 0;
+    background: var(--tenant-surface);
+    color: var(--tenant-on-surface)
+}
+
+.tenant-announcement {
+    padding: .7rem 1rem;
+    text-align: center;
+    background: var(--tenant-accent);
+    color: var(--tenant-on-accent);
+    font-size: .88rem
+}
+
+.tenant-home section {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent
+}
+
+.tenant-hero {
+    min-height: 92svh;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    background: radial-gradient(circle at 15% 20%, color-mix(in srgb, var(--tenant-accent) 25%, transparent), transparent 35rem), var(--tenant-primary) !important;
+    color: var(--tenant-on-primary)
+}
+
+.tenant-hero nav {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: center;
+    padding-bottom: 4rem
+}
+
+.tenant-hero nav span {
+    font-size: .82rem;
+    opacity: .72
+}
+
+.tenant-hero-copy h1 {
+    max-width: 13ch
+}
+
+.tenant-hero .eyebrow,
+.tenant-hero .intro {
+    color: inherit
+}
+
+.tenant-hero .intro {
+    opacity: .78
+}
+
+.tenant-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    margin-top: 2rem
+}
+
+.tenant-actions a {
+    padding: .9rem 1.3rem;
+    border-radius: 1rem;
+    background: var(--tenant-accent);
+    color: var(--tenant-on-accent);
+    text-decoration: none
+}
+
+.tenant-actions .secondary-action {
+    background: transparent;
+    color: inherit;
+    border: 1px solid color-mix(in srgb, currentColor 30%, transparent)
+}
+
+.tenant-about {
+    display: grid;
+    gap: 1rem;
+    padding-block: clamp(4rem, 10vw, 8rem) !important
+}
+
+.tenant-about h2,
+.tenant-info h2 {
+    margin: 0;
+    font-size: clamp(2rem, 5vw, 4rem)
+}
+
+.tenant-about>p:last-child {
+    max-width: 48rem;
+    line-height: 2;
+    color: color-mix(in srgb, currentColor 72%, transparent)
+}
+
+.tenant-info {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: clamp(2rem, 8vw, 8rem);
+    background: color-mix(in srgb, var(--tenant-primary) 8%, var(--tenant-surface)) !important
+}
+
+.tenant-info a {
+    display: block;
+    width: max-content;
+    margin-top: .75rem;
+    color: inherit
+}
+
+.tenant-info dl {
+    margin: 1.5rem 0 0
+}
+
+.tenant-info dl div {
+    display: flex;
+    justify-content: space-between;
+    gap: 2rem;
+    padding: .7rem 0;
+    border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent)
+}
+
+.tenant-info dd {
+    margin: 0
+}
+
+.radius-rounded .tenant-actions a {
+    border-radius: 99rem
+}
+
+.radius-editorial .tenant-actions a {
+    border-radius: .15rem
+}
+
+@media(max-width:44rem) {
+    .tenant-info {
+        grid-template-columns: 1fr
+    }
+
+    .tenant-hero {
+        min-height: 85svh
+    }
+
+    .tenant-hero nav {
+        padding-bottom: 3rem
+    }
+}
+
+.tenant-menu {
+    padding-block: clamp(4rem, 10vw, 8rem) !important;
+    background: color-mix(in srgb, var(--tenant-accent) 5%, var(--tenant-surface)) !important
+}
+
+.tenant-menu header {
+    display: grid;
+    gap: .5rem;
+    margin-bottom: 3rem
+}
+
+.tenant-menu h2 {
+    margin: 0;
+    font-size: clamp(2.2rem, 6vw, 4.5rem)
+}
+
+.tenant-menu header>p:last-child,
+.category-heading p,
+.menu-item p {
+    color: color-mix(in srgb, currentColor 65%, transparent)
+}
+
+.menu-categories {
+    display: grid;
+    gap: 4rem
+}
+
+.menu-category {
+    display: grid;
+    grid-template-columns: minmax(10rem, 1fr) minmax(0, 2.2fr);
+    gap: clamp(1.5rem, 6vw, 5rem)
+}
+
+.category-heading h3 {
+    position: sticky;
+    top: 1rem;
+    margin: 0;
+    font-size: clamp(1.5rem, 3vw, 2.3rem)
+}
+
+.menu-items {
+    display: grid
+}
+
+.menu-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 1.5rem;
+    padding: 1.5rem 0;
+    border-bottom: 1px solid color-mix(in srgb, currentColor 13%, transparent)
+}
+
+.menu-item:first-child {
+    padding-top: 0
+}
+
+.menu-item.unavailable {
+    opacity: .5
+}
+
+.item-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .65rem
+}
+
+.item-title h4 {
+    margin: 0;
+    font-size: 1.15rem
+}
+
+.item-title span {
+    padding: .25rem .55rem;
+    border-radius: 99rem;
+    background: var(--tenant-accent);
+    color: var(--tenant-on-accent);
+    font-size: .7rem
+}
+
+.menu-item p {
+    margin: .5rem 0 0;
+    line-height: 1.8
+}
+
+.menu-item small {
+    display: block;
+    margin-top: .5rem;
+    color: var(--tenant-accent)
+}
+
+.item-prices {
+    display: grid;
+    justify-items: end;
+    align-content: start;
+    gap: .35rem;
+    white-space: nowrap
+}
+
+.item-prices span {
+    font-size: .88rem
+}
+
+.menu-empty {
+    padding: 3rem;
+    border: 1px dashed color-mix(in srgb, currentColor 20%, transparent);
+    text-align: center
+}
+
+.radius-rounded .menu-empty {
+    border-radius: 2rem
+}
+
+.radius-soft .menu-empty {
+    border-radius: 1rem
+}
+
+@media(max-width:44rem) {
+    .menu-category {
+        grid-template-columns: 1fr;
+        gap: 1rem
+    }
+
+    .category-heading h3 {
+        position: static
+    }
+
+    .menu-item {
+        grid-template-columns: 1fr;
+        gap: .8rem
+    }
+
+    .item-prices {
+        justify-items: start
+    }
+
+    .tenant-menu {
+        padding-inline: 1.25rem !important
+    }
+}
+
+.reserve-page {
+    min-height: 100svh;
+    padding: clamp(1rem, 4vw, 3rem);
+    background: radial-gradient(circle at 80% 0, color-mix(in srgb, var(--tenant-accent) 22%, transparent), transparent 28rem), var(--tenant-surface);
+    color: var(--tenant-on-surface)
+}
+
+.reserve-card {
+    width: min(100%, 44rem);
+    min-height: min(48rem, calc(100svh - 2rem));
+    padding: clamp(1.25rem, 5vw, 3rem);
+    background: color-mix(in srgb, var(--tenant-surface) 92%, white);
+    border: 1px solid color-mix(in srgb, var(--tenant-on-surface) 10%, transparent);
+    border-radius: 2rem;
+    box-shadow: 0 2rem 6rem color-mix(in srgb, var(--tenant-primary) 12%, transparent)
+}
+
+.reserve-header {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 1rem
+}
+
+.reserve-header>a {
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+    border-radius: 50%;
+    color: inherit;
+    text-decoration: none;
+    font-size: 1.3rem
+}
+
+.reserve-header .eyebrow {
+    margin: 0
+}
+
+.reserve-header h1 {
+    margin: .15rem 0 0;
+    font-size: clamp(1.5rem, 5vw, 2.2rem);
+    letter-spacing: 0
+}
+
+.reserve-header>span {
+    font-size: .78rem;
+    opacity: .55
+}
+
+.reserve-progress {
+    height: 3px;
+    margin: 1.5rem 0 3rem;
+    border-radius: 99rem;
+    background: color-mix(in srgb, currentColor 9%, transparent);
+    overflow: hidden
+}
+
+.reserve-progress i {
+    display: block;
+    height: 100%;
+    background: var(--tenant-accent);
+    transition: width .3s ease
+}
+
+.reserve-card h2 {
+    margin: 0;
+    font-size: clamp(1.7rem, 6vw, 2.7rem)
+}
+
+.form-hint {
+    margin: .65rem 0 2rem;
+    color: color-mix(in srgb, currentColor 62%, transparent);
+    line-height: 1.8
+}
+
+.reserve-card form {
+    display: grid;
+    gap: 1.1rem
+}
+
+.reserve-card label {
+    display: grid;
+    gap: .55rem;
+    font-weight: 700;
+    font-size: .9rem
+}
+
+.reserve-card label small {
+    font-weight: 400;
+    opacity: .55
+}
+
+.reserve-card input,
+.reserve-card select,
+.reserve-card textarea {
+    width: 100%;
+    min-height: 3.25rem;
+    padding: .75rem 1rem;
+    border: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+    border-radius: .9rem;
+    background: color-mix(in srgb, var(--tenant-surface) 86%, white);
+    color: inherit;
+    font: inherit;
+    outline: none
+}
+
+.reserve-card textarea {
+    min-height: 6rem;
+    resize: vertical
+}
+
+.reserve-card input:focus,
+.reserve-card select:focus,
+.reserve-card textarea:focus {
+    border-color: var(--tenant-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--tenant-accent) 16%, transparent)
+}
+
+.reserve-card button,
+.reservation-success>a {
+    min-height: 3.25rem;
+    padding: .8rem 1.2rem;
+    border: 0;
+    border-radius: .9rem;
+    background: var(--tenant-accent);
+    color: var(--tenant-on-accent);
+    font: 700 .95rem/1.4 inherit;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: center
+}
+
+.reserve-card form>button {
+    margin-top: .65rem
+}
+
+.reserve-card button:disabled {
+    opacity: .45;
+    cursor: not-allowed
+}
+
+.slot-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: .65rem;
+    margin: 2rem 0
+}
+
+.slot-grid button {
+    background: transparent;
+    color: inherit;
+    border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+    font-family: Arial, sans-serif
+}
+
+.slot-grid button.selected {
+    background: var(--tenant-accent);
+    color: var(--tenant-on-accent);
+    border-color: transparent
+}
+
+.form-actions {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: .75rem
+}
+
+.reserve-card .text-button {
+    background: transparent;
+    color: inherit;
+    border: 1px solid color-mix(in srgb, currentColor 14%, transparent)
+}
+
+.reserve-card .text-button.full {
+    width: 100%;
+    margin-top: .75rem
+}
+
+.empty-slots {
+    padding: 2rem;
+    text-align: center;
+    border: 1px dashed color-mix(in srgb, currentColor 18%, transparent);
+    border-radius: 1rem
+}
+
+.form-message {
+    padding: .85rem 1rem;
+    border-radius: .75rem
+}
+
+.form-message.error {
+    background: #a83b2b18;
+    color: #8b2e21
+}
+
+.otp-input {
+    text-align: center;
+    font: 700 2rem/1 Arial, sans-serif !important;
+    letter-spacing: .5rem
+}
+
+.reservation-success {
+    text-align: center;
+    padding-block: clamp(2rem, 7vw, 5rem)
+}
+
+.reservation-success>div {
+    display: grid;
+    place-items: center;
+    width: 4.5rem;
+    height: 4.5rem;
+    margin: 0 auto 1.5rem;
+    border-radius: 50%;
+    background: var(--tenant-accent);
+    color: var(--tenant-on-accent);
+    font-size: 2rem
+}
+
+.reservation-success h2 {
+    margin: .5rem 0 1rem
+}
+
+.reservation-success p:not(.eyebrow) {
+    line-height: 1.9
+}
+
+.reservation-success>a {
+    display: inline-block;
+    margin-top: 1rem
+}
+
+@media(max-width:36rem) {
+    .reserve-page {
+        padding: 0;
+        place-items: stretch
+    }
+
+    .reserve-card {
+        min-height: 100svh;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none
+    }
+
+    .slot-grid {
+        grid-template-columns: repeat(3, 1fr)
+    }
+}
+
+@media(prefers-reduced-motion:reduce) {
+    .reserve-progress i {
+        transition: none
+    }
+}
+
+.admin-reservations-page {
+    display: block;
+    min-height: 100svh;
+    padding: clamp(1rem, 3vw, 2.5rem);
+    background: radial-gradient(circle at 90% -10%, rgb(168 95 53/18%), transparent 32rem), #eee6da;
+    color: var(--espresso)
+}
+
+.admin-login,
+.admin-reservations-shell {
+    width: min(100%, 78rem);
+    margin: auto;
+    padding: clamp(1.25rem, 4vw, 3rem);
+    border: 1px solid rgb(37 26 21/10%);
+    border-radius: 1.75rem;
+    background: #fffaf3;
+    box-shadow: 0 1.5rem 5rem rgb(37 26 21/9%)
+}
+
+.admin-login {
+    max-width: 30rem;
+    margin-top: clamp(2rem, 10vh, 7rem)
+}
+
+.admin-login h1,
+.admin-topbar h1 {
+    max-width: none;
+    margin: .25rem 0;
+    font-size: clamp(2rem, 6vw, 3.5rem)
+}
+
+.admin-login>p:not(.eyebrow) {
+    color: rgb(37 26 21/65%);
+    line-height: 1.8
+}
+
+.admin-login form {
+    display: grid;
+    gap: 1rem;
+    margin-top: 2rem
+}
+
+.admin-login label,
+.reservation-detail label,
+.reservation-settings label,
+.reservation-filters label {
+    display: grid;
+    gap: .5rem;
+    font-size: .88rem;
+    font-weight: 700
+}
+
+.admin-reservations-page input,
+.admin-reservations-page select,
+.admin-reservations-page textarea {
+    width: 100%;
+    min-height: 3rem;
+    padding: .7rem .85rem;
+    border: 1px solid rgb(37 26 21/16%);
+    border-radius: .75rem;
+    background: #fff;
+    color: inherit;
+    font: inherit;
+    outline: 0
+}
+
+.admin-reservations-page input:focus,
+.admin-reservations-page select:focus,
+.admin-reservations-page textarea:focus {
+    border-color: var(--caramel);
+    box-shadow: 0 0 0 3px rgb(168 95 53/13%)
+}
+
+.admin-reservations-page button {
+    min-height: 3rem;
+    padding: .7rem 1rem;
+    border: 0;
+    border-radius: .75rem;
+    background: var(--espresso);
+    color: #fffaf1;
+    font: 700 .9rem/1.4 inherit;
+    cursor: pointer
+}
+
+.admin-reservations-page button:disabled {
+    opacity: .5;
+    cursor: not-allowed
+}
+
+.admin-link-button {
+    background: transparent !important;
+    color: inherit !important;
+    border: 1px solid rgb(37 26 21/14%) !important
+}
+
+.admin-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem
+}
+
+.admin-tabs {
+    display: flex;
+    gap: .5rem;
+    margin: 2rem 0;
+    padding: .35rem;
+    border-radius: .9rem;
+    background: rgb(37 26 21/5%)
+}
+
+.admin-tabs button {
+    flex: 1;
+    background: transparent;
+    color: inherit
+}
+
+.admin-tabs button.active {
+    background: #fff;
+    box-shadow: 0 .25rem 1rem rgb(37 26 21/8%)
+}
+
+.admin-message {
+    margin: 1rem 0;
+    padding: .85rem 1rem;
+    border-radius: .75rem
+}
+
+.admin-message.error {
+    background: #a83b2b16;
+    color: #852e22
+}
+
+.admin-message.success {
+    background: #52704a18;
+    color: #3c6035
+}
+
+.admin-workspace {
+    display: grid;
+    grid-template-columns: minmax(18rem, .9fr) minmax(22rem, 1.1fr);
+    gap: 1.25rem
+}
+
+.reservation-filters {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    align-items: end;
+    gap: .65rem;
+    margin-bottom: 1rem
+}
+
+.reservation-list {
+    display: grid;
+    gap: .6rem
+}
+
+.reservation-list>button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    text-align: right;
+    background: #fff;
+    color: inherit;
+    border: 1px solid rgb(37 26 21/10%)
+}
+
+.reservation-list>button.selected {
+    border-color: var(--caramel);
+    box-shadow: 0 0 0 2px rgb(168 95 53/10%)
+}
+
+.reservation-list>button>span {
+    display: grid;
+    gap: .35rem
+}
+
+.reservation-list>button>span:last-child {
+    justify-items: end
+}
+
+.reservation-list small {
+    color: rgb(37 26 21/56%);
+    font-weight: 400
+}
+
+.status-pill {
+    display: inline-block;
+    width: max-content;
+    padding: .3rem .55rem;
+    border-radius: 99rem;
+    background: #77695b18;
+    color: #5e5146;
+    font-size: .7rem
+}
+
+.status-pending {
+    background: #b9742718;
+    color: #8a5316
+}
+
+.status-confirmed {
+    background: #52704a18;
+    color: #3c6035
+}
+
+.status-rejected,
+.status-canceled,
+.status-no_show {
+    background: #a83b2b16;
+    color: #852e22
+}
+
+.reservation-detail {
+    min-height: 28rem;
+    padding: clamp(1rem, 3vw, 2rem);
+    border-radius: 1.25rem;
+    background: #f5eee4
+}
+
+.detail-title,
+.settings-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem
+}
+
+.detail-title h2,
+.settings-heading h2 {
+    margin: .2rem 0;
+    font-size: clamp(1.5rem, 4vw, 2.3rem)
+}
+
+.reservation-detail dl {
+    margin: 1.5rem 0
+}
+
+.reservation-detail dl div {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .75rem 0;
+    border-bottom: 1px solid rgb(37 26 21/10%)
+}
+
+.reservation-detail dd {
+    margin: 0;
+    font-weight: 700
+}
+
+.detail-note {
+    margin: 1.25rem 0;
+    padding: 1rem;
+    border-radius: .9rem;
+    background: #fff
+}
+
+.detail-note p {
+    margin: .5rem 0 0;
+    color: rgb(37 26 21/65%);
+    line-height: 1.8
+}
+
+.reservation-detail textarea {
+    min-height: 5rem;
+    resize: vertical
+}
+
+.status-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .6rem;
+    margin-top: 1rem
+}
+
+.status-actions button {
+    flex: 1
+}
+
+.status-actions .danger {
+    background: #8a3529
+}
+
+.status-actions .quiet {
+    background: transparent;
+    color: inherit;
+    border: 1px solid rgb(37 26 21/16%)
+}
+
+.terminal-status {
+    padding: 1rem;
+    border-radius: .75rem;
+    background: rgb(37 26 21/6%);
+    color: rgb(37 26 21/65%)
+}
+
+.admin-empty {
+    padding: 3rem 1rem;
+    text-align: center;
+    color: rgb(37 26 21/58%)
+}
+
+.admin-empty p {
+    line-height: 1.7
+}
+
+.reservation-settings {
+    display: grid;
+    gap: 2rem
+}
+
+.toggle {
+    display: flex !important;
+    align-items: center;
+    grid-auto-flow: column
+}
+
+.toggle input {
+    width: 1.2rem;
+    min-height: 1.2rem
+}
+
+.settings-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem
+}
+
+.settings-grid label>span {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center
+}
+
+.settings-grid small {
+    padding: 0 .7rem;
+    color: rgb(37 26 21/55%)
+}
+
+.reservation-settings>button {
+    justify-self: end;
+    min-width: 12rem
+}
+
+@media(max-width:55rem) {
+    .admin-workspace {
+        grid-template-columns: 1fr
+    }
+
+    .reservation-detail {
+        min-height: auto
+    }
+
+    .settings-grid {
+        grid-template-columns: repeat(2, 1fr)
+    }
+}
+
+@media(max-width:38rem) {
+    .admin-reservations-page {
+        padding: 0
+    }
+
+    .admin-login,
+    .admin-reservations-shell {
+        min-height: 100svh;
+        border: 0;
+        border-radius: 0
+    }
+
+    .reservation-filters {
+        grid-template-columns: 1fr 1fr
+    }
+
+    .reservation-filters button {
+        grid-column: 1/-1
+    }
+
+    .settings-grid {
+        grid-template-columns: 1fr
+    }
+
+    .settings-heading {
+        align-items: flex-start;
+        flex-direction: column
+    }
+
+    .status-actions {
+        display: grid
+    }
+
+    .reservation-list>button {
+        min-height: 4.5rem
+    }
+}
+
+@media(prefers-reduced-motion:reduce) {
+    .admin-reservations-page * {
+        scroll-behavior: auto !important
+    }
+}
+
+@font-face {
+    font-family: Vazir;
+    src: url("/fonts/vazir/Vazir-Light.woff2") format("woff2");
+    font-weight: 300;
+    font-style: normal;
+    font-display: swap
+}
+
+@font-face {
+    font-family: Vazir;
+    src: url("/fonts/vazir/Vazir.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap
+}
+
+@font-face {
+    font-family: Vazir;
+    src: url("/fonts/vazir/Vazir-Medium.woff2") format("woff2");
+    font-weight: 500 600;
+    font-style: normal;
+    font-display: swap
+}
+
+@font-face {
+    font-family: Vazir;
+    src: url("/fonts/vazir/Vazir-Bold.woff2") format("woff2");
+    font-weight: 700 900;
+    font-style: normal;
+    font-display: swap
+}
+
+html,
+body,
+button,
+input,
+select,
+textarea,
+code {
+    font-family: Vazir, Tahoma, Arial, sans-serif
+}
+
+.eyebrow,
+.slot-grid button,
+.otp-input {
+    font-family: Vazir, Tahoma, Arial, sans-serif !important
+}
+
+h1 {
+    font-size: clamp(2rem, 5.5vw, 4rem)
+}
+
+.unavailable-card h1 {
+    font-size: clamp(1.9rem, 5vw, 3.1rem)
+}
+
+.reserve-header h1 {
+    font-size: clamp(1.3rem, 3.5vw, 1.8rem)
+}
+
+.reserve-card h2 {
+    font-size: clamp(1.4rem, 4vw, 2rem)
+}
+
+.otp-input {
+    font-size: 1.5rem !important
+}
+
+.reservation-success>div {
+    font-size: 1.6rem
+}
+
+.admin-login h1,
+.admin-topbar h1 {
+    font-size: clamp(1.65rem, 4vw, 2.5rem)
+}
+
+.detail-title h2,
+.settings-heading h2 {
+    font-size: clamp(1.3rem, 3vw, 1.85rem)
+}
+
+@media(max-width:40rem) {
+    .unavailable-card h1 {
+        font-size: clamp(1.75rem, 8vw, 2.4rem)
+    }
+}

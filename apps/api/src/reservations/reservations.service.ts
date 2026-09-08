@@ -71,14 +71,14 @@ export class ReservationsService {
 
   async list(coffeeShopId: string, query: ReservationListQueryDto) {
     if (query.date && !isValidIsoDate(query.date)) throw new BadRequestException("Invalid reservation date");
-    const rows = await this.dataSource.getRepository(Reservation).find({ where: { coffeeShopId, ...(query.date ? { reservationDate: query.date } : {}), ...(query.status ? { status: query.status } : {}) }, order: { reservationDate: "ASC", startTime: "ASC" } });
-    return rows.map((row) => this.safe(row));
+    const rows = await this.dataSource.getRepository(Reservation).find({ relations: { customer: true }, where: { coffeeShopId, ...(query.date ? { reservationDate: query.date } : {}), ...(query.status ? { status: query.status } : {}) }, order: { reservationDate: "ASC", startTime: "ASC" } });
+    return rows.map((row) => this.adminSafe(row));
   }
 
   async detail(coffeeShopId: string, id: string) {
-    const reservation = await this.dataSource.getRepository(Reservation).findOneBy({ id, coffeeShopId });
+    const reservation = await this.dataSource.getRepository(Reservation).findOne({ relations: { customer: true }, where: { id, coffeeShopId } });
     if (!reservation) throw new NotFoundException("Reservation not found");
-    return this.safe(reservation);
+    return this.adminSafe(reservation);
   }
 
   async updateStatus(coffeeShopId: string, id: string, actorUserId: string, input: UpdateReservationStatusDto) {
@@ -93,12 +93,13 @@ export class ReservationsService {
     if (!transitions[reservation.status].includes(input.status)) throw new ConflictException("Invalid reservation status transition");
     reservation.status = input.status; reservation.staffNote = input.staffNote?.trim() || null; reservation.statusChangedAt = new Date(); reservation.statusChangedByUserId = actorUserId;
     const saved = await repository.save(reservation);
+    const user = await manager.getRepository(User).findOneByOrFail({ id: reservation.customerUserId });
     if (input.status === ReservationStatus.Confirmed) {
-      const user = await manager.getRepository(User).createQueryBuilder("user").addSelect("user.phone").where("user.id = :id", { id: reservation.customerUserId }).getOneOrFail();
       const cafe = await manager.findOneByOrFail(CoffeeShop, { id: coffeeShopId });
       await this.notifications.enqueueConfirmation(manager, { coffeeShopId, reservationId: id, phone: user.phone!, cafeName: cafe.name, date: reservation.reservationDate, time: reservation.startTime.slice(0, 5) });
     }
-    return this.safe(saved);
+    saved.customer = user;
+    return this.adminSafe(saved);
     });
   }
 
@@ -112,5 +113,9 @@ export class ReservationsService {
 
   private safe(row: Reservation) {
     return { id: row.id, branchId: row.branchId, contactName: row.contactName, reservationDate: row.reservationDate, startTime: row.startTime.slice(0, 5), endTime: row.endTime.slice(0, 5), partySize: row.partySize, status: row.status, customerNote: row.customerNote, staffNote: row.staffNote, createdAt: row.createdAt };
+  }
+
+  private adminSafe(row: Reservation) {
+    return { ...this.safe(row), customerPhone: row.customer?.phone ?? null };
   }
 }

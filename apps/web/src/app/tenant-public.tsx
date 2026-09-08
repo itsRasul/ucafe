@@ -96,5 +96,5 @@ export function TenantFooter({ site }: { site: PublicSite }) {
 }
 
 export function SuspendedSite({ context }: { context: TenantContext }) {
-  return <main className="unavailable-shell"><section className="unavailable-card" aria-labelledby="unavailable-title"><BrandLogo className="unavailable-logo" /><p className="eyebrow">ucafe · یو کافه</p><h1 id="unavailable-title">{context.unavailable?.title ?? "این وب‌سایت در حال حاضر در دسترس نیست"}</h1><p className="intro">{context.unavailable?.message ?? "لطفاً کمی بعد دوباره مراجعه کنید."}</p><div className="quiet-divider" aria-hidden="true" /><p className="quiet-note">از شکیبایی شما سپاسگزاریم</p></section></main>;
+  return <main className="unavailable-shell"><section className="unavailable-card" aria-labelledby="unavailable-title"><BrandLogo className="unavailable-logo" /><p className="eyebrow">ucafe · یو کافه</p><h1 id="unavailable-title">{context.unavailable?.title ?? "در حال حاضر سایت مدنظر در دسترس نمی‌باشد"}</h1><p className="intro">{context.unavailable?.message ?? "لطفاً بعداً امتحان نمایید."}</p><div className="quiet-divider" aria-hidden="true" /><p className="quiet-note">از شکیبایی شما سپاسگزاریم</p></section></main>;
 }

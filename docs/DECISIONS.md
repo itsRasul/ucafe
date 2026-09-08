@@ -289,3 +289,19 @@ Entries distinguish confirmed decisions from pending questions. Dates reflect th
 - **Decision:** use the user-supplied transparent SVG logo as the shared visible ucafe brand asset across the platform landing, tenant storefront fallback branding, unavailable state, owner admin, platform admin and authentication entry states. Keep small generated PNG fallbacks for favicon/apple-touch metadata.
 - **Reasoning:** one canonical displayed asset avoids mismatched text/CSS placeholder marks while the SVG wrapper lets layout scale the supplied transparent logo consistently.
 - **Consequences:** tenant-uploaded cafe logos still take precedence in tenant public header/footer where available; the shared ucafe mark appears only where the platform brand or fallback logo is needed. No schema, API or media-upload behavior changes are required.
+
+## D-036 — Owner renewal invoices use payment intents
+
+- **Status:** accepted and implemented on 2026-09-08
+- **Options:** separate invoice ledger; scheduled pre-invoice generation; reuse checkout payment intents as owner-facing invoices.
+- **Decision:** tenant-owner subscription renewal uses on-demand `payment_intents` as invoices. The owner creates a renewal invoice from `/admin/subscription`, reviews it before payment, pays through Zarinpal, and returns to an admin-styled result page after server-side callback verification. `/admin/invoices` lists recent payment intents as invoice history.
+- **Reasoning:** the existing checkout model already stores immutable plan/price snapshots, status, authority, expiration, provider reference and idempotency. Reusing it avoids another billing table and avoids introducing scheduled jobs before the product needs them.
+- **Consequences:** only pending unexpired intents expose a payment URL; failed or expired callbacks do not renew the subscription; successful verification still records one prepaid month and immediately reactivates the cafe. Automatic pre-invoice generation, recurring billing, refunds UI and Golden upgrades remain out of scope.
+
+## D-037 — Tenant-admin reservation contact visibility
+
+- **Status:** accepted and implemented on 2026-09-08
+- **Options:** copy phone values into every reservation row; continue hiding phones everywhere; expose the verified user's phone only through tenant-admin reservation endpoints.
+- **Decision:** reservations keep storing the customer's entered full name as `contactName` and remain linked to the OTP-verified `users` row. Protected tenant reservation list/detail/status projections include `customerPhone` from that verified user, and the admin detail screen displays both full name and mobile number.
+- **Reasoning:** the OTP flow already persists the normalized verified phone on the user, so duplicating it into reservations would add stale PII without improving the admin workflow.
+- **Consequences:** no schema migration is required. Public reservation creation responses and customer `mine` responses still omit phone data; phone visibility is limited to tenant users with `reservations.read`.

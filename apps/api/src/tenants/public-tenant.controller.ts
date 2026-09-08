@@ -15,8 +15,8 @@ export class PublicTenantController {
       ...(available ? {} : {
         unavailable: {
           code: "TENANT_SUSPENDED",
-          title: "این وب‌سایت در حال حاضر در دسترس نیست",
-          message: "لطفاً کمی بعد دوباره مراجعه کنید.",
+          title: "در حال حاضر سایت مدنظر در دسترس نمی‌باشد",
+          message: "لطفاً بعداً امتحان نمایید.",
         },
       }),
       slug: context.slug,
