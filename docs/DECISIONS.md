@@ -305,3 +305,11 @@ Entries distinguish confirmed decisions from pending questions. Dates reflect th
 - **Decision:** reservations keep storing the customer's entered full name as `contactName` and remain linked to the OTP-verified `users` row. Protected tenant reservation list/detail/status projections include `customerPhone` from that verified user, and the admin detail screen displays both full name and mobile number.
 - **Reasoning:** the OTP flow already persists the normalized verified phone on the user, so duplicating it into reservations would add stale PII without improving the admin workflow.
 - **Consequences:** no schema migration is required. Public reservation creation responses and customer `mine` responses still omit phone data; phone visibility is limited to tenant users with `reservations.read`.
+
+## D-038 — Platform invoice visibility reuses payment intents
+
+- **Status:** accepted and implemented on 2026-09-08
+- **Options:** create a second platform invoice table; expose tenant invoice endpoints through tenant impersonation; add read-only platform invoice projections over `payment_intents`.
+- **Decision:** platform invoice list/detail reads use the existing `payment_intents` records created by tenant renewal checkout. Platform detail enriches those records with cafe, primary branch and cafe admin/member data, guarded by both `subscriptions.manage` and `users.read`.
+- **Reasoning:** payment intents already contain the immutable invoice snapshot, gateway identifiers, status, expiry and paid timestamp. Reusing them avoids a duplicate ledger and keeps full phone/contact visibility behind the existing protected platform user-read authority.
+- **Consequences:** no migration is required. The platform view is read-only; refunds, manual status edits, scheduled invoice generation and recurring billing remain outside scope.

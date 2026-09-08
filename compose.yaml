@@ -14,7 +14,7 @@ services:
 
       PLATFORM_NAME: ucafe
       PLATFORM_NAME_FA: یو کافه
-      PLATFORM_BASE_DOMAIN: u-cafe.ir
+      PLATFORM_BASE_DOMAIN: u-cafe.localhost
 
       ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET}
       AUTH_PEPPER: ${AUTH_PEPPER}
@@ -47,7 +47,7 @@ services:
       KAVENEGAR_RESERVATION_CONFIRMED_TEMPLATE: ucafe-reservation-confirmed
 
       PAYMENT_PROVIDER: simulated
-      PAYMENT_CALLBACK_BASE_URL: https://api.u-cafe.ir
+      PAYMENT_CALLBACK_BASE_URL: http://localhost:3001
 
     ports:
       - "127.0.0.1:3001:3001"
@@ -75,7 +75,7 @@ services:
       PORT: 3000
 
       API_INTERNAL_URL: http://api:3001/api/v1
-      PLATFORM_BASE_DOMAIN: u-cafe.ir
+      PLATFORM_BASE_DOMAIN: u-cafe.localhost
       INTERNAL_PROXY_SECRET: ${INTERNAL_PROXY_SECRET}
 
     ports:
