@@ -20,6 +20,8 @@ export const TenantPermissions = {
   MenuManage: "menu.manage",
   ReservationsRead: "reservations.read",
   ReservationsManage: "reservations.manage",
+  OrdersRead: "orders.read",
+  OrdersManage: "orders.manage",
   StaffManage: "staff.manage",
   SubscriptionRead: "subscription.read",
   SubscriptionCheckout: "subscription.checkout",

@@ -19,7 +19,7 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
     const value = response.headers.get(header); if (value) outgoing.headers.set(header, value);
   }
   const setCookie = response.headers.get("set-cookie");
-  if (setCookie) outgoing.headers.set("set-cookie", setCookie.replace(/Path=\/api\/v1\/auth/gi, "Path=/api/backend/auth"));
+  if (setCookie) outgoing.headers.set("set-cookie", setCookie.replace(/Path=\/api\/v1\/public\/client-auth/gi, "Path=/api/backend/public/client-auth").replace(/Path=\/api\/v1\/auth/gi, "Path=/api/backend/auth"));
   return outgoing;
 }
 

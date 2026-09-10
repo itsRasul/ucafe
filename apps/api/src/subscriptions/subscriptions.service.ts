@@ -1,9 +1,10 @@
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { DataSource } from "typeorm";
 import { CoffeeShop, CoffeeShopStatus } from "../database/entities";
 import { PlanStatus, Subscription, SubscriptionPayment, SubscriptionPaymentStatus, SubscriptionPlan, SubscriptionStatus } from "./entities";
 import { addDays, addUtcMonths, effectiveSubscriptionStatus } from "./subscription-lifecycle";
 import { UpdatePlanDto } from "./dto/update-plan.dto";
+import { mergePlanFeatures, SubscriptionFeatureKey } from "./subscription-features";
 
 @Injectable()
 export class SubscriptionsService {
@@ -20,7 +21,22 @@ export class SubscriptionsService {
     if (input.status != null) plan.status = input.status;
     if (input.trialDays != null) plan.trialDays = input.trialDays;
     if (input.graceDays != null) plan.graceDays = input.graceDays;
+    if (input.features != null) plan.features = mergePlanFeatures(plan.features, input.features);
     return repository.save(plan);
+  }
+
+  async featureState(coffeeShopId: string, feature: SubscriptionFeatureKey, now = new Date()) {
+    const subscription = await this.dataSource.getRepository(Subscription).findOne({ where: { coffeeShopId }, relations: { plan: true } });
+    if (!subscription) return { enabled: false, status: null, plan: null, feature };
+    const effective = effectiveSubscriptionStatus(subscription, now, subscription.plan.graceDays);
+    const enabled = [SubscriptionStatus.Trialing, SubscriptionStatus.Active, SubscriptionStatus.Grace].includes(effective.status) && subscription.plan.features?.[feature] === true;
+    return { enabled, status: effective.status, plan: { key: subscription.plan.key, name: subscription.plan.name, features: subscription.plan.features }, feature };
+  }
+
+  async requireFeature(coffeeShopId: string, feature: SubscriptionFeatureKey) {
+    const state = await this.featureState(coffeeShopId, feature);
+    if (!state.enabled) throw new ForbiddenException({ code: "FEATURE_UNAVAILABLE", feature, message: "This feature is not available for the current subscription plan" });
+    return state;
   }
 
   async getPlatformSummary(coffeeShopId: string) {

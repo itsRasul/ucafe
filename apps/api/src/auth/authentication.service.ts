@@ -57,7 +57,7 @@ export class AuthenticationService {
     const now = new Date();
 
     const cooldown = await this.challenges.findOne({
-      where: { phoneHash, status: OtpChallengeStatus.Pending, resendAvailableAt: MoreThan(now) },
+      where: { phoneHash, coffeeShopId: IsNull(), purpose: OtpPurpose.Login, status: OtpChallengeStatus.Pending, resendAvailableAt: MoreThan(now) },
       order: { createdAt: "DESC" },
     });
     if (cooldown) throw new HttpException("Please wait before requesting another code", HttpStatus.TOO_MANY_REQUESTS);
@@ -71,7 +71,6 @@ export class AuthenticationService {
 
     const challengeId = randomUUID();
     const otp = this.crypto.generateOtp();
-    console.log({ otp })
     const expiresAt = new Date(now.getTime() + this.otpTtlSeconds * 1000);
     const resendAvailableAt = new Date(now.getTime() + this.resendCooldownSeconds * 1000);
 
@@ -79,7 +78,7 @@ export class AuthenticationService {
       await manager.query("SELECT pg_advisory_xact_lock(hashtext($1))", [phoneHash]);
       if (ipHash) await manager.query("SELECT pg_advisory_xact_lock(hashtext($1))", ["ip:" + ipHash]);
       const lockedCooldown = await manager.findOne(OtpChallenge, {
-        where: { phoneHash, status: OtpChallengeStatus.Pending, resendAvailableAt: MoreThan(now) },
+        where: { phoneHash, coffeeShopId: IsNull(), purpose: OtpPurpose.Login, status: OtpChallengeStatus.Pending, resendAvailableAt: MoreThan(now) },
         order: { createdAt: "DESC" },
       });
       const lockedPhoneRequests = await manager.count(OtpChallenge, { where: { phoneHash, createdAt: MoreThan(hourAgo) } });
@@ -88,9 +87,10 @@ export class AuthenticationService {
         throw new HttpException("Please wait before requesting another code", HttpStatus.TOO_MANY_REQUESTS);
       }
 
-      await manager.update(OtpChallenge, { phoneHash, status: OtpChallengeStatus.Pending }, { status: OtpChallengeStatus.Cancelled });
+      await manager.update(OtpChallenge, { phoneHash, coffeeShopId: IsNull(), purpose: OtpPurpose.Login, status: OtpChallengeStatus.Pending }, { status: OtpChallengeStatus.Cancelled });
       await manager.save(OtpChallenge, manager.create(OtpChallenge, {
         id: challengeId,
+        coffeeShopId: null,
         phoneHash,
         phoneCiphertext: this.crypto.encryptPhone(phone),
         otpHash: this.crypto.hashOtp(challengeId, otp),

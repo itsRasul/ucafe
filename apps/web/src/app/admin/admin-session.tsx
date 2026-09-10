@@ -1,10 +1,11 @@
 "use client";
 
-import { ClipboardEvent, FormEvent, KeyboardEvent, createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { FormEvent, createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { BrandLogo } from "../brand-logo";
+import { OtpCodeFields } from "../otp-code-fields";
 
-export type TenantPermission = "site.manage" | "menu.read" | "menu.manage" | "reservations.read" | "reservations.manage" | "staff.manage" | "subscription.read" | "subscription.checkout";
+export type TenantPermission = "site.manage" | "menu.read" | "menu.manage" | "reservations.read" | "reservations.manage" | "orders.read" | "orders.manage" | "staff.manage" | "subscription.read" | "subscription.checkout";
 type Access = { tenant: { slug: string; status: string; locale: string; timezone: string }; permissions: TenantPermission[] };
 type ApiError = { message?: string | string[] };
 type SessionContext = { access: Access; api: <T>(path: string, init?: RequestInit) => Promise<T>; signOut: () => Promise<void> };
@@ -136,60 +137,6 @@ function AdminLogin({ onAuthenticated }: { onAuthenticated: (token: string) => P
       <Link className="auth-back-link" href="/">بازگشت به سایت کافه <span aria-hidden="true">←</span></Link>
     </section>
   </main>;
-}
-
-function OtpCodeFields({ value, onChange, onComplete, disabled }: { value: string[]; onChange: (value: string[]) => void; onComplete: (value: string) => void; disabled: boolean }) {
-  const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
-  const digits = value;
-
-  function applyDigits(startIndex: number, rawValue: string) {
-    const incoming = rawValue.replace(/\D/g, "");
-    if (!incoming) return;
-    const next = [...digits];
-    incoming.slice(0, 6 - startIndex).split("").forEach((digit, offset) => { next[startIndex + offset] = digit; });
-    const code = next.join(""); onChange(next);
-    const nextEmpty = next.findIndex((digit, index) => index >= startIndex && !digit);
-    inputRefs.current[nextEmpty === -1 ? 5 : nextEmpty]?.focus();
-    if (next.every(Boolean)) onComplete(code);
-  }
-
-  function handleKeyDown(index: number, event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "Backspace" && !digits[index] && index > 0) inputRefs.current[index - 1]?.focus();
-    if (event.key === "ArrowLeft" && index > 0) inputRefs.current[index - 1]?.focus();
-    if (event.key === "ArrowRight" && index < 5) inputRefs.current[index + 1]?.focus();
-  }
-
-  function handlePaste(event: ClipboardEvent<HTMLDivElement>) {
-    const pasted = event.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
-    if (!pasted) return;
-    event.preventDefault(); applyDigits(0, pasted);
-  }
-
-  return <div className="auth-otp-inputs" dir="ltr" onPaste={handlePaste}>
-    {digits.map((digit, index) => <input
-      key={index}
-      ref={(element) => { inputRefs.current[index] = element; }}
-      type="text"
-      inputMode="numeric"
-      autoComplete={index === 0 ? "one-time-code" : "off"}
-      pattern="[0-9]"
-      maxLength={1}
-      value={digit}
-      aria-label={`رقم ${index + 1} از ۶`}
-      disabled={disabled}
-      autoFocus={index === 0}
-      onFocus={(event) => event.currentTarget.select()}
-      onKeyDown={(event) => handleKeyDown(index, event)}
-      onChange={(event) => {
-        const rawValue = event.target.value;
-        if (rawValue.replace(/\D/g, "").length > 1) { applyDigits(index, rawValue); return; }
-        const next = [...digits]; next[index] = rawValue.replace(/\D/g, "").slice(-1);
-        const code = next.join(""); onChange(next);
-        if (next[index] && index < 5) inputRefs.current[index + 1]?.focus();
-        if (next.every(Boolean)) onComplete(code);
-      }}
-    />)}
-  </div>;
 }
 
 function AdminState({ title, detail, busy = false }: { title: string; detail: string; busy?: boolean }) { return <main className="admin-entry"><section className="admin-state" aria-live="polite">{busy && <span className="admin-spinner" aria-hidden="true" />}<h1>{title}</h1><p>{detail}</p></section></main>; }

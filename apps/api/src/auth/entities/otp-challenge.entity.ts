@@ -2,6 +2,7 @@ import { Check, Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn,
 
 export enum OtpPurpose {
   Login = "LOGIN",
+  ClientLogin = "CLIENT_LOGIN",
 }
 
 export enum OtpChallengeStatus {
@@ -24,6 +25,9 @@ export class OtpChallenge {
 
   @Column({ name: "phone_hash", type: "char", length: 64 })
   phoneHash!: string;
+
+  @Column({ name: "coffee_shop_id", type: "uuid", nullable: true })
+  coffeeShopId!: string | null;
 
   @Column({ name: "phone_ciphertext", type: "text", select: false })
   phoneCiphertext!: string;

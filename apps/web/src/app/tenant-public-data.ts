@@ -1,15 +1,16 @@
 import { cache } from "react";
 import { headers } from "next/headers";
 import { request as httpRequest } from "node:http";
-import type { PublicMenu, PublicSite, TenantContext } from "./tenant-public";
+import type { PublicMenu, PublicOrderingState, PublicSite, TenantContext } from "./tenant-public";
 
 type PlatformPublicData = { isTenant: false };
-type MissingTenantData = { isTenant: true; context: null; site: null; menu: null };
+type MissingTenantData = { isTenant: true; context: null; site: null; menu: null; ordering: null };
 type TenantPublicData = {
   isTenant: true;
   context: TenantContext;
   site: PublicSite | null;
   menu: PublicMenu | null;
+  ordering: PublicOrderingState | null;
 };
 
 export type PublicPageData = PlatformPublicData | MissingTenantData | TenantPublicData;
@@ -43,15 +44,16 @@ export const loadPublicPageData = cache(async (): Promise<PublicPageData> => {
 
   const apiBaseUrl = process.env.API_INTERNAL_URL ?? "http://localhost:3001/api/v1";
   const contextResponse = await loadApiPath(apiBaseUrl, host, "/public/context");
-  if (contextResponse.status === 404) return { isTenant: true, context: null, site: null, menu: null };
+  if (contextResponse.status === 404) return { isTenant: true, context: null, site: null, menu: null, ordering: null };
   if (contextResponse.status < 200 || contextResponse.status >= 300) throw new Error("Tenant context is temporarily unavailable");
 
   const context = JSON.parse(contextResponse.body) as TenantContext;
-  if (!context.available) return { isTenant: true, context, site: null, menu: null };
+  if (!context.available) return { isTenant: true, context, site: null, menu: null, ordering: null };
 
-  const [siteResponse, menuResponse] = await Promise.all([
+  const [siteResponse, menuResponse, orderingResponse] = await Promise.all([
     loadApiPath(apiBaseUrl, host, "/public/site"),
     loadApiPath(apiBaseUrl, host, "/public/menu"),
+    loadApiPath(apiBaseUrl, host, "/public/ordering/settings"),
   ]);
   if (siteResponse.status < 200 || siteResponse.status >= 300) throw new Error("Tenant site content is temporarily unavailable");
   if (menuResponse.status < 200 || menuResponse.status >= 300) throw new Error("Tenant menu is temporarily unavailable");
@@ -61,6 +63,7 @@ export const loadPublicPageData = cache(async (): Promise<PublicPageData> => {
     context,
     site: JSON.parse(siteResponse.body) as PublicSite,
     menu: JSON.parse(menuResponse.body) as PublicMenu,
+    ordering: orderingResponse.status >= 200 && orderingResponse.status < 300 ? JSON.parse(orderingResponse.body) as PublicOrderingState : null,
   };
 });
 

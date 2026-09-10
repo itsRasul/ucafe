@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
-import { Picture, Price, formatToman, type PublicMenu, type PublicMenuItem } from "../tenant-public";
+import { addCartItem } from "../cart-store";
+import { Picture, Price, formatToman, type PublicMenu, type PublicMenuItem, type PublicOrderingState } from "../tenant-public";
 
 function normalizeSearch(value: string) {
   return value
@@ -22,10 +23,13 @@ function categoryElementId(categoryId: string) {
   return `menu-category-${categoryId}`;
 }
 
-export function MenuExplorer({ menu, initialItemId }: { menu: PublicMenu; initialItemId?: string }) {
+export function MenuExplorer({ menu, initialItemId, ordering }: { menu: PublicMenu; initialItemId?: string; ordering: PublicOrderingState | null }) {
   const [query, setQuery] = useState("");
   const [activeCategoryId, setActiveCategoryId] = useState(menu[0]?.id ?? "");
   const [selectedItemId, setSelectedItemId] = useState(initialItemId ?? null);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
+  const [notice, setNotice] = useState("");
+  const [orderingModal, setOrderingModal] = useState("");
   const dialogRef = useRef<HTMLDialogElement>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
 
@@ -74,6 +78,12 @@ export function MenuExplorer({ menu, initialItemId }: { menu: PublicMenu; initia
     return () => {
       document.documentElement.style.overflow = previousOverflow;
     };
+  }, [selectedEntry]);
+
+  useEffect(() => {
+    if (!selectedEntry) return;
+    const availableVariants = selectedEntry.item.variants.filter((variant) => variant.isAvailable);
+    setSelectedVariantId(availableVariants.find((variant) => variant.isDefault)?.id ?? availableVariants[0]?.id ?? null);
   }, [selectedEntry]);
 
   useEffect(() => {
@@ -135,6 +145,25 @@ export function MenuExplorer({ menu, initialItemId }: { menu: PublicMenu; initia
     if (event.target === event.currentTarget) closeItem();
   }
 
+  function unavailableMessage() {
+    return ordering?.unavailableMessage ?? "امکان ثبت سفارش آنلاین برای این کافه در حال حاضر وجود ندارد.";
+  }
+
+  function addItem(item: PublicMenuItem, variantId: string | null, trigger?: HTMLButtonElement) {
+    if (!ordering?.onlineOrderingAvailable) {
+      setOrderingModal(unavailableMessage());
+      return;
+    }
+    if (!item.isAvailable) return;
+    if (item.variants.length && !variantId) {
+      if (trigger) openItem(item.id, trigger);
+      return;
+    }
+    addCartItem(item.id, variantId, 1);
+    setNotice(`${item.name} به سبد خرید اضافه شد.`);
+    window.setTimeout(() => setNotice(""), 2400);
+  }
+
   return <section className="public-menu-content" aria-labelledby="menu-explorer-title">
     <div className="public-menu-intro">
       <h2 id="menu-explorer-title">انتخاب امروز شما</h2>
@@ -162,14 +191,17 @@ export function MenuExplorer({ menu, initialItemId }: { menu: PublicMenu; initia
           </header>
           {category.items.length ? <div className="public-menu-grid">
             {category.items.map((item) => <article className={`public-menu-card${item.isAvailable ? "" : " is-unavailable"}`} key={item.id}>
-              <button type="button" onClick={(event) => openItem(item.id, event.currentTarget)} aria-label={`مشاهده جزئیات ${item.name}`}>
+              <button className="public-menu-card-main" type="button" onClick={(event) => openItem(item.id, event.currentTarget)} aria-label={`مشاهده جزئیات ${item.name}`}>
                 <Picture asset={item.image} fallback="menu" alt={item.image ? item.name : `تصویر جایگزین برای ${item.name}`} className="public-menu-card-image" />
                 <span className="public-menu-card-copy">
                   <span className="public-menu-card-heading"><strong>{item.name}</strong>{item.isFeatured && <small>پیشنهاد ما</small>}</span>
                   {item.description && <span className="public-menu-card-description">{item.description}</span>}
-                  {!item.isAvailable && <span className="public-menu-unavailable">امروز موجود نیست</span>}
+                  {!item.isAvailable && <span className="public-menu-unavailable">ناموجود</span>}
                   <span className="public-menu-card-price"><Price item={item} /></span>
                 </span>
+              </button>
+              <button className="public-menu-add" type="button" disabled={!item.isAvailable} onClick={(event) => item.variants.length ? (ordering?.onlineOrderingAvailable ? openItem(item.id, event.currentTarget) : addItem(item, null)) : addItem(item, null)}>
+                {!item.isAvailable ? "ناموجود" : item.variants.length ? "انتخاب" : "افزودن"}
               </button>
             </article>)}
           </div> : <p className="public-menu-category-empty">هنوز آیتمی در این دسته ثبت نشده است.</p>}
@@ -186,10 +218,13 @@ export function MenuExplorer({ menu, initialItemId }: { menu: PublicMenu; initia
           <p>{selectedEntry.category.name}</p>
           <h2 id="menu-dialog-title">{selectedEntry.item.name}</h2>
           {selectedEntry.item.description && <p id="menu-dialog-description">{selectedEntry.item.description}</p>}
-          {!selectedEntry.item.isAvailable && <strong className="menu-dialog-unavailable">امروز موجود نیست</strong>}
-          {selectedEntry.item.variants.filter((variant) => variant.isAvailable).length ? <dl className="menu-dialog-variants">{selectedEntry.item.variants.filter((variant) => variant.isAvailable).map((variant) => <div key={variant.id}><dt>{variant.name}</dt><dd>{formatToman(variant.priceToman)}</dd></div>)}</dl> : <div className="menu-dialog-base-price"><Price item={selectedEntry.item} /></div>}
+          {!selectedEntry.item.isAvailable && <strong className="menu-dialog-unavailable">ناموجود</strong>}
+          {selectedEntry.item.variants.filter((variant) => variant.isAvailable).length ? <div className="menu-dialog-variants">{selectedEntry.item.variants.filter((variant) => variant.isAvailable).map((variant) => <button type="button" className={selectedVariantId === variant.id ? "selected" : ""} key={variant.id} onClick={() => setSelectedVariantId(variant.id)}><span>{variant.name}</span><strong>{formatToman(variant.priceToman)}</strong></button>)}</div> : <div className="menu-dialog-base-price"><Price item={selectedEntry.item} /></div>}
+          <button className="menu-dialog-add" type="button" disabled={!selectedEntry.item.isAvailable || (Boolean(selectedEntry.item.variants.length) && !selectedVariantId)} onClick={() => addItem(selectedEntry.item, selectedEntry.item.variants.length ? selectedVariantId : null)}>{selectedEntry.item.isAvailable ? "افزودن به سبد خرید" : "ناموجود"}</button>
         </div>
       </div>}
     </dialog>
+    {notice && <p className="tenant-cart-toast" role="status">{notice}</p>}
+    {orderingModal && <div className="tenant-modal-backdrop" role="presentation" onMouseDown={() => setOrderingModal("")}><section className="tenant-modal" role="dialog" aria-modal="true" aria-labelledby="ordering-disabled-title" onMouseDown={(event) => event.stopPropagation()}><h2 id="ordering-disabled-title">سفارش آنلاین فعال نیست</h2><p>{orderingModal}</p><button type="button" onClick={() => setOrderingModal("")}>متوجه شدم</button></section></div>}
   </section>;
 }

@@ -17,6 +17,8 @@ import { NotificationsModule } from "./notifications/notifications.module";
 import { PaymentsModule } from "./payments/payments.module";
 import { PlatformOrdersModule } from "./platform-orders/platform-orders.module";
 import { PlatformAccessModule } from "./identity/platform-access.module";
+import { ClientsModule } from "./clients/clients.module";
+import { OrderingModule } from "./ordering/ordering.module";
 
 @Module({
   imports: [
@@ -41,6 +43,8 @@ import { PlatformAccessModule } from "./identity/platform-access.module";
     PaymentsModule,
     PlatformOrdersModule,
     PlatformAccessModule,
+    ClientsModule,
+    OrderingModule,
   ],
   controllers: [HealthController],
 })

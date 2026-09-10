@@ -31,7 +31,7 @@ export default async function MenuPage({ searchParams }: { searchParams: Promise
         <span>همه انتخاب‌ها، قیمت‌ها و جزئیات در یک نگاه</span>
       </div>
     </section>
-    <MenuExplorer menu={data.menu} initialItemId={initialItemId} />
+    <MenuExplorer menu={data.menu} initialItemId={initialItemId} ordering={data.ordering} />
     <TenantFooter site={data.site} />
   </main>;
 }

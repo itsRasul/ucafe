@@ -67,3 +67,8 @@
 @media(prefers-reduced-motion:reduce){.auth-card button,.auth-back-link span,.auth-card input{transition:none}}
 .auth-brand-logo{width:2.35rem;height:2.35rem;object-fit:contain;filter:drop-shadow(0 .3rem .65rem rgb(64 38 24/14%))}
 @media(max-width:46rem){.auth-brand-logo{width:2.1rem;height:2.1rem}}
+
+.nav-icon-orders::before{inset:.18rem;border:1.8px solid currentColor;border-radius:.22rem}.nav-icon-orders::after{width:.5rem;height:1.8px;inset:.38rem auto auto .3rem;background:currentColor;box-shadow:0 .24rem 0 currentColor,0 .48rem 0 currentColor}
+.status-under_review,.status-preparing{border-color:#fed7aa!important;background:#fff7ed!important;color:#c2410c!important}.status-ready,.status-out_for_delivery{border-color:#bae6fd!important;background:#effaff!important;color:#0369a1!important}.status-delivered{border-color:#bbf7d0!important;background:#f0fdf4!important;color:#15803d!important}
+.order-item-list{display:grid;gap:.45rem;margin:.75rem 0}.order-item-list article{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:.65rem;padding:.65rem .75rem;border:1px solid #e5e7eb;border-radius:.6rem;background:#fff}.order-item-list span:first-child{display:grid;gap:.15rem}.order-item-list small{color:#64748b;font-size:.7rem}.order-item-list strong{color:#0f172a;font-size:.82rem}.admin-orders-shell .reservation-filters{grid-template-columns:1fr 1fr 1fr auto}
+@media(max-width:52rem){.admin-orders-shell .reservation-filters{grid-template-columns:1fr 1fr}.order-item-list article{grid-template-columns:1fr}}

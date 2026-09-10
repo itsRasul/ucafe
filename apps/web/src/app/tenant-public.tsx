@@ -1,11 +1,14 @@
 import type { CSSProperties } from "react";
 import { BrandLogo } from "./brand-logo";
+import { TenantCartLink } from "./tenant-cart-link";
 import { TenantMobileNav } from "./tenant-mobile-nav";
 
 export type TenantContext = {
   available: boolean;
   slug: string;
   status: "PREVIEW" | "ACTIVE" | "SUSPENDED";
+  hostname: string;
+  domainType: string;
   unavailable?: { code: string; title: string; message: string };
 };
 
@@ -32,6 +35,12 @@ export type PublicMenuItem = {
   variants: PublicMenuVariant[];
 };
 export type PublicMenu = Array<{ id: string; name: string; description: string | null; items: PublicMenuItem[] }>;
+export type PublicOrderingState = {
+  onlineOrderingAvailable: boolean;
+  unavailableMessage: string | null;
+  paymentMethods: Array<{ key: "OFFLINE"; label: string; enabled: boolean }>;
+  deliveryMethods: Array<{ key: "PICKUP" | "COURIER"; label: string; enabled: boolean; address?: string | null }>;
+};
 export type PublicSite = {
   name: string;
   content: { heroTitle: string; heroSubtitle: string | null; aboutTitle: string | null; aboutBody: string | null; announcementText: string | null };
@@ -84,7 +93,7 @@ export function TenantHeader({ site, onHomePage = false }: { site: PublicSite; o
         <span><strong>{site.name}</strong><small>ucafe coffee house</small></span>
       </a>
       <div className="tenant-nav-links"><a href={`${prefix}#about`}>درباره ما</a><a href="/menu" aria-current={onHomePage ? undefined : "page"}>منو</a><a href={`${prefix}#gallery`}>گالری</a><a href={`${prefix}#visit`}>تماس و نشانی</a></div>
-      <a className="nav-reserve" href="/reserve">رزرو میز</a>
+      <div className="tenant-nav-actions"><a className="tenant-login-link tenant-nav-cta" href="/login">ورود / ثبت‌نام</a><TenantCartLink /><a className="nav-reserve tenant-nav-cta" href="/reserve">رزرو میز</a></div>
       <TenantMobileNav sectionPrefix={prefix} />
     </nav>
   </header>;

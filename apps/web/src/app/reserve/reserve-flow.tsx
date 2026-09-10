@@ -1,24 +1,106 @@
 "use client";
-import { FormEvent, useMemo, useState } from "react";
+
+import { FormEvent, useMemo, useRef, useState } from "react";
+import { clientRequest, useClientSession } from "../client-session";
 import { JalaliDateInput } from "../jalali-date-input";
 import { formatJalaliDate, toIsoDate } from "../jalali-date";
-type Slot = { startTime: string; endTime: string; available: boolean }; type Step = "details" | "slot" | "phone" | "otp" | "success"; type ApiError = { message?: string | string[] };
-const fa = new Intl.NumberFormat("fa-IR"); const currentDate = new Date();
-function endpoint(path: string) { return `/api/backend${path}`; }
-async function api<T>(path: string, init?: RequestInit): Promise<T> { const response = await fetch(endpoint(path), { ...init, headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) } }); const body = await response.json().catch(() => ({})) as ApiError; if (!response.ok) throw new Error(Array.isArray(body.message) ? body.message[0] : body.message || "خطایی رخ داد. دوباره تلاش کنید."); return body as T; }
+import { OtpCodeFields } from "../otp-code-fields";
+
+type Slot = { startTime: string; endTime: string; available: boolean };
+type Step = "details" | "slot" | "contact" | "phone" | "otp" | "success";
+type ApiError = { message?: string | string[] };
+
+const fa = new Intl.NumberFormat("fa-IR");
+const currentDate = new Date();
+
+async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`/api/backend${path}`, { ...init, headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) } });
+  const body = await response.json().catch(() => ({})) as ApiError;
+  if (!response.ok) throw new Error(Array.isArray(body.message) ? body.message[0] : body.message || "خطایی رخ داد. دوباره تلاش کنید.");
+  return body as T;
+}
 
 export function ReserveFlow({ cafeName }: { cafeName: string }) {
-  const tomorrow = useMemo(() => { const value = new Date(); value.setDate(value.getDate() + 1); return toIsoDate(value); }, []); const maximum = useMemo(() => { const value = new Date(); value.setDate(value.getDate() + 30); return toIsoDate(value); }, []);
-  const [step, setStep] = useState<Step>("details"); const [date, setDate] = useState(tomorrow); const [partySize, setPartySize] = useState(2); const [slots, setSlots] = useState<Slot[]>([]); const [startTime, setStartTime] = useState("");
-  const [name, setName] = useState(""); const [note, setNote] = useState(""); const [phone, setPhone] = useState(""); const [challengeId, setChallengeId] = useState(""); const [otp, setOtp] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
-  async function findSlots(event: FormEvent) { event.preventDefault(); if (!date || date < toIsoDate(currentDate) || date > maximum) { setError("تاریخ رزرو را با تقویم جلالی و در بازه مجاز انتخاب کنید."); return; } setBusy(true); setError(""); try { const result = await api<{ slots: Slot[] }>(`/public/reservations/availability?date=${date}&partySize=${partySize}`); setSlots(result.slots); setStartTime(""); setStep("slot"); } catch (e) { setError((e as Error).message); } finally { setBusy(false); } }
-  async function requestOtp(event: FormEvent) { event.preventDefault(); setBusy(true); setError(""); try { const result = await api<{ challengeId: string }>("/auth/otp/request", { method: "POST", body: JSON.stringify({ phone }) }); setChallengeId(result.challengeId); setStep("otp"); } catch (e) { setError((e as Error).message); } finally { setBusy(false); } }
-  async function complete(event: FormEvent) { event.preventDefault(); setBusy(true); setError(""); try { const verified = await api<{ accessToken: string }>("/auth/otp/verify", { method: "POST", body: JSON.stringify({ challengeId, otp }) }); await api("/public/reservations", { method: "POST", headers: { Authorization: `Bearer ${verified.accessToken}` }, body: JSON.stringify({ date, partySize, startTime, contactName: name, note: note || undefined }) }); setStep("success"); } catch (e) { setError((e as Error).message); } finally { setBusy(false); } }
-  const progress = step === "success" ? 100 : (["details", "slot", "phone", "otp"].indexOf(step) + 1) * 25;
-  return <section className="reserve-card" aria-labelledby="reserve-title"><header className="reserve-header"><a href="/" aria-label="بازگشت">→</a><div><p className="eyebrow">رزرو میز در</p><h1 id="reserve-title">{cafeName}</h1></div><span>{step === "success" ? "تمام" : `${fa.format(progress / 25)} از ۴`}</span></header><div className="reserve-progress" aria-hidden="true"><i style={{ width: `${progress}%` }} /></div>{error && <p className="form-message error" role="alert">{error}</p>}
+  const session = useClientSession();
+  const tomorrow = useMemo(() => { const value = new Date(); value.setDate(value.getDate() + 1); return toIsoDate(value); }, []);
+  const maximum = useMemo(() => { const value = new Date(); value.setDate(value.getDate() + 30); return toIsoDate(value); }, []);
+  const [step, setStep] = useState<Step>("details");
+  const [date, setDate] = useState(tomorrow);
+  const [partySize, setPartySize] = useState(2);
+  const [slots, setSlots] = useState<Slot[]>([]);
+  const [startTime, setStartTime] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [note, setNote] = useState("");
+  const [phone, setPhone] = useState("");
+  const [challengeId, setChallengeId] = useState("");
+  const [otpDigits, setOtpDigits] = useState<string[]>(() => Array.from({ length: 6 }, () => ""));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const submittingOtp = useRef(false);
+  const otp = otpDigits.join("");
+
+  async function findSlots(event: FormEvent) {
+    event.preventDefault();
+    if (!date || date < toIsoDate(currentDate) || date > maximum) { setError("تاریخ رزرو را با تقویم جلالی و در بازه مجاز انتخاب کنید."); return; }
+    setBusy(true); setError("");
+    try {
+      const result = await api<{ slots: Slot[] }>(`/public/reservations/availability?date=${date}&partySize=${partySize}`);
+      setSlots(result.slots); setStartTime(""); setStep("slot");
+    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  }
+
+  function continueFromSlot() {
+    if (!startTime) return;
+    if (session.client) {
+      setFirstName(session.client.firstName);
+      setLastName(session.client.lastName);
+      setStep("contact");
+    } else {
+      setStep("phone");
+    }
+  }
+
+  async function createReservation(accessToken?: string) {
+    const body = JSON.stringify({ date, partySize, startTime, contactName: `${firstName} ${lastName}`.trim(), note: note || undefined });
+    if (accessToken) await clientRequest("/public/reservations", accessToken, { method: "POST", body });
+    else await session.api("/public/reservations", { method: "POST", body });
+    setStep("success");
+  }
+
+  async function submitAuthenticated(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true); setError("");
+    try { await createReservation(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  }
+
+  async function requestOtp(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true); setError("");
+    try { setChallengeId((await session.requestOtp(phone)).challengeId); setStep("otp"); }
+    catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  async function verifyAndCreate(code: string) {
+    if (code.length !== 6 || submittingOtp.current) return;
+    submittingOtp.current = true; setBusy(true); setError("");
+    try {
+      const verified = await session.verifyOtp({ challengeId, otp: code, firstName, lastName });
+      await createReservation(verified.accessToken);
+    } catch (e) { setError((e as Error).message); }
+    finally { submittingOtp.current = false; setBusy(false); }
+  }
+
+  function complete(event: FormEvent) { event.preventDefault(); void verifyAndCreate(otp); }
+
+  const progress = step === "success" ? 100 : (["details", "slot", "contact", "phone", "otp"].indexOf(step) + 1) * 20;
+
+  return <section className="reserve-card" aria-labelledby="reserve-title"><header className="reserve-header"><a href="/" aria-label="بازگشت">→</a><div><p className="eyebrow">رزرو میز در</p><h1 id="reserve-title">{cafeName}</h1></div><span>{step === "success" ? "تمام" : `${fa.format(Math.max(1, Math.ceil(progress / 20)))} از ۵`}</span></header><div className="reserve-progress" aria-hidden="true"><i style={{ width: `${progress}%` }} /></div>{error && <p className="form-message error" role="alert">{error}</p>}
   {step === "details" && <form onSubmit={findSlots}><h2>چه زمانی منتظر شما باشیم؟</h2><p className="form-hint">تاریخ و تعداد مهمان‌ها را انتخاب کنید.</p><label>تاریخ<JalaliDateInput value={date} onChange={setDate} min={toIsoDate(currentDate)} max={maximum} required /></label><label>تعداد مهمان<select value={partySize} onChange={(e) => setPartySize(Number(e.target.value))}>{Array.from({ length: 8 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{fa.format(n)} نفر</option>)}</select></label><button disabled={busy}>{busy ? "در حال بررسی…" : "مشاهده زمان‌های آزاد"}</button></form>}
-  {step === "slot" && <div><h2>یک زمان انتخاب کنید</h2><p className="form-hint">مدت رزرو به‌صورت پیش‌فرض ۹۰ دقیقه است.</p><div className="slot-grid">{slots.filter((slot) => slot.available).map((slot) => <button className={startTime === slot.startTime ? "selected" : ""} type="button" key={slot.startTime} onClick={() => setStartTime(slot.startTime)}>{slot.startTime}</button>)}</div>{!slots.some((slot) => slot.available) && <p className="empty-slots">برای این روز زمان آزادی پیدا نشد.</p>}<div className="form-actions"><button type="button" className="text-button" onClick={() => setStep("details")}>تغییر تاریخ</button><button disabled={!startTime} onClick={() => setStep("phone")}>ادامه</button></div></div>}
-  {step === "phone" && <form onSubmit={requestOtp}><h2>مشخصات رزرو</h2><p className="form-hint">شماره شما بعد از تأیید، فقط برای پیگیری رزرو در اختیار کافه قرار می‌گیرد.</p><label>نام و نام خانوادگی<input value={name} onChange={(e) => setName(e.target.value)} maxLength={100} required /></label><label>شماره موبایل<input dir="ltr" inputMode="tel" placeholder="09123456789" value={phone} onChange={(e) => setPhone(e.target.value)} required /></label><label>یادداشت <small>اختیاری</small><textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} placeholder="مثلاً کنار پنجره، در صورت امکان" /></label><button disabled={busy}>{busy ? "در حال ارسال…" : "دریافت کد تأیید"}</button></form>}
-  {step === "otp" && <form onSubmit={complete}><h2>کد تأیید را وارد کنید</h2><p className="form-hint">کد شش‌رقمی به شماره {phone} ارسال شد.</p><label>کد تأیید<input className="otp-input" dir="ltr" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))} autoFocus required /></label><button disabled={busy || otp.length !== 6}>{busy ? "در حال ثبت…" : "ثبت نهایی رزرو"}</button><button type="button" className="text-button full" onClick={() => setStep("phone")}>اصلاح شماره موبایل</button></form>}
-  {step === "success" && <div className="reservation-success" role="status"><div aria-hidden="true">✓</div><p className="eyebrow">درخواست ثبت شد</p><h2>منتظر تأیید کافه باشید</h2><p>رزرو شما برای {formatJalaliDate(date)} ساعت {startTime} و {fa.format(partySize)} نفر ثبت شد.</p><p className="form-hint">پس از بررسی کافه، وضعیت رزرو تأیید می‌شود.</p><a href="/">بازگشت به صفحه کافه</a></div>}</section>;
+  {step === "slot" && <div><h2>یک زمان انتخاب کنید</h2><p className="form-hint">مدت رزرو به‌صورت پیش‌فرض ۹۰ دقیقه است.</p><div className="slot-grid">{slots.filter((slot) => slot.available).map((slot) => <button className={startTime === slot.startTime ? "selected" : ""} type="button" key={slot.startTime} onClick={() => setStartTime(slot.startTime)}>{slot.startTime}</button>)}</div>{!slots.some((slot) => slot.available) && <p className="empty-slots">برای این روز زمان آزادی پیدا نشد.</p>}<div className="form-actions"><button type="button" className="text-button" onClick={() => setStep("details")}>تغییر تاریخ</button><button disabled={!startTime || session.state === "loading"} onClick={continueFromSlot}>ادامه</button></div></div>}
+  {step === "contact" && <form onSubmit={submitAuthenticated}><h2>تکمیل رزرو</h2><p className="form-hint">رزرو با حساب {firstName} {lastName} ثبت می‌شود.</p><label>یادداشت <small>اختیاری</small><textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} placeholder="مثلاً کنار پنجره، در صورت امکان" /></label><button disabled={busy}>{busy ? "در حال ثبت…" : "ثبت نهایی رزرو"}</button></form>}
+  {step === "phone" && <form onSubmit={requestOtp}><h2>مشخصات رزرو</h2><p className="form-hint">شماره شما بعد از تأیید، فقط برای پیگیری رزرو در اختیار کافه قرار می‌گیرد.</p><div className="client-auth-grid"><label>نام<input value={firstName} onChange={(e) => setFirstName(e.target.value)} maxLength={80} required /></label><label>نام خانوادگی<input value={lastName} onChange={(e) => setLastName(e.target.value)} maxLength={80} required /></label></div><label>شماره موبایل<input dir="ltr" inputMode="tel" placeholder="09123456789" value={phone} onChange={(e) => setPhone(e.target.value)} required /></label><label>یادداشت <small>اختیاری</small><textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} placeholder="مثلاً کنار پنجره، در صورت امکان" /></label><button disabled={busy}>{busy ? "در حال ارسال…" : "دریافت کد تأیید"}</button></form>}
+  {step === "otp" && <form onSubmit={complete}><h2>کد تأیید را وارد کنید</h2><p className="form-hint">کد شش‌رقمی به شماره {phone} ارسال شد.</p><fieldset className="client-otp-fieldset"><legend>کد شش‌رقمی</legend><OtpCodeFields value={otpDigits} onChange={setOtpDigits} onComplete={(code) => void verifyAndCreate(code)} disabled={busy} className="client-otp-inputs" /></fieldset><button disabled={busy || otp.length !== 6}>{busy ? "در حال ثبت…" : "ثبت نهایی رزرو"}</button><button type="button" className="text-button full" onClick={() => { setOtpDigits(Array.from({ length: 6 }, () => "")); setStep("phone"); }}>اصلاح شماره موبایل</button></form>}
+  {step === "success" && <div className="reservation-success" role="status"><div aria-hidden="true">✓</div><h2>درخواست ثبت شد</h2><p>رزرو شما برای {formatJalaliDate(date)} ساعت {startTime} و {fa.format(partySize)} نفر ثبت شد.</p><p className="form-hint">پس از بررسی کافه، وضعیت رزرو تأیید می‌شود.</p><a href="/">بازگشت به صفحه کافه</a></div>}</section>;
 }

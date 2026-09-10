@@ -10,6 +10,14 @@ export interface AccessTokenPayload {
   typ: "access";
 }
 
+export interface ClientAccessTokenPayload {
+  sub: string;
+  sid: string;
+  jti: string;
+  typ: "client_access";
+  cafe: string;
+}
+
 @Injectable()
 export class AuthTokenService {
   private readonly accessTtlSeconds: number;
@@ -22,6 +30,11 @@ export class AuthTokenService {
 
   issueAccessToken(userId: string, sessionId: string): Promise<string> {
     const payload: AccessTokenPayload = { sub: userId, sid: sessionId, jti: randomUUID(), typ: "access" };
+    return this.jwt.signAsync(payload, { expiresIn: this.accessTtlSeconds });
+  }
+
+  issueClientAccessToken(clientId: string, sessionId: string, coffeeShopId: string): Promise<string> {
+    const payload: ClientAccessTokenPayload = { sub: clientId, sid: sessionId, cafe: coffeeShopId, jti: randomUUID(), typ: "client_access" };
     return this.jwt.signAsync(payload, { expiresIn: this.accessTtlSeconds });
   }
 

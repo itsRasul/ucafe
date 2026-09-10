@@ -17,7 +17,7 @@ export class PlatformPlansController {
   @Get() list() { return this.subscriptions.listPlans(); }
   @Patch(":planKey") async update(@Param("planKey") planKey: string, @Body() input: UpdatePlanDto, @Req() request: AuthorizedRequest) {
     const result = await this.subscriptions.updatePlan(planKey, input);
-    await this.audit.record({ actorUserId: request[AUTH_PRINCIPAL]!.userId, action: "subscription_plan.updated", targetType: "subscription_plan", targetId: result.id, summary: { planKey, priceToman: result.priceToman, status: result.status } });
+    await this.audit.record({ actorUserId: request[AUTH_PRINCIPAL]!.userId, action: "subscription_plan.updated", targetType: "subscription_plan", targetId: result.id, summary: { planKey, priceToman: result.priceToman, status: result.status, reservations: result.features.reservations ?? false, onlineOrdering: result.features.onlineOrdering ?? false } });
     return result;
   }
 }

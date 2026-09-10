@@ -313,3 +313,18 @@ Entries distinguish confirmed decisions from pending questions. Dates reflect th
 - **Decision:** platform invoice list/detail reads use the existing `payment_intents` records created by tenant renewal checkout. Platform detail enriches those records with cafe, primary branch and cafe admin/member data, guarded by both `subscriptions.manage` and `users.read`.
 - **Reasoning:** payment intents already contain the immutable invoice snapshot, gateway identifiers, status, expiry and paid timestamp. Reusing them avoids a duplicate ledger and keeps full phone/contact visibility behind the existing protected platform user-read authority.
 - **Consequences:** no migration is required. The platform view is read-only; refunds, manual status edits, scheduled invoice generation and recurring billing remain outside scope.
+
+## D-039 — Plan-gated client ordering and reservation ownership
+
+- **Status:** accepted and implemented on 2026-09-09
+- **Options:** store cafe customers in `users`; create a new entitlement subsystem; use the existing subscription-plan `features` JSON with separate cafe-scoped clients.
+- **Decision:** cafe customers are stored as tenant-scoped `clients` with unique `(coffee_shop_id, phone)` and separate rotating client auth sessions. Client OTP challenges reuse the existing OTP primitives but remain scoped by cafe and purpose. Plan modules are the existing plan `features` JSON keys: `reservations` and `onlineOrdering`, editable by platform admins. Orders are created only through server-side recalculation of menu ownership, availability, variants, prices, delivery settings and plan eligibility, with order-item and delivery-address snapshots for history.
+- **Reasoning:** separating clients from administrative `users` preserves platform/tenant RBAC and allows the same phone number to be a customer of multiple cafes. Reusing plan features and OTP primitives is the smallest maintainable path and avoids a speculative entitlement or identity subsystem.
+- **Consequences:** Silver enables reservations but blocks online ordering; Golden enables both. Reservations now belong to a `Client`, public reservation creation requires client OTP auth, and tenant admins see order/reservation customer phone data only through protected tenant endpoints. Online payment, a full client panel, address editing/deletion UI and advanced delivery/payment methods remain future work.
+
+## D-040 — Tenant-branded client authentication and shared OTP entry
+
+- **Status:** accepted and implemented on 2026-09-10
+- **Decision:** Active tenant storefronts use a dedicated `/login` shell branded by the resolved café, with login and registration as two modes in one card. All admin and client authentication surfaces share one six-cell OTP component with digit normalization, paste and keyboard support, and guarded automatic submission after the sixth digit. Embedded checkout authentication consumes the checkout owner's client-session instance instead of creating an isolated session.
+- **Reasoning:** The café identity should remain primary in the customer journey, and a single OTP interaction removes behavioral drift between standalone login, checkout, reservation and admin entry. Sharing the parent client session ensures successful authentication is observable immediately without a page refresh.
+- **Consequences:** Existing client-auth routes, access/refresh token contracts, development SMS provider and database schema remain unchanged. Login verification sends no names, registration sends validated first and last names, switching modes preserves the phone but clears the challenge and OTP, and reduced-motion users receive the complete interface without entrance motion.

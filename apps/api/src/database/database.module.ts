@@ -12,6 +12,8 @@ import { MediaAsset } from "../media/entities";
 import { NotificationDelivery } from "../notifications/entities";
 import { PaymentIntent } from "../payments/entities";
 import { PlatformOrderRequest } from "../platform-orders/entities";
+import { Client, ClientAddress, ClientAuthSession } from "../clients/entities";
+import { OnlineOrderingSettings, Order, OrderItem } from "../ordering/entities";
 
 @Module({
   imports: [
@@ -21,7 +23,7 @@ import { PlatformOrderRequest } from "../platform-orders/entities";
       useFactory: (config: ConfigService) => ({
         type: "postgres" as const,
         url: config.getOrThrow<string>("DATABASE_URL"),
-        entities: [CoffeeShop, Branch, Domain, User, CoffeeShopMembership, Role, Permission, MembershipRole, RolePermission, UserPlatformRole, OtpChallenge, AuthSession, SubscriptionPlan, Subscription, SubscriptionPayment, WebsiteSettings, BranchOpeningHour, MenuCategory, MenuItem, MenuItemVariant, Reservation, ReservationSettings, MediaAsset, NotificationDelivery, PaymentIntent, PlatformOrderRequest],
+        entities: [CoffeeShop, Branch, Domain, User, CoffeeShopMembership, Role, Permission, MembershipRole, RolePermission, UserPlatformRole, OtpChallenge, AuthSession, Client, ClientAddress, ClientAuthSession, SubscriptionPlan, Subscription, SubscriptionPayment, WebsiteSettings, BranchOpeningHour, MenuCategory, MenuItem, MenuItemVariant, Reservation, ReservationSettings, MediaAsset, NotificationDelivery, PaymentIntent, PlatformOrderRequest, OnlineOrderingSettings, Order, OrderItem],
         synchronize: false,
         migrationsRun: false,
         logging: config.get<string>("NODE_ENV") === "development" ? ["error", "warn"] : ["error"],
