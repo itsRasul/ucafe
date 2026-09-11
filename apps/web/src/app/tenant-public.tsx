@@ -93,7 +93,7 @@ export function TenantHeader({ site, onHomePage = false }: { site: PublicSite; o
         <span><strong>{site.name}</strong><small>ucafe coffee house</small></span>
       </a>
       <div className="tenant-nav-links"><a href={`${prefix}#about`}>درباره ما</a><a href="/menu" aria-current={onHomePage ? undefined : "page"}>منو</a><a href={`${prefix}#gallery`}>گالری</a><a href={`${prefix}#visit`}>تماس و نشانی</a></div>
-      <div className="tenant-nav-actions"><a className="tenant-login-link tenant-nav-cta" href="/login">ورود / ثبت‌نام</a><TenantCartLink /><a className="nav-reserve tenant-nav-cta" href="/reserve">رزرو میز</a></div>
+      <div className="tenant-nav-actions"><TenantCartLink /><a className="nav-reserve tenant-nav-cta" href="/reserve">رزرو میز</a><a className="tenant-login-link tenant-nav-cta" href="/login">ورود / ثبت‌نام</a></div>
       <TenantMobileNav sectionPrefix={prefix} />
     </nav>
   </header>;

@@ -45,7 +45,7 @@
 }
 
 .tenant-home a {
-  color: inherit;
+  color: #fff8ef;
 }
 
 .tenant-home picture {
@@ -1374,14 +1374,16 @@ img.tenant-footer-logo {
   overflow-x: hidden;
   background: #f7f5f1;
   color: #211914;
+  padding: 0;
 }
 
 .client-auth-shell {
   min-height: 100dvh;
   display: grid;
-  grid-template-columns: minmax(0, 58fr) minmax(27rem, 42fr);
+  grid-template-columns: minmax(0, 58fr) minmax(26rem, 42fr);
   direction: ltr;
   overflow: hidden;
+  width: 100%
 }
 
 .client-auth-visual {
@@ -1763,6 +1765,7 @@ img.tenant-footer-logo {
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   .client-auth-visual>img,
   .client-auth-panel,
   .client-auth-card button,
@@ -1820,6 +1823,7 @@ img.tenant-footer-logo {
 .public-menu-card {
   position: relative;
   display: grid;
+  grid-template-rows: 1fr auto;
 }
 
 .public-menu-card>.public-menu-card-main {
@@ -1847,19 +1851,22 @@ img.tenant-footer-logo {
   cursor: pointer;
 }
 
+.cart-empty a {
+  padding: .55rem 1.1rem;
+}
+
 .public-menu-add {
-  position: absolute;
-  inset: auto auto .85rem .85rem;
-  min-height: 2.25rem;
-  padding: .4rem .7rem;
-  background: rgb(255 255 255/92%);
-  color: var(--tenant-primary);
-  box-shadow: 0 .45rem 1.1rem rgb(0 0 0/16%);
+  margin: 0 .85rem .85rem;
+  min-height: 2.4rem;
+  padding: .45rem .85rem;
+  background: #a35630;
+  color: #fff;
+  box-shadow: none;
 }
 
 .public-menu-quantity {
-  position: absolute;
-  inset: auto auto .85rem .85rem;
+  justify-self: start;
+  margin: 0 .85rem .85rem;
   box-shadow: 0 .45rem 1.1rem rgb(0 0 0/16%);
 }
 
@@ -2360,7 +2367,7 @@ img.tenant-footer-logo {
   width: 100%;
   margin: 0;
   color: var(--coffee-ink);
-  font-size: clamp(1.85rem, 4vw, 3.25rem);
+  font-size: 2rem;
   line-height: 1.28;
   letter-spacing: -.025em;
   text-wrap: balance;
@@ -2630,8 +2637,17 @@ img.tenant-footer-logo {
 }
 
 @keyframes cart-reveal {
-  from { opacity: .72; transform: translateY(1rem); filter: blur(4px); }
-  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+  from {
+    opacity: .72;
+    transform: translateY(1rem);
+    filter: blur(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
 }
 
 @media (max-width: 64rem) {
@@ -2671,7 +2687,7 @@ img.tenant-footer-logo {
   }
 
   .cart-overview h1 {
-    font-size: clamp(1.65rem, 8vw, 2.25rem);
+    font-size: 1.5rem;
   }
 
   .cart-overview-stats {
@@ -2732,6 +2748,7 @@ img.tenant-footer-logo {
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   .cart-overview,
   .cart-section-heading,
   .cart-layout,
@@ -2830,7 +2847,7 @@ img.tenant-footer-logo {
 .menu-page-masthead-copy h1 {
   max-width: none;
   margin: 0;
-  font-size: clamp(2.8rem, 6vw, 5.4rem);
+  font-size: 3rem;
   line-height: 1.08;
   letter-spacing: -.035em;
 }
@@ -2853,27 +2870,6 @@ img.tenant-footer-logo {
   background: #f3eadf;
   box-shadow: none;
   color: var(--coffee-ink);
-}
-
-.public-menu-intro {
-  width: min(calc(100% - 2.5rem), 80rem);
-  margin-inline: auto;
-  padding: clamp(4rem, 7vw, 6.5rem) 0 2.25rem;
-}
-
-.public-menu-intro h2 {
-  margin: 0;
-  font-size: clamp(2rem, 4vw, 3.6rem);
-  line-height: 1.15;
-  letter-spacing: -.025em;
-}
-
-.public-menu-intro p {
-  max-width: 42rem;
-  margin: 1rem 0 0;
-  color: #6f5f53;
-  font-size: .86rem;
-  line-height: 1.9;
 }
 
 .public-menu-toolbar {
@@ -2976,7 +2972,7 @@ img.tenant-footer-logo {
   max-width: none;
   display: block;
   margin: 0;
-  padding: clamp(4rem, 7vw, 6.5rem) 0 0;
+  padding: 2rem;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -2994,7 +2990,7 @@ img.tenant-footer-logo {
 
 .public-menu-category h3 {
   margin: 0;
-  font-size: clamp(1.7rem, 3vw, 2.7rem);
+  font-size: 1.5rem;
   line-height: 1.2;
 }
 
@@ -3026,7 +3022,7 @@ img.tenant-footer-logo {
   transform: translateY(-3px);
 }
 
-.public-menu-card>button {
+.public-menu-card>.public-menu-card-main {
   width: 100%;
   height: 100%;
   display: grid;
@@ -3040,7 +3036,7 @@ img.tenant-footer-logo {
   cursor: pointer;
 }
 
-.public-menu-card>button:active {
+.public-menu-card>.public-menu-card-main:active {
   transform: scale(.99);
 }
 
@@ -3311,16 +3307,11 @@ img.tenant-footer-logo {
   }
 
   .menu-page-masthead-copy h1 {
-    font-size: clamp(2.25rem, 10vw, 3.25rem);
+    font-size: 1.5rem
   }
 
-  .public-menu-intro,
   .public-menu-sections {
     width: calc(100% - 1.5rem);
-  }
-
-  .public-menu-intro {
-    padding-block: 3.5rem 1.75rem;
   }
 
   .public-menu-toolbar-inner {
@@ -3361,7 +3352,7 @@ img.tenant-footer-logo {
     gap: .75rem;
   }
 
-  .public-menu-card>button {
+  .public-menu-card>.public-menu-card-main {
     grid-template-columns: 7rem minmax(0, 1fr);
     grid-template-rows: 1fr;
   }

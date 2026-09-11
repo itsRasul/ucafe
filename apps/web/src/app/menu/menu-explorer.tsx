@@ -167,11 +167,6 @@ export function MenuExplorer({ menu, initialItemId, ordering }: { menu: PublicMe
   }
 
   return <section className="public-menu-content" aria-labelledby="menu-explorer-title">
-    <div className="public-menu-intro">
-      <h2 id="menu-explorer-title">انتخاب امروز شما</h2>
-      <p>قیمت‌ها به تومان هستند و موجودی ممکن است در طول روز تغییر کند.</p>
-    </div>
-
     {menu.length ? <>
       <div className="public-menu-toolbar">
         <div className="public-menu-toolbar-inner">
@@ -195,21 +190,21 @@ export function MenuExplorer({ menu, initialItemId, ordering }: { menu: PublicMe
             {category.items.map((item) => {
               const quantity = item.variants.length ? 0 : cart.lines.find((line) => line.menuItemId === item.id && line.variantId === null)?.quantity ?? 0;
               return <article className={`public-menu-card${item.isAvailable ? "" : " is-unavailable"}`} key={item.id}>
-              <button className="public-menu-card-main" type="button" onClick={(event) => openItem(item.id, event.currentTarget)} aria-label={`مشاهده جزئیات ${item.name}`}>
-                <Picture asset={item.image} fallback="menu" alt={item.image ? item.name : `تصویر جایگزین برای ${item.name}`} className="public-menu-card-image" />
-                <span className="public-menu-card-copy">
-                  <span className="public-menu-card-heading"><strong>{item.name}</strong>{item.isFeatured && <small>پیشنهاد ما</small>}</span>
-                  {item.description && <span className="public-menu-card-description">{item.description}</span>}
-                  {!item.isAvailable && <span className="public-menu-unavailable">ناموجود</span>}
-                  <span className="public-menu-card-price"><Price item={item} /></span>
-                </span>
-              </button>
-              {quantity > 0
-                ? <CartQuantityControl className="public-menu-quantity" quantity={quantity} itemName={item.name} onIncrease={() => cart.setQuantity(item.id, null, quantity + 1)} onDecrease={() => cart.setQuantity(item.id, null, quantity - 1)} onRemove={() => cart.remove(item.id, null)} />
-                : <button className="public-menu-add" type="button" disabled={!item.isAvailable} onClick={(event) => item.variants.length ? (ordering?.onlineOrderingAvailable ? openItem(item.id, event.currentTarget) : addItem(item, null)) : addItem(item, null)}>
-                  {!item.isAvailable ? "ناموجود" : item.variants.length ? "انتخاب" : "افزودن"}
-                </button>}
-            </article>;
+                <button className="public-menu-card-main" type="button" onClick={(event) => openItem(item.id, event.currentTarget)} aria-label={`مشاهده جزئیات ${item.name}`}>
+                  <Picture asset={item.image} fallback="menu" alt={item.image ? item.name : `تصویر جایگزین برای ${item.name}`} className="public-menu-card-image" />
+                  <span className="public-menu-card-copy">
+                    <span className="public-menu-card-heading"><strong>{item.name}</strong>{item.isFeatured && <small>پیشنهاد ما</small>}</span>
+                    {item.description && <span className="public-menu-card-description">{item.description}</span>}
+                    {!item.isAvailable && <span className="public-menu-unavailable">ناموجود</span>}
+                    <span className="public-menu-card-price"><Price item={item} /></span>
+                  </span>
+                </button>
+                {quantity > 0
+                  ? <CartQuantityControl className="public-menu-quantity" quantity={quantity} itemName={item.name} onIncrease={() => cart.setQuantity(item.id, null, quantity + 1)} onDecrease={() => cart.setQuantity(item.id, null, quantity - 1)} onRemove={() => cart.remove(item.id, null)} />
+                  : <button className="public-menu-add" type="button" disabled={!item.isAvailable} onClick={(event) => item.variants.length ? (ordering?.onlineOrderingAvailable ? openItem(item.id, event.currentTarget) : addItem(item, null)) : addItem(item, null)}>
+                    {!item.isAvailable ? "ناموجود" : item.variants.length ? "انتخاب" : "افزودن به سبد خرید"}
+                  </button>}
+              </article>;
             })}
           </div> : <p className="public-menu-category-empty">هنوز آیتمی در این دسته ثبت نشده است.</p>}
         </section>)}
