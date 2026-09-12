@@ -20,6 +20,21 @@ export class ClientAddress {
   @Column({ name: "address_line", type: "varchar", length: 700 })
   addressLine!: string;
 
+  @Column({ type: "varchar", length: 80, nullable: true })
+  province!: string | null;
+
+  @Column({ type: "varchar", length: 80, nullable: true })
+  city!: string | null;
+
+  @Column({ name: "building_number", type: "varchar", length: 20, nullable: true })
+  buildingNumber!: string | null;
+
+  @Column({ type: "varchar", length: 20, nullable: true })
+  unit!: string | null;
+
+  @Column({ name: "postal_code", type: "varchar", length: 10, nullable: true })
+  postalCode!: string | null;
+
   @Column({ name: "is_default", type: "boolean", default: false })
   isDefault!: boolean;
 

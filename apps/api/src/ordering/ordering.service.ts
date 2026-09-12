@@ -81,7 +81,7 @@ export class OrderingService {
         paymentMethod: input.paymentMethod,
         deliveryMethod: input.deliveryMethod,
         deliveryAddressId: address?.id ?? null,
-        deliveryAddressSnapshot: address ? { label: address.label, addressLine: address.addressLine } : null,
+        deliveryAddressSnapshot: address ? this.addressSnapshot(address) : null,
         totalAmountToman: total.toString(),
         idempotencyKey: input.idempotencyKey,
         customerNote: input.customerNote?.trim() || null,
@@ -101,13 +101,13 @@ export class OrderingService {
   async list(coffeeShopId: string, query: OrdersQueryDto) {
     const qb = this.dataSource.getRepository(Order).createQueryBuilder("order")
       .leftJoinAndSelect("order.client", "client")
-      .where("order.coffee_shop_id = :coffeeShopId", { coffeeShopId })
-      .orderBy("order.created_at", "DESC")
+      .where("order.coffeeShopId = :coffeeShopId", { coffeeShopId })
+      .orderBy("order.createdAt", "DESC")
       .skip((query.page - 1) * query.pageSize)
       .take(query.pageSize);
     if (query.status) qb.andWhere("order.status = :status", { status: query.status });
-    if (query.fromDate) qb.andWhere("order.created_at >= :fromDate", { fromDate: `${query.fromDate}T00:00:00.000Z` });
-    if (query.toDate) qb.andWhere("order.created_at < :toDate", { toDate: `${query.toDate}T23:59:59.999Z` });
+    if (query.fromDate) qb.andWhere("order.createdAt >= :fromDate", { fromDate: `${query.fromDate}T00:00:00.000Z` });
+    if (query.toDate) qb.andWhere("order.createdAt < :toDate", { toDate: `${query.toDate}T23:59:59.999Z` });
     const [items, total] = await qb.getManyAndCount();
     return { items: items.map((order) => this.summary(order)), total, page: query.page, pageSize: query.pageSize };
   }
@@ -120,7 +120,7 @@ export class OrderingService {
 
   async updateStatus(coffeeShopId: string, id: string, actorUserId: string, next: OrderStatus) {
     return this.dataSource.transaction(async (manager) => {
-      const order = await manager.getRepository(Order).createQueryBuilder("order").setLock("pessimistic_write").where("order.id = :id AND order.coffee_shop_id = :coffeeShopId", { id, coffeeShopId }).getOne();
+      const order = await manager.getRepository(Order).createQueryBuilder("order").setLock("pessimistic_write").where("order.id = :id AND order.coffeeShopId = :coffeeShopId", { id, coffeeShopId }).getOne();
       if (!order) throw new NotFoundException("Order not found");
       if (!this.nextStatuses(order).includes(next)) throw new ConflictException("Invalid order status transition");
       order.status = next;
@@ -140,7 +140,11 @@ export class OrderingService {
     }
     if (!newAddress) throw new BadRequestException({ code: "DELIVERY_ADDRESS_REQUIRED", message: "Delivery address is required" });
     if (newAddress.isDefault) await manager.update(ClientAddress, { coffeeShopId, clientId, deletedAt: IsNull() }, { isDefault: false });
-    return manager.save(ClientAddress, manager.create(ClientAddress, { coffeeShopId, clientId, label: newAddress.label?.trim() || null, addressLine: newAddress.addressLine.trim(), isDefault: newAddress.isDefault ?? false }));
+    return manager.save(ClientAddress, manager.create(ClientAddress, { coffeeShopId, clientId, label: newAddress.label?.trim() || null, province: newAddress.province.trim(), city: newAddress.city.trim(), addressLine: newAddress.addressLine.trim(), buildingNumber: newAddress.buildingNumber.trim(), unit: newAddress.unit?.trim() || null, postalCode: newAddress.postalCode || null, isDefault: newAddress.isDefault ?? false }));
+  }
+
+  private addressSnapshot(address: ClientAddress) {
+    return { label: address.label, province: address.province, city: address.city, addressLine: address.addressLine, buildingNumber: address.buildingNumber, unit: address.unit, postalCode: address.postalCode };
   }
 
   private async priceLines(manager: import("typeorm").EntityManager, coffeeShopId: string, input: CheckoutLineDto[]) {

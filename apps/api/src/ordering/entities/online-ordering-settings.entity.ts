@@ -9,7 +9,7 @@ export class OnlineOrderingSettings {
   @Column({ name: "pickup_enabled", type: "boolean", default: true })
   pickupEnabled!: boolean;
 
-  @Column({ name: "courier_enabled", type: "boolean", default: false })
+  @Column({ name: "courier_enabled", type: "boolean", default: true })
   courierEnabled!: boolean;
 
   @Column({ name: "offline_payment_enabled", type: "boolean", default: true })

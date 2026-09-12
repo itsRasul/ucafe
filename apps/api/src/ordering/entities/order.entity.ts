@@ -51,7 +51,7 @@ export class Order {
   deliveryAddressId!: string | null;
 
   @Column({ name: "delivery_address_snapshot", type: "jsonb", nullable: true })
-  deliveryAddressSnapshot!: { label: string | null; addressLine: string } | null;
+  deliveryAddressSnapshot!: { label: string | null; province: string | null; city: string | null; addressLine: string; buildingNumber: string | null; unit: string | null; postalCode: string | null } | null;
 
   @Column({ name: "total_amount_toman", type: "bigint" })
   totalAmountToman!: string;
