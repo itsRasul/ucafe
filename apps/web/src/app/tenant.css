@@ -2029,7 +2029,7 @@ img.tenant-footer-logo {
   display: grid;
   place-items: center;
   padding: 1rem;
-  background: rgb(16 12 9/42%);
+  /* background: rgb(16 12 9/42%); */
   backdrop-filter: blur(5px);
   overflow: visible;
   overscroll-behavior: contain;
@@ -2231,7 +2231,8 @@ img.tenant-footer-logo {
 }
 
 .client-auth-card label,
-.checkout-panel label {
+.checkout-panel label,
+.checkout-address-form label {
   display: grid;
   gap: .35rem;
   color: var(--coffee-ink);
@@ -2247,7 +2248,9 @@ img.tenant-footer-logo {
 
 .client-auth-card input,
 .checkout-panel input,
-.checkout-panel textarea {
+.checkout-panel textarea,
+.checkout-address-form input,
+.checkout-address-form textarea {
   width: 100%;
   min-height: 2.75rem;
   padding: .6rem .75rem;
@@ -2258,7 +2261,8 @@ img.tenant-footer-logo {
   font: inherit;
 }
 
-.checkout-panel textarea {
+.checkout-panel textarea,
+.checkout-address-form textarea {
   min-height: 7rem;
   resize: vertical;
   line-height: 1.8;
@@ -2340,6 +2344,7 @@ img.tenant-footer-logo {
 .cart-page-shell {
   display: grid;
   gap: 1.5rem;
+  width: 100%;
 }
 
 .cart-overview,
@@ -3475,6 +3480,7 @@ img.tenant-footer-logo {
 
 .checkout-shell {
   gap: 1.75rem;
+  width: 100%;
 }
 
 .checkout-overview {
@@ -3565,7 +3571,7 @@ img.tenant-footer-logo {
   padding: clamp(.75rem, 3vw, 2rem);
   align-items: center;
   justify-items: center;
-  overflow: auto;
+  /* overflow: auto; */
 }
 
 .checkout-auth-modal {
@@ -3603,6 +3609,7 @@ img.tenant-footer-logo {
   display: grid;
   place-items: center;
   min-height: 34rem;
+  width: 100%
 }
 
 .checkout-result-card {
@@ -3692,5 +3699,242 @@ img.tenant-footer-logo {
 
   .checkout-result-actions {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Courier address picker: compact summary inside the delivery panel plus the
+   full address manager (saved list, add form) in a modal. */
+.checkout-address-summary {
+  display: grid;
+  gap: .5rem;
+  width: 100%;
+  padding: .85rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--tenant-primary) 42%, transparent);
+  border-radius: .9rem;
+  background: color-mix(in srgb, var(--tenant-primary) 5%, #fff);
+  color: var(--coffee-ink);
+  font: inherit;
+  text-align: right;
+  cursor: pointer;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+
+.checkout-address-summary:hover,
+.checkout-address-summary:focus-visible {
+  border-color: var(--tenant-primary);
+  box-shadow: 0 .5rem 1.25rem rgb(63 43 29 / 6%);
+}
+
+.checkout-address-summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+}
+
+.checkout-address-summary-head strong {
+  color: var(--tenant-primary);
+  font-size: .85rem;
+  font-weight: 900;
+}
+
+.checkout-address-summary-change {
+  display: inline-flex;
+  align-items: center;
+  gap: .15rem;
+  color: var(--tenant-primary);
+  font-size: .78rem;
+  font-weight: 800;
+}
+
+.checkout-address-summary-body {
+  display: flex;
+  align-items: flex-start;
+  gap: .5rem;
+  font-size: .82rem;
+  font-weight: 500;
+  line-height: 1.9;
+}
+
+.checkout-address-summary-body svg {
+  flex: 0 0 auto;
+  width: 1.35rem;
+  height: 1.35rem;
+  margin-top: .1rem;
+  color: var(--tenant-primary);
+}
+
+.checkout-address-summary.empty .checkout-address-summary-body {
+  color: var(--coffee-muted);
+}
+
+.checkout-address-modal {
+  width: min(100%, 30rem);
+}
+
+.checkout-address-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: 1rem 1.15rem;
+  border-bottom: 1px solid rgb(78 53 34 / 12%);
+}
+
+.checkout-address-head h2 {
+  margin: 0;
+  color: var(--coffee-ink);
+  font-size: 1.02rem;
+}
+
+.checkout-address-head .checkout-modal-close {
+  position: static;
+  flex: 0 0 auto;
+  width: 2.25rem;
+  height: 2.25rem;
+  font-size: 1.15rem;
+}
+
+.checkout-address-body {
+  display: grid;
+  gap: .85rem;
+  padding: 1.15rem;
+}
+
+.checkout-address-section {
+  margin: 0;
+  color: var(--coffee-ink);
+  font-size: .85rem;
+  font-weight: 900;
+}
+
+.checkout-address-card {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  padding: .8rem .9rem;
+  border: 1px solid rgb(78 53 34 / 14%);
+  border-radius: .9rem;
+  background: #fff;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+
+.checkout-address-card.selected {
+  border-color: var(--tenant-primary);
+  box-shadow: 0 0 0 1px var(--tenant-primary);
+}
+
+.checkout-address-card label {
+  display: flex;
+  align-items: flex-start;
+  flex: 1;
+  gap: .55rem;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.checkout-address-pin {
+  flex: 0 0 auto;
+  margin-top: .1rem;
+  color: color-mix(in srgb, var(--tenant-primary) 66%, #fff);
+}
+
+.checkout-address-card.selected .checkout-address-pin {
+  color: var(--tenant-primary);
+}
+
+.checkout-address-pin svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.checkout-address-copy {
+  display: grid;
+  gap: .25rem;
+  min-width: 0;
+}
+
+.checkout-address-copy strong {
+  color: var(--coffee-ink);
+  font-size: .85rem;
+  font-weight: 900;
+}
+
+.checkout-address-copy small {
+  color: var(--coffee-muted);
+  font-size: .78rem;
+  font-weight: 500;
+  line-height: 1.9;
+}
+
+.checkout-address-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: .35rem;
+}
+
+.checkout-address-actions button {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid rgb(78 53 34 / 14%);
+  border-radius: .55rem;
+  background: #fff;
+  color: var(--coffee-ink);
+  cursor: pointer;
+}
+
+.checkout-address-actions button:hover {
+  border-color: var(--tenant-primary);
+  color: var(--tenant-primary);
+}
+
+.checkout-address-actions svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.checkout-add-address {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  min-height: 2.9rem;
+  border: 1px dashed color-mix(in srgb, var(--tenant-primary) 45%, transparent);
+  border-radius: .9rem;
+  background: color-mix(in srgb, var(--tenant-primary) 6%, #fff);
+  color: var(--tenant-primary);
+  font: 800 .82rem Vazir, Tahoma, sans-serif;
+  cursor: pointer;
+}
+
+.checkout-address-form-actions {
+  display: flex;
+  gap: .6rem;
+  margin-top: .25rem;
+}
+
+.checkout-address-form-actions button {
+  flex: 1;
+  min-height: 2.75rem;
+  border-radius: .75rem;
+  font: 800 .82rem Vazir, Tahoma, sans-serif;
+  cursor: pointer;
+}
+
+.checkout-address-save {
+  border: 0;
+  background: var(--tenant-primary);
+  color: var(--tenant-on-primary, #fff8ef);
+}
+
+@media (max-width: 32rem) {
+  .checkout-address-card {
+    align-items: flex-start;
+  }
+
+  .checkout-address-actions {
+    flex-direction: column;
   }
 }
