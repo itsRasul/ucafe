@@ -1,9 +1,10 @@
 import { TenantLandingMotion } from "./tenant-landing-motion";
-import { Picture, Price, TenantFooter, TenantHeader, tenantThemeStyle, type PublicMenu, type PublicSite, type TenantContext } from "./tenant-public";
+import { TenantFeatured } from "./tenant-featured";
+import { Picture, TenantFooter, TenantHeader, tenantThemeStyle, type PublicMenu, type PublicOrderingState, type PublicSite, type TenantContext } from "./tenant-public";
 
 const persianDays = ["یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه", "شنبه"];
 
-export function TenantStorefront({ context, site, menu }: { context: TenantContext; site: PublicSite; menu: PublicMenu }) {
+export function TenantStorefront({ context, site, menu, ordering }: { context: TenantContext; site: PublicSite; menu: PublicMenu; ordering: PublicOrderingState | null }) {
   const style = tenantThemeStyle(site);
   const hero = site.media.find((asset) => asset.kind === "HERO");
   const gallery = site.media.filter((asset) => asset.kind === "GALLERY");
@@ -46,7 +47,7 @@ export function TenantStorefront({ context, site, menu }: { context: TenantConte
       <div className="feature-grid"><article className="reveal"><span aria-hidden="true">☕</span><h3>قهوه با دقت</h3><p>هر فنجان با توجه به عطر، بافت و تعادل طعم آماده می‌شود.</p></article><article className="reveal"><span aria-hidden="true">✦</span><h3>حال‌وهوای گرم</h3><p>فضایی آرام برای گفت‌وگو، مطالعه و قرارهای روزمره.</p></article><article className="reveal"><span aria-hidden="true">◌</span><h3>انتخاب‌های متنوع</h3><p>منویی پویا برای سلیقه‌ها و لحظه‌های مختلف روز.</p></article><article className="reveal"><span aria-hidden="true">⌁</span><h3>رزرو ساده</h3><p>زمان مناسب را آنلاین انتخاب کنید و با خیال راحت بیایید.</p></article></div>
     </section>
 
-    {featured.length > 0 && <section className="tenant-featured tenant-section" id="menu" aria-labelledby="featured-title"><header className="section-heading reveal"><p className="tenant-eyebrow">منتخب امروز</p><h2 id="featured-title">پیشنهاد کافه</h2></header><div className="featured-grid">{featured.map((item) => <article className="reveal" key={item.id}><a className="featured-item-link" href={`/menu?item=${encodeURIComponent(item.id)}`} aria-label={`مشاهده جزئیات ${item.name}`}><Picture asset={item.image} fallback="menu" alt={item.image ? item.name : `تصویر جایگزین برای ${item.name}`} /><div><p>{item.categoryName}</p><h3>{item.name}</h3>{item.description && <p>{item.description}</p>}<Price item={item} /></div></a></article>)}</div><a className="featured-more reveal" href="/menu">مشاهده همه منو <span aria-hidden="true">←</span></a></section>}
+    {featured.length > 0 && <section className="tenant-featured tenant-section" id="menu" aria-labelledby="featured-title"><header className="section-heading reveal"><p className="tenant-eyebrow">منتخب امروز</p><h2 id="featured-title">پیشنهاد کافه</h2></header><div className="reveal"><TenantFeatured items={featured} ordering={ordering} /></div><a className="featured-more reveal" href="/menu">مشاهده همه منو <span aria-hidden="true">←</span></a></section>}
 
     <section className="tenant-gallery tenant-section" id="gallery" aria-labelledby="gallery-title"><header className="section-heading reveal"><p className="tenant-eyebrow">گالری</p><h2 id="gallery-title">حال‌وهوای کافه از نزدیک</h2></header><div className="gallery-grid">{gallerySlots.map((asset, index) => <figure className={`gallery-item gallery-item-${index + 1} reveal`} key={asset?.id ?? index}><Picture asset={asset} fallback={index % 3 === 0 ? "hero" : index % 3 === 1 ? "beans" : "extraction"} alt={asset ? `فضای ${site.name}، تصویر ${new Intl.NumberFormat("fa-IR").format(index + 1)}` : `حال‌وهوای قهوه، تصویر ${new Intl.NumberFormat("fa-IR").format(index + 1)}`} /></figure>)}</div></section>
 

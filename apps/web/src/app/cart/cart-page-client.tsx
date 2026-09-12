@@ -1,14 +1,42 @@
 "use client";
 
-import { useState } from "react";
+import { KeyboardEvent, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useResolvedCart } from "../cart-store";
 import { CartIcon, CartQuantityControl, TrashIcon } from "../cart-controls";
+import { ClientAuthPanel } from "../client-auth-panel";
+import { useClientSession } from "../client-session";
 import { Picture, formatToman, type PublicMenu, type PublicOrderingState } from "../tenant-public";
 
-export function CartPageClient({ menu, ordering }: { menu: PublicMenu; ordering: PublicOrderingState | null }) {
+export function CartPageClient({ menu, ordering, cafeName, logoUrl }: { menu: PublicMenu; ordering: PublicOrderingState | null; cafeName: string; logoUrl?: string }) {
   const cart = useResolvedCart(menu);
-  const [modal, setModal] = useState("");
+  const session = useClientSession();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [disabledModal, setDisabledModal] = useState("");
+  const [authModal, setAuthModal] = useState(false);
+  const dialog = useRef<HTMLDivElement>(null);
   const disabledMessage = ordering?.unavailableMessage ?? "امکان ثبت سفارش آنلاین برای این کافه در حال حاضر وجود ندارد.";
+
+  useEffect(() => { if (searchParams.get("auth") === "checkout" && session.state === "ready" && !session.client) setAuthModal(true); }, [searchParams, session.state, session.client]);
+  useEffect(() => { if (authModal) requestAnimationFrame(() => dialog.current?.querySelector<HTMLElement>("input, button, a")?.focus()); }, [authModal]);
+
+  function continueCheckout() {
+    if (!ordering?.onlineOrderingAvailable) { setDisabledModal(disabledMessage); return; }
+    if (session.state === "loading") return;
+    if (session.client) router.push("/checkout"); else setAuthModal(true);
+  }
+
+  function trapFocus(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Escape") { setAuthModal(false); return; }
+    if (event.key !== "Tab") return;
+    const controls = [...(dialog.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])') ?? [])];
+    if (!controls.length) return;
+    const first = controls[0]; const last = controls.at(-1)!;
+    if (!first) return;
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  }
 
   return <section className="cart-page-shell" aria-labelledby="cart-title">
     <header className="cart-overview">
@@ -38,10 +66,16 @@ export function CartPageClient({ menu, ordering }: { menu: PublicMenu; ordering:
           <div><h2>خلاصه سفارش</h2><p>مرور نهایی پیش از ثبت سفارش</p></div>
           <dl><div><dt>تعداد محصولات</dt><dd>{new Intl.NumberFormat("fa-IR").format(cart.count)}</dd></div><div><dt>مجموع سفارش</dt><dd>{formatToman(String(cart.totalToman))}</dd></div><div className="cart-summary-total"><dt>مبلغ نهایی</dt><dd>{formatToman(String(cart.totalToman))}</dd></div></dl>
           {!cart.canCheckout && <p className="form-message error">برخی آیتم‌ها دیگر قابل سفارش نیستند.</p>}
-          {ordering?.onlineOrderingAvailable ? cart.canCheckout ? <a className="cart-checkout" href="/checkout">ادامه به تسویه</a> : <button className="cart-checkout" type="button" disabled>ادامه به تسویه</button> : <button className="cart-checkout" type="button" onClick={() => setModal(disabledMessage)}>ادامه به تسویه</button>}
+          <button className="cart-checkout" type="button" disabled={!cart.canCheckout || session.state === "loading"} onClick={continueCheckout}>{session.state === "loading" ? "در حال بررسی…" : "ادامه به تسویه"}</button>
         </aside>
       </div></>}
 
-    {modal && <div className="tenant-modal-backdrop" role="presentation" onMouseDown={() => setModal("")}><section className="tenant-modal" role="dialog" aria-modal="true" aria-labelledby="cart-disabled-title" onMouseDown={(event) => event.stopPropagation()}><h2 id="cart-disabled-title">سفارش آنلاین فعال نیست</h2><p>{modal}</p><button type="button" onClick={() => setModal("")}>متوجه شدم</button></section></div>}
+    {disabledModal && <div className="tenant-modal-backdrop" role="presentation" onMouseDown={() => setDisabledModal("")}><section className="tenant-modal" role="dialog" aria-modal="true" aria-labelledby="cart-disabled-title" onMouseDown={(event) => event.stopPropagation()}><h2 id="cart-disabled-title">سفارش آنلاین فعال نیست</h2><p>{disabledModal}</p><button type="button" onClick={() => setDisabledModal("")}>متوجه شدم</button></section></div>}
+    {authModal && <div className="tenant-modal-backdrop checkout-auth-backdrop" role="presentation" onMouseDown={() => setAuthModal(false)}>
+      <div className="checkout-auth-modal" role="dialog" aria-modal="true" aria-label="ورود یا ثبت‌نام برای تسویه" ref={dialog} onKeyDown={trapFocus} onMouseDown={(event) => event.stopPropagation()}>
+        <button className="checkout-modal-close" type="button" aria-label="بستن فرم ورود" onClick={() => setAuthModal(false)}>×</button>
+        <ClientAuthPanel session={session} cafeName={cafeName} logoUrl={logoUrl} showBackLink={false} onAuthenticated={() => router.push("/checkout")} />
+      </div>
+    </div>}
   </section>;
 }

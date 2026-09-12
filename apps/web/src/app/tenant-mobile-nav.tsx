@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { TenantCartLink } from "./tenant-cart-link";
 
 export function TenantMobileNav({ sectionPrefix = "" }: { sectionPrefix?: string }) {
   const [open, setOpen] = useState(false);
@@ -11,5 +10,26 @@ export function TenantMobileNav({ sectionPrefix = "" }: { sectionPrefix?: string
     addEventListener("keydown", close);
     return () => removeEventListener("keydown", close);
   }, [open]);
-  return <><button className="mobile-nav-toggle" type="button" aria-expanded={open} aria-controls="mobile-nav-panel" onClick={() => setOpen((value) => !value)}><span /><span /><span /><b className="sr-only">{open ? "بستن منو" : "باز کردن منو"}</b></button><div className={`mobile-nav-panel${open ? " is-open" : ""}`} id="mobile-nav-panel" aria-hidden={!open}><a href={`${sectionPrefix}#about`} onClick={() => setOpen(false)}>درباره ما</a><a href="/menu" onClick={() => setOpen(false)}>منو</a><a href={`${sectionPrefix}#gallery`} onClick={() => setOpen(false)}>گالری</a><a href={`${sectionPrefix}#visit`} onClick={() => setOpen(false)}>تماس و نشانی</a><a className="mobile-nav-cta" href="/login" onClick={() => setOpen(false)}>ورود / ثبت‌نام</a><TenantCartLink /><a className="mobile-nav-cta" href="/reserve" onClick={() => setOpen(false)}>رزرو میز</a></div></>;
+  const links = [
+    { href: `${sectionPrefix}#about`, label: "درباره ما" },
+    { href: "/menu", label: "منو" },
+    { href: `${sectionPrefix}#gallery`, label: "گالری" },
+    { href: `${sectionPrefix}#visit`, label: "تماس و نشانی" },
+    { href: "/login", label: "ورود / ثبت‌نام" },
+    { href: "/cart", label: "سبد خرید" },
+    { href: "/reserve", label: "رزرو میز" },
+  ];
+  return (
+    <>
+      <button className="mobile-nav-toggle" type="button" aria-expanded={open} aria-controls="mobile-nav-panel" onClick={() => setOpen((value) => !value)}>
+        <span /><span /><span />
+        <b className="sr-only">{open ? "بستن منو" : "باز کردن منو"}</b>
+      </button>
+      <div className={`mobile-nav-panel${open ? " is-open" : ""}`} id="mobile-nav-panel" aria-hidden={!open}>
+        {links.map((link) => (
+          <a key={link.href} href={link.href} onClick={() => setOpen(false)}>{link.label}</a>
+        ))}
+      </div>
+    </>
+  );
 }

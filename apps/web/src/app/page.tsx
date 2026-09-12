@@ -9,5 +9,5 @@ export default async function HomePage() {
   if (!data.isTenant) return <PlatformLanding offering={await loadPlatformOffering()} />;
   if (!data.context) notFound();
   if (!data.context.available || !data.site || !data.menu) return <SuspendedSite context={data.context} />;
-  return <TenantStorefront context={data.context} site={data.site} menu={data.menu} />;
+  return <TenantStorefront context={data.context} site={data.site} menu={data.menu} ordering={data.ordering} />;
 }
