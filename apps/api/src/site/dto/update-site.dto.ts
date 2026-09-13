@@ -27,7 +27,6 @@ export class UpdateSiteDto {
   @IsOptional() @IsString() @MaxLength(320) heroSubtitle?: string | null;
   @IsOptional() @IsString() @MaxLength(140) aboutTitle?: string | null;
   @IsOptional() @IsString() @MaxLength(4000) aboutBody?: string | null;
-  @IsOptional() @IsString() @MaxLength(180) announcementText?: string | null;
   @IsOptional() @IsUrl({ protocols: ["https"], require_protocol: true }) @MaxLength(300) instagramUrl?: string | null;
   @IsOptional() @Matches(/^#[0-9A-Fa-f]{6}$/) primaryColor?: string;
   @IsOptional() @Matches(/^#[0-9A-Fa-f]{6}$/) secondaryColor?: string;

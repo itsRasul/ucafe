@@ -45,7 +45,7 @@ export type PublicOrderingState = {
 };
 export type PublicSite = {
   name: string;
-  content: { heroTitle: string; heroSubtitle: string | null; aboutTitle: string | null; aboutBody: string | null; announcementText: string | null };
+  content: { heroTitle: string; heroSubtitle: string | null; aboutTitle: string | null; aboutBody: string | null };
   theme: { primaryColor: string; primaryForeground: string; secondaryColor: string; secondaryForeground: string; accentColor: string; accentForeground: string; headingFont?: string; bodyFont?: string; radiusPreset: string };
   contact: { phone: string | null; address: string | null; latitude: string | null; longitude: string | null; instagramUrl: string | null };
   openingHours: Array<{ dayOfWeek: number; isClosed: boolean; opensAt: string | null; closesAt: string | null }>;
@@ -88,7 +88,6 @@ export function TenantHeader({ site, onHomePage = false }: { site: PublicSite; o
   const logo = site.media.find((asset) => asset.kind === "LOGO");
   const prefix = onHomePage ? "" : "/";
   return <header className="tenant-header">
-    {site.content.announcementText && <div className="tenant-announcement">{site.content.announcementText}</div>}
     <nav className="tenant-nav" aria-label="ناوبری اصلی">
       <a className="tenant-brand" href="/" aria-label={`صفحه اصلی ${site.name}`}>
         {logo ? <Picture asset={logo} fallback="menu" alt={`نشان ${site.name}`} className="tenant-logo" eager /> : <BrandLogo className="tenant-brand-logo" variant="mark" />}

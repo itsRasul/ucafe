@@ -37,7 +37,7 @@ The product promise is a fast, modern, soft, visually memorable website that hel
 
 - Persian-first RTL, responsive, mobile-first and server-rendered where practical.
 - One curated premium template with controlled brand colors and radius preset; no unrestricted CSS/page builder.
-- Hero, announcement, story, menu, contact/address, opening hours and links.
+- Hero, story, menu, contact/address, opening hours and links.
 - Theme colors must maintain readable foreground contrast.
 - Graceful missing/average content and imagery; media upload/cropping is planned, not implemented.
 

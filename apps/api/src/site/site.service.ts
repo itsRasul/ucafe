@@ -27,7 +27,6 @@ export class SiteService {
         heroSubtitle: settings?.heroSubtitle ?? null,
         aboutTitle: settings?.aboutTitle ?? null,
         aboutBody: settings?.aboutBody ?? null,
-        announcementText: settings?.announcementText ?? null,
       },
       theme: {
         templateKey: settings?.templateKey ?? "warm-editorial",
@@ -68,7 +67,7 @@ export class SiteService {
       if (input.name !== undefined) await manager.update(CoffeeShop, { id: coffeeShopId }, { name: input.name.trim() });
       let settings = await manager.findOneBy(WebsiteSettings, { coffeeShopId });
       settings ??= manager.create(WebsiteSettings, { coffeeShopId });
-      const settingKeys = ["heroTitle", "heroSubtitle", "aboutTitle", "aboutBody", "announcementText", "instagramUrl", "headingFont", "bodyFont", "radiusPreset"] as const;
+      const settingKeys = ["heroTitle", "heroSubtitle", "aboutTitle", "aboutBody", "instagramUrl", "headingFont", "bodyFont", "radiusPreset"] as const;
       for (const key of settingKeys) if (input[key] !== undefined) (settings[key] as unknown) = input[key];
       for (const key of ["primaryColor", "secondaryColor", "accentColor"] as const) if (input[key]) settings[key] = input[key].toUpperCase();
       await manager.save(settings);

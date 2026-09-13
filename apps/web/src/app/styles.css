@@ -162,7 +162,7 @@ li::before {
 
 @media(prefers-reduced-motion:no-preference) {
     section {
-        animation: enter .5s ease-out both
+        animation: enter .5s ease-out backwards
     }
 
     .coffee-mark {
@@ -198,14 +198,6 @@ li::before {
     padding: 0;
     background: var(--tenant-surface);
     color: var(--tenant-on-surface)
-}
-
-.tenant-announcement {
-    padding: .7rem 1rem;
-    text-align: center;
-    background: var(--tenant-accent);
-    color: var(--tenant-on-accent);
-    font-size: .88rem
 }
 
 .tenant-home section {

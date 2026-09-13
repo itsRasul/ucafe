@@ -27,9 +27,6 @@ export class WebsiteSettings {
   @Column({ name: "about_body", type: "text", nullable: true })
   aboutBody!: string | null;
 
-  @Column({ name: "announcement_text", type: "varchar", length: 180, nullable: true })
-  announcementText!: string | null;
-
   @Column({ name: "instagram_url", type: "varchar", length: 300, nullable: true })
   instagramUrl!: string | null;
 
