@@ -1798,6 +1798,36 @@ img.tenant-footer-logo {
   flex: 0 0 auto;
 }
 
+.tenant-logout-button {
+  gap: .4rem;
+  border-color: rgb(255 248 239 / 18%);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: .8rem;
+  cursor: pointer;
+}
+
+.mobile-nav-panel .mobile-nav-logout {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .35rem 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: clamp(1.4rem, 6vw, 2rem);
+  text-align: start;
+  cursor: pointer;
+  transition: opacity .2s ease, transform .2s ease;
+}
+
+.mobile-nav-panel .mobile-nav-logout:hover {
+  opacity: .7;
+  transform: translateX(-.25rem);
+}
+
 .tenant-cart-link b {
   position: absolute;
   inset: -.35rem auto auto -.35rem;

@@ -2,6 +2,8 @@ import type { CSSProperties } from "react";
 import { BrandLogo } from "./brand-logo";
 import { TenantCartLink } from "./tenant-cart-link";
 import { TenantMobileNav } from "./tenant-mobile-nav";
+import { TenantAccountAction } from "./tenant-account-action";
+import { TenantAccountToast } from "./tenant-account-toast";
 
 export type TenantContext = {
   available: boolean;
@@ -93,8 +95,9 @@ export function TenantHeader({ site, onHomePage = false }: { site: PublicSite; o
         <span><strong>{site.name}</strong><small>ucafe coffee house</small></span>
       </a>
       <div className="tenant-nav-links"><a href={`${prefix}#about`}>درباره ما</a><a href="/menu" aria-current={onHomePage ? undefined : "page"}>منو</a><a href={`${prefix}#gallery`}>گالری</a><a href={`${prefix}#visit`}>تماس و نشانی</a></div>
-      <div className="tenant-nav-actions"><TenantCartLink /><a className="nav-reserve tenant-nav-cta" href="/reserve">رزرو میز</a><a className="tenant-login-link tenant-nav-cta" href="/login">ورود / ثبت‌نام</a></div>
+      <div className="tenant-nav-actions"><TenantCartLink /><a className="nav-reserve tenant-nav-cta" href="/reserve">رزرو میز</a><TenantAccountAction /></div>
       <TenantMobileNav sectionPrefix={prefix} />
+      <TenantAccountToast />
     </nav>
   </header>;
 }

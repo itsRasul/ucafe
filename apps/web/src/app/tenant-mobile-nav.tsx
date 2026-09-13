@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { TenantAccountAction } from "./tenant-account-action";
 
 export function TenantMobileNav({ sectionPrefix = "" }: { sectionPrefix?: string }) {
   const [open, setOpen] = useState(false);
@@ -15,7 +16,6 @@ export function TenantMobileNav({ sectionPrefix = "" }: { sectionPrefix?: string
     { href: "/menu", label: "منو" },
     { href: `${sectionPrefix}#gallery`, label: "گالری" },
     { href: `${sectionPrefix}#visit`, label: "تماس و نشانی" },
-    { href: "/login", label: "ورود / ثبت‌نام" },
     { href: "/cart", label: "سبد خرید" },
     { href: "/reserve", label: "رزرو میز" },
   ];
@@ -29,6 +29,7 @@ export function TenantMobileNav({ sectionPrefix = "" }: { sectionPrefix?: string
         {links.map((link) => (
           <a key={link.href} href={link.href} onClick={() => setOpen(false)}>{link.label}</a>
         ))}
+        <TenantAccountAction variant="mobile" onNavigate={() => setOpen(false)} />
       </div>
     </>
   );
