@@ -1,0 +1,52 @@
+services:
+  api:
+    build:
+      target: development
+
+    environment:
+      NODE_ENV: development
+
+    ports:
+      - "127.0.0.1:3001:3001"
+
+    volumes:
+      - .:/ucafe
+      - api-node-modules:/ucafe/node_modules
+
+
+  web:
+    build:
+      target: development
+
+    environment:
+      NODE_ENV: development
+
+    ports:
+      - "127.0.0.1:3000:3000"
+
+    volumes:
+      - .:/ucafe
+      - web-node-modules:/ucafe/node_modules
+      - web-next:/ucafe/apps/web/.next
+
+
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"
+
+
+  redis:
+    ports:
+      - "127.0.0.1:6379:6379"
+
+
+  minio:
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+
+
+volumes:
+  api-node-modules:
+  web-node-modules:
+  web-next:

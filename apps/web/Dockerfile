@@ -1,24 +1,42 @@
-ARG NODE_IMAGE=node:22-alpine
+ARG NODE_IMAGE=node:22-bookworm-slim
 
 # -------------------------
-# Build stage
+# Base
 # -------------------------
-FROM ${NODE_IMAGE} AS builder
+FROM ${NODE_IMAGE} AS base
 
 WORKDIR /ucafe
 
 COPY . .
 
-# RUN npm ci
 RUN npm ci --include=optional
+
+
+# -------------------------
+# Development
+# -------------------------
+FROM base AS development
+
+ENV NODE_ENV=development
+ENV PORT=3000
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev", "--workspace=@ucafe/web", "--", "--hostname", "0.0.0.0"]
+
+
+# -------------------------
+# Build
+# -------------------------
+FROM base AS builder
 
 RUN npm run build --workspace=@ucafe/web
 
 
 # -------------------------
-# Production stage
+# Production
 # -------------------------
-FROM ${NODE_IMAGE} AS runner
+FROM ${NODE_IMAGE} AS production
 
 WORKDIR /ucafe
 

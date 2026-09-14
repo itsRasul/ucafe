@@ -3,7 +3,8 @@ node_modules/
 dist/
 coverage/
 .env
-.env.local
+.env.development
+.env.production
 *.log
 .DS_Store
 .idea/
