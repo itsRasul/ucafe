@@ -9,7 +9,9 @@ WORKDIR /ucafe
 
 COPY . .
 
-RUN npm ci
+# RUN npm ci
+RUN npm ci --include=optional
+RUN node -e "require('sharp'); console.log('Sharp OK:', process.platform, process.arch, require('sharp').versions)"
 
 RUN npm run build --workspace=@ucafe/api
 

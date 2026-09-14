@@ -9,7 +9,8 @@ WORKDIR /ucafe
 
 COPY . .
 
-RUN npm ci
+# RUN npm ci
+RUN npm ci --include=optional
 
 RUN npm run build --workspace=@ucafe/web
 
