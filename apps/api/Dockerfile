@@ -47,6 +47,7 @@ ENV NODE_ENV=production
 ENV API_PORT=3001
 
 COPY --from=builder /ucafe/node_modules ./node_modules
+COPY --from=builder /ucafe/apps/api/node_modules ./apps/api/node_modules
 COPY --from=builder /ucafe/apps/api/dist ./apps/api/dist
 
 EXPOSE 3001
