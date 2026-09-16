@@ -60,7 +60,7 @@ The product promise is a fast, modern, soft, visually memorable website that hel
 ### Authentication, privacy and authorization
 
 - Iranian mobile normalization, six-digit expiring OTP, resend/attempt/rate limits, short-lived access token and rotating opaque refresh session.
-- Kavenegar integration is mocked for development; the OTP is logged only in development until a real key/provider is configured.
+- sms.ir integration is mocked for development; the OTP is logged only in development until a real key/provider is configured.
 - Phone data is encrypted at rest where designed and never publicly shared. Reservation APIs do not return customer phone numbers.
 - Platform and tenant RBAC are separate; access never falls back across scopes.
 

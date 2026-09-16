@@ -4,7 +4,7 @@ ucafe is a multi-tenant SaaS platform for premium coffee-shop websites.
 
 ## Status
 
-The MVP feature set through Phase 12 is implemented. Phase 13 local launch hardening is complete; production release remains blocked on real Kavenegar/Zarinpal credentials and the selected hosting/DNS/TLS/monitoring environment. See `docs/PROGRESS.md` and `docs/LAUNCH_CHECKLIST.md`.
+The MVP feature set through Phase 12 is implemented. Phase 13 local launch hardening is complete; production release remains blocked on real sms.ir/Zarinpal credentials and the selected hosting/DNS/TLS/monitoring environment. See `docs/PROGRESS.md` and `docs/LAUNCH_CHECKLIST.md`.
 
 ## Applications
 

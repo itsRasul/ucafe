@@ -30,16 +30,16 @@ export const environmentSchema = Joi.object({
   S3_BUCKET: Joi.string().pattern(/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/).required(),
   S3_ACCESS_KEY: Joi.string().min(3).required(),
   S3_SECRET_KEY: Joi.string().min(8).required(),
-  SMS_PROVIDER: Joi.string().valid("development", "kavenegar").default("development"),
-  KAVENEGAR_API_KEY: Joi.when("SMS_PROVIDER", { is: "kavenegar", then: Joi.string().min(8).required(), otherwise: Joi.string().optional() }),
-  KAVENEGAR_OTP_TEMPLATE: Joi.when("SMS_PROVIDER", { is: "kavenegar", then: Joi.string().pattern(/^[A-Za-z0-9_-]+$/).required(), otherwise: Joi.string().default("ucafe-otp") }),
-  KAVENEGAR_RESERVATION_CONFIRMED_TEMPLATE: Joi.when("SMS_PROVIDER", { is: "kavenegar", then: Joi.string().pattern(/^[A-Za-z0-9_-]+$/).required(), otherwise: Joi.string().default("ucafe-reservation-confirmed") }),
+  SMS_PROVIDER: Joi.string().valid("development", "smsir").default("development"),
+  SMSIR_API_KEY: Joi.when("SMS_PROVIDER", { is: "smsir", then: Joi.string().min(8).required(), otherwise: Joi.string().optional() }),
+  SMSIR_OTP_TEMPLATE_ID: Joi.when("SMS_PROVIDER", { is: "smsir", then: Joi.string().pattern(/^[0-9]+$/).required(), otherwise: Joi.string().optional() }),
+  SMSIR_RESERVATION_CONFIRMED_TEMPLATE_ID: Joi.when("SMS_PROVIDER", { is: "smsir", then: Joi.string().pattern(/^[0-9]+$/).required(), otherwise: Joi.string().optional() }),
   PAYMENT_PROVIDER: Joi.string().valid("simulated", "zarinpal").default("simulated"),
   PAYMENT_CALLBACK_BASE_URL: Joi.string().uri({scheme:["http","https"]}).required(),
   ZARINPAL_MERCHANT_ID: Joi.when("PAYMENT_PROVIDER", { is:"zarinpal", then:Joi.string().guid().required(), otherwise:Joi.string().allow("").optional() }),
 }).unknown(true).custom((environment, helpers) => {
   if (environment.NODE_ENV !== "production") return environment;
-  if (environment.SMS_PROVIDER !== "kavenegar") return helpers.error("any.custom", { message: "Production requires SMS_PROVIDER=kavenegar" });
+  if (environment.SMS_PROVIDER !== "smsir") return helpers.error("any.custom", { message: "Production requires SMS_PROVIDER=smsir" });
   if (environment.PAYMENT_PROVIDER !== "zarinpal") return helpers.error("any.custom", { message: "Production requires PAYMENT_PROVIDER=zarinpal" });
   if (!String(environment.PAYMENT_CALLBACK_BASE_URL).startsWith("https://")) return helpers.error("any.custom", { message: "Production payment callback must use HTTPS" });
   return environment;

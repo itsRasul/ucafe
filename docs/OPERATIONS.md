@@ -9,11 +9,18 @@ Production deployment is blocked until all values marked `required` below exist 
 - random 32-byte base64 `PII_ENCRYPTION_KEY`
 - managed PostgreSQL/Redis endpoints with authentication, TLS where offered and automated retention
 - private S3-compatible bucket credentials
-- `SMS_PROVIDER=kavenegar`, API key and approved OTP/reservation templates
+- `SMS_PROVIDER=smsir`, API key and the numeric OTP/reservation template IDs from the sms.ir panel
 - `PAYMENT_PROVIDER=zarinpal`, merchant ID and public HTTPS callback base
 - trusted reverse-proxy hop count, wildcard DNS and valid TLS certificate for the platform domain
 
 The API configuration intentionally refuses to boot in production with either simulator or an HTTP payment callback.
+
+### SMS delivery
+
+`SMS_PROVIDER=smsir` posts to `https://api.sms.ir/v1/send/verify` with the `x-api-key` header. Both configured template IDs are the numeric IDs the sms.ir panel shows for the approved templates; the endpoint does not accept template titles. Parameter names must match the template placeholders and every parameter value is capped at 25 characters.
+
+- OTP: template `otp` with `#TOKEN#` receives the parameter `TOKEN`.
+- Reservation confirmation: `#CAFE#`, `#DATE#` and `#TIME#` receive `cafeName`, `date` and `time`.
 
 ## Deployment
 

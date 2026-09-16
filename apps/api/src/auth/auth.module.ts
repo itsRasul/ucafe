@@ -11,7 +11,7 @@ import { AuthenticationService } from "./authentication.service";
 import { DevelopmentSmsProvider } from "./development-sms.provider";
 import { AuthSession, OtpChallenge } from "./entities";
 import { SMS_PROVIDER } from "./sms-provider";
-import { KavenegarSmsProvider } from "./kavenegar-sms.provider";
+import { SmsIrSmsProvider } from "./smsir-sms.provider";
 
 @Module({
   imports: [
@@ -34,7 +34,7 @@ import { KavenegarSmsProvider } from "./kavenegar-sms.provider";
     {
       provide: SMS_PROVIDER,
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => config.get<string>("SMS_PROVIDER", "development") === "kavenegar" ? new KavenegarSmsProvider(config) : new DevelopmentSmsProvider(config),
+      useFactory: (config: ConfigService) => config.get<string>("SMS_PROVIDER", "development") === "smsir" ? new SmsIrSmsProvider(config) : new DevelopmentSmsProvider(config),
     },
   ],
   exports: [AuthCryptoService, AuthTokenService, AccessTokenGuard, SMS_PROVIDER, JwtModule, TypeOrmModule],

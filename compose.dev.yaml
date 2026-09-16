@@ -12,6 +12,7 @@ services:
     volumes:
       - .:/ucafe
       - api-node-modules:/ucafe/node_modules
+      - api-workspace-node-modules:/ucafe/apps/api/node_modules
 
 
   web:
@@ -48,5 +49,6 @@ services:
 
 volumes:
   api-node-modules:
+  api-workspace-node-modules:
   web-node-modules:
   web-next:

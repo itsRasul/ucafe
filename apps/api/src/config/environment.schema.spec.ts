@@ -9,6 +9,10 @@ test("production fails closed when SMS or payment simulators are selected", () =
 });
 
 test("production provider configuration accepts only the real adapters and HTTPS callback", () => {
-  const result = environmentSchema.validate({ ...base, NODE_ENV: "production", SMS_PROVIDER: "kavenegar", KAVENEGAR_API_KEY: "test-api-key", KAVENEGAR_OTP_TEMPLATE: "otp", KAVENEGAR_RESERVATION_CONFIRMED_TEMPLATE: "reservation", PAYMENT_PROVIDER: "zarinpal", ZARINPAL_MERCHANT_ID: "00000000-0000-0000-0000-000000000000" });
+  const result = environmentSchema.validate({ ...base, NODE_ENV: "production", SMS_PROVIDER: "smsir", SMSIR_API_KEY: "test-api-key", SMSIR_OTP_TEMPLATE_ID: "100000", SMSIR_RESERVATION_CONFIRMED_TEMPLATE_ID: "100001", PAYMENT_PROVIDER: "zarinpal", ZARINPAL_MERCHANT_ID: "00000000-0000-0000-0000-000000000000" });
   assert.equal(result.error, undefined);
+});
+
+test("sms.ir templates must be the numeric panel ids", () => {
+  assert.ok(environmentSchema.validate({ ...base, SMS_PROVIDER: "smsir", SMSIR_API_KEY: "test-api-key", SMSIR_OTP_TEMPLATE_ID: "otp", SMSIR_RESERVATION_CONFIRMED_TEMPLATE_ID: "100001" }).error);
 });

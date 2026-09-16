@@ -8,7 +8,7 @@ Status labels: **Implemented**, **Partial**, **Planned**.
 Browser -> Next.js web (:3000) -> NestJS API (:3001) -> PostgreSQL
                     |                    |             Redis
                     + same-origin proxy +             MinIO (tenant media)
-                                         -> SMS provider (development simulator / Kavenegar Lookup)
+                                         -> SMS provider (development simulator / sms.ir verify)
                                          -> Payment provider (simulator / Zarinpal v4)
 Worker scaffold ------------------------------------> future background jobs
 ```
@@ -27,7 +27,7 @@ Worker scaffold ------------------------------------> future background jobs
 - `identity`: users, memberships, roles and permissions.
 - `identity/platform-access`: permission-guarded platform user creation/status, platform/tenant role assignment, role-permission management and read-only permission catalog. Full phone values are returned only by the protected platform user endpoints.
 - `authorization`: separate platform and tenant guards/decorators.
-- `auth`: OTP challenges, encrypted phone handling, JWT access, rotating refresh sessions and selectable development/Kavenegar SMS providers.
+- `auth`: OTP challenges, encrypted phone handling, JWT access, rotating refresh sessions and selectable development/sms.ir SMS providers.
 - `subscriptions`: plan, subscription, payment snapshot, trial/prepaid/grace/suspension reconciliation.
 - `audit`: append-only platform operator events for provisioning, plan, trial, manual payment and reconciliation changes.
 - `site`: website settings, theme normalization and primary-branch opening hours.

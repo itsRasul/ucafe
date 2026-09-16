@@ -8,7 +8,7 @@
 
 ## Current status
 
-The complete MVP feature set and local launch-hardening scope are implemented. Production now fails closed if simulators are selected; real Kavenegar/Zarinpal acceptance plus hosting, DNS, TLS and monitoring configuration remain external launch blockers.
+The complete MVP feature set and local launch-hardening scope are implemented. Production now fails closed if simulators are selected; real sms.ir/Zarinpal acceptance plus hosting, DNS, TLS and monitoring configuration remain external launch blockers.
 
 This repository currently has no Git commit history/tracked baseline: `git status --short` reports the repository files as untracked. Do not assume a clean diff or use destructive Git cleanup.
 
@@ -71,7 +71,7 @@ This repository currently has no Git commit history/tracked baseline: `git statu
 - Binary-safe same-origin proxying, availability-guarded public media streaming and immutable response caching.
 - Persian owner media controls for upload, focal point, gallery order and deletion within the curated site editor.
 - Responsive public logo/hero/gallery `<picture>` rendering with stable aspect ratios, lazy gallery loading and safe no-media fallbacks.
-- Kavenegar Lookup adapter for OTP and three-token reservation confirmation, selected entirely by validated environment configuration.
+- sms.ir `verify` adapter for OTP and three-parameter reservation confirmation, selected entirely by validated environment configuration.
 - Encrypted tenant-scoped notification outbox created atomically with confirmation, unique reservation/type idempotency, stale-claim recovery and three-attempt exponential backoff.
 - Development delivery simulator that logs only masked recipients and never runs in production.
 - Tenant-owner-only Silver checkout with immutable plan/price snapshots and idempotency keys.
@@ -86,7 +86,7 @@ This repository currently has no Git commit history/tracked baseline: `git statu
 
 ## Incomplete/partial work
 
-No real Kavenegar or Zarinpal provider acceptance or production deployment exists because credentials and the hosting environment are unavailable. Therefore the project is feature-complete for the agreed MVP and locally hardened, but it is not yet production-launched or fully Phase-13 accepted.
+No real sms.ir or Zarinpal provider acceptance or production deployment exists because credentials and the hosting environment are unavailable. Therefore the project is feature-complete for the agreed MVP and locally hardened, but it is not yet production-launched or fully Phase-13 accepted.
 
 ## Important files from the current phase
 
@@ -222,6 +222,7 @@ All sixteen migrations were applied and rechecked with `migration:show`; there a
 - 2026-08-28: smoke/security/HTML-budget checks passed; five warmed tenant SSR requests averaged 52.7 ms with an 86.9 ms maximum locally.
 - 2026-08-28: in-app browser checks at 390×844 and 1440×900 confirmed Persian RTL semantics, one main heading, labeled controls, alt coverage, reduced-motion CSS, no horizontal overflow and no console warnings/errors.
 - 2026-08-28: a PostgreSQL custom dump restored into a disposable database with all 12 migrations verified; the disposable database and test dump were removed afterward without changing tenant data.
+- 2026-09-15: SMS delivery moved from Kavenegar Lookup to the sms.ir `verify` endpoint, configured by `SMSIR_API_KEY` plus the numeric `SMSIR_OTP_TEMPLATE_ID` and `SMSIR_RESERVATION_CONFIRMED_TEMPLATE_ID`; the Kavenegar adapter, its contract spec and its environment variables were removed. The API type-check passed and the API suite passed **63/63**. A live call with the stored key and an unissued template ID answered HTTP 400 `status 113` (template not found), confirming the endpoint, `x-api-key` header and failure mapping; a successful send still needs the numeric template IDs from the panel.
 
 ## Known errors and technical debt
 
@@ -240,7 +241,7 @@ All sixteen migrations were applied and rechecked with `migration:show`; there a
 ## Open questions/pending decisions
 
 - Zarinpal merchant ID, public production callback URL and real request/verification acceptance.
-- Real Kavenegar credentials/sender/template and SMS retry policy.
+- Real sms.ir API key, sender line and numeric template IDs plus the SMS retry policy.
 - Production acceptance of the selected Jalali datepicker across target mobile browsers.
 - Hosting topology and capabilities at Pars Web Server (Docker, wildcard DNS/TLS, managed PostgreSQL/Redis, backups).
 - Formal public performance budget and approved Persian/Latin font collection.

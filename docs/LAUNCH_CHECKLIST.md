@@ -21,7 +21,7 @@
 
 ## Required manual/external gates
 
-- [ ] real Kavenegar OTP and reservation confirmation acceptance
+- [ ] real sms.ir OTP and reservation confirmation acceptance with the panel template IDs
 - [ ] real Zarinpal request, redirect, verified callback and reconciliation acceptance
 - [ ] production hostname, wildcard DNS, TLS and reverse-proxy header stripping verified
 - [ ] managed backup retention, monitoring destinations and on-call contacts assigned
