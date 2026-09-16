@@ -6,7 +6,7 @@ import { NotificationsService } from "../notifications/notifications.service";
 import { BranchOpeningHour } from "../site/entities";
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { SubscriptionFeatures } from "../subscriptions/subscription-features";
-import { AvailabilityQueryDto, CreateReservationDto, ReservationListQueryDto, UpdateReservationSettingsDto, UpdateReservationStatusDto } from "./dto/reservation.dto";
+import { AvailabilityQueryDto, ClientReservationsQueryDto, CreateReservationDto, ReservationListQueryDto, UpdateReservationSettingsDto, UpdateReservationStatusDto } from "./dto/reservation.dto";
 import { Reservation, ReservationSettings, ReservationStatus } from "./entities";
 import { generateReservationSlots, isValidIsoDate, localDateTimeParts, timeToMinutes } from "./reservation-time.util";
 
@@ -67,13 +67,19 @@ export class ReservationsService {
         coffeeShopId, branchId: branch.id, clientId, contactName: input.contactName.trim(), reservationDate: input.date,
         startTime: slot.startTime, endTime: slot.endTime, partySize: input.partySize, customerNote: input.note?.trim() || null,
       }));
-      return this.safe(reservation);
+      return this.clientSafe(reservation);
     });
   }
 
-  async mine(coffeeShopId: string, clientId: string) {
-    const rows = await this.dataSource.getRepository(Reservation).find({ where: { coffeeShopId, clientId }, order: { reservationDate: "DESC", startTime: "DESC" } });
-    return rows.map((row) => this.safe(row));
+  async mine(coffeeShopId: string, clientId: string, query: ClientReservationsQueryDto) {
+    const [items, total] = await this.dataSource.getRepository(Reservation).findAndCount({ where: { coffeeShopId, clientId }, order: { reservationDate: "DESC", startTime: "DESC" }, skip: (query.page - 1) * query.pageSize, take: query.pageSize });
+    return { items: items.map((row) => this.clientSafe(row)), total, page: query.page, pageSize: query.pageSize };
+  }
+
+  async clientDetail(coffeeShopId: string, clientId: string, id: string) {
+    const reservation = await this.dataSource.getRepository(Reservation).findOne({ relations: { branch: true }, where: { id, coffeeShopId, clientId } });
+    if (!reservation) throw new NotFoundException("Reservation not found");
+    return { ...this.clientSafe(reservation), branch: reservation.branch ? { id: reservation.branch.id, name: reservation.branch.name, address: reservation.branch.address } : null };
   }
 
   async list(coffeeShopId: string, query: ReservationListQueryDto) {
@@ -119,11 +125,11 @@ export class ReservationsService {
     return this.dataSource.getRepository(ReservationSettings).save(settings);
   }
 
-  private safe(row: Reservation) {
-    return { id: row.id, branchId: row.branchId, contactName: row.contactName, reservationDate: row.reservationDate, startTime: row.startTime.slice(0, 5), endTime: row.endTime.slice(0, 5), partySize: row.partySize, status: row.status, customerNote: row.customerNote, staffNote: row.staffNote, createdAt: row.createdAt };
+  private clientSafe(row: Reservation) {
+    return { id: row.id, branchId: row.branchId, contactName: row.contactName, reservationDate: row.reservationDate, startTime: row.startTime.slice(0, 5), endTime: row.endTime.slice(0, 5), partySize: row.partySize, status: row.status, customerNote: row.customerNote, createdAt: row.createdAt };
   }
 
   private adminSafe(row: Reservation) {
-    return { ...this.safe(row), customerPhone: row.client?.phone ?? null };
+    return { ...this.clientSafe(row), staffNote: row.staffNote, customerPhone: row.client?.phone ?? null };
   }
 }

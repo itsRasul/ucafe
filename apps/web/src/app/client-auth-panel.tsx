@@ -14,8 +14,7 @@ export function ClientAuthPanel({ session, cafeName, logoUrl, onAuthenticated, s
       : session.client ? <section className="client-auth-card client-auth-success" aria-labelledby="client-auth-success-title">
         <h1 id="client-auth-success-title">خوش آمدید</h1>
         <p>{session.client.firstName} {session.client.lastName}، با شماره <bdi dir="ltr">{session.client.phone.replace(/^\+98/, "0")}</bdi> وارد شده‌اید.</p>
-        <div className="client-auth-success-actions"><Link href="/menu">مشاهده منو</Link><Link href="/reserve">رزرو میز</Link></div>
-        <button className="text-button full" type="button" onClick={session.signOut}>خروج از حساب</button>
+        <div className="client-auth-success-actions"><Link href="/panel">ورود به پنل من</Link><Link href="/menu">مشاهده منو</Link></div>
       </section>
       : <ClientAuthForm session={session} title={`ورود به ${cafeName}`} registerTitle={`ثبت‌نام در ${cafeName}`} detail="برای رزرو میز یا ثبت سفارش، وارد شوید یا حساب مشتری بسازید." onAuthenticated={onAuthenticated} />}
     <div className="client-auth-powered"><BrandLogo variant="mark" /><span>ساخته‌شده با ucafe</span></div>

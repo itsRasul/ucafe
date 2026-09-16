@@ -6,12 +6,13 @@ import { ClientAccessTokenGuard } from "./client-access-token.guard";
 import { ClientAddressesController } from "./client-addresses.controller";
 import { ClientAuthController } from "./client-auth.controller";
 import { ClientAuthService } from "./client-auth.service";
+import { ClientPanelController } from "./client-panel.controller";
 import { ClientsService } from "./clients.service";
 import { Client, ClientAddress, ClientAuthSession } from "./entities";
 
 @Module({
   imports: [TypeOrmModule.forFeature([Client, ClientAddress, ClientAuthSession, OtpChallenge]), AuthModule],
-  controllers: [ClientAuthController, ClientAddressesController],
+  controllers: [ClientAuthController, ClientAddressesController, ClientPanelController],
   providers: [ClientsService, ClientAuthService, ClientAccessTokenGuard],
   exports: [ClientsService, ClientAccessTokenGuard, TypeOrmModule],
 })

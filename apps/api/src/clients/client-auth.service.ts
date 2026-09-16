@@ -1,8 +1,8 @@
-import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Inject, Injectable, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Inject, Injectable, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { InjectRepository } from "@nestjs/typeorm";
 import { randomUUID } from "node:crypto";
-import { DataSource, IsNull, MoreThan, Repository } from "typeorm";
+import { DataSource, IsNull, MoreThan, Not, QueryFailedError, Repository } from "typeorm";
 import { AuthCryptoService } from "../auth/auth-crypto.service";
 import { AuthTokenService } from "../auth/auth-token.service";
 import { OtpChallenge, OtpChallengeStatus, OtpPurpose } from "../auth/entities";
@@ -232,6 +232,52 @@ export class ClientAuthService {
   async logout(refreshToken?: string) {
     if (!refreshToken) return;
     await this.sessions.update({ refreshTokenHash: this.crypto.hashRefreshToken(refreshToken), revokedAt: IsNull() }, { revokedAt: new Date() });
+  }
+
+  async verifyPhoneChange(coffeeShopId: string, clientId: string, currentSessionId: string, challengeId: string, otp: string) {
+    const now = new Date();
+    try {
+      const result = await this.dataSource.transaction(async (manager) => {
+        const challenge = await manager.getRepository(OtpChallenge)
+          .createQueryBuilder("challenge")
+          .addSelect(["challenge.otpHash", "challenge.phoneCiphertext"])
+          .setLock("pessimistic_write")
+          .where("challenge.id = :challengeId", { challengeId })
+          .getOne();
+        if (!challenge || challenge.status !== OtpChallengeStatus.Pending || challenge.purpose !== OtpPurpose.ClientLogin || challenge.coffeeShopId !== coffeeShopId) return { kind: "invalid" } as const;
+        if (challenge.expiresAt <= now) {
+          challenge.status = OtpChallengeStatus.Expired;
+          await manager.save(challenge);
+          return { kind: "invalid" } as const;
+        }
+        if (!this.crypto.verifyOtp(challenge.id, otp, challenge.otpHash)) {
+          challenge.attempts += 1;
+          if (challenge.attempts >= challenge.maxAttempts) challenge.status = OtpChallengeStatus.Locked;
+          await manager.save(challenge);
+          return { kind: "invalid" } as const;
+        }
+
+        const phone = this.crypto.decryptPhone(challenge.phoneCiphertext);
+        const duplicate = await manager.findOneBy(Client, { coffeeShopId, phone });
+        if (duplicate && duplicate.id !== clientId) throw new ConflictException("Phone number is already in use");
+        const client = await manager.findOneBy(Client, { id: clientId, coffeeShopId, status: ClientStatus.Active });
+        if (!client) throw new UnauthorizedException();
+
+        challenge.status = OtpChallengeStatus.Verified;
+        challenge.consumedAt = now;
+        await manager.save(challenge);
+        client.phone = phone;
+        client.phoneVerifiedAt = now;
+        await manager.save(client);
+        await manager.update(ClientAuthSession, { coffeeShopId, clientId, id: Not(currentSessionId), revokedAt: IsNull() }, { revokedAt: now });
+        return { kind: "success", client: { id: client.id, firstName: client.firstName, lastName: client.lastName, phone: client.phone, status: client.status, createdAt: client.createdAt } } as const;
+      });
+      if (result.kind === "invalid") throw new UnauthorizedException("Verification challenge is invalid or expired");
+      return result.client;
+    } catch (error) {
+      if (error instanceof QueryFailedError && (error.driverError as { code?: string }).code === "23505") throw new ConflictException("Phone number is already in use");
+      throw error;
+    }
   }
 
   private name(value?: string) {
