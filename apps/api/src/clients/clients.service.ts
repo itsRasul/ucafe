@@ -1,5 +1,10 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { DataSource, IsNull } from "typeorm";
+import { DataSource, In, IsNull } from "typeorm";
+import { Branch } from "../database/entities";
+import { Order, OrderStatus } from "../ordering/entities";
+import { Reservation, ReservationStatus } from "../reservations/entities";
+import { localDateTimeParts } from "../reservations/reservation-time.util";
+import { UpdateClientProfileDto } from "./dto/client-panel.dto";
 import { Client, ClientAddress } from "./entities";
 import { CreateClientAddressDto } from "./dto/client-address.dto";
 
@@ -11,6 +16,41 @@ export class ClientsService {
     const client = await this.dataSource.getRepository(Client).findOneBy({ id: clientId, coffeeShopId });
     if (!client) throw new NotFoundException("Client not found");
     return this.safeClient(client);
+  }
+
+  async updateProfile(coffeeShopId: string, clientId: string, input: UpdateClientProfileDto) {
+    const repository = this.dataSource.getRepository(Client);
+    const client = await repository.findOneBy({ id: clientId, coffeeShopId });
+    if (!client) throw new NotFoundException("Client not found");
+    client.firstName = input.firstName.trim().replace(/\s+/g, " ");
+    client.lastName = input.lastName.trim().replace(/\s+/g, " ");
+    return this.safeClient(await repository.save(client));
+  }
+
+  async overview(coffeeShopId: string, clientId: string) {
+    const orders = this.dataSource.getRepository(Order);
+    const reservations = this.dataSource.getRepository(Reservation);
+    const branch = await this.dataSource.getRepository(Branch).findOneBy({ coffeeShopId, isPrimary: true });
+    const localNow = localDateTimeParts(branch?.timezone ?? "Asia/Tehran");
+    const activeReservations = [ReservationStatus.Pending, ReservationStatus.Confirmed];
+    const upcoming = reservations.createQueryBuilder("reservation")
+      .where("reservation.coffeeShopId = :coffeeShopId", { coffeeShopId })
+      .andWhere("reservation.clientId = :clientId", { clientId })
+      .andWhere("reservation.status IN (:...statuses)", { statuses: activeReservations })
+      .andWhere("(reservation.reservationDate > :date OR (reservation.reservationDate = :date AND reservation.startTime >= :time))", { date: localNow.date, time: `${String(Math.floor(localNow.minutes / 60)).padStart(2, "0")}:${String(localNow.minutes % 60).padStart(2, "0")}` });
+    const [totalOrders, activeOrders, totalReservations, upcomingReservations, latestOrder, nextReservation] = await Promise.all([
+      orders.countBy({ coffeeShopId, clientId }),
+      orders.countBy({ coffeeShopId, clientId, status: In([OrderStatus.UnderReview, OrderStatus.Preparing, OrderStatus.Ready, OrderStatus.OutForDelivery]) }),
+      reservations.countBy({ coffeeShopId, clientId }),
+      upcoming.getCount(),
+      orders.findOne({ where: { coffeeShopId, clientId }, order: { createdAt: "DESC" } }),
+      upcoming.clone().leftJoinAndSelect("reservation.branch", "branch").orderBy("reservation.reservationDate", "ASC").addOrderBy("reservation.startTime", "ASC").getOne(),
+    ]);
+    return {
+      counts: { totalOrders, activeOrders, totalReservations, upcomingReservations },
+      latestOrder: latestOrder ? { id: latestOrder.id, status: latestOrder.status, deliveryMethod: latestOrder.deliveryMethod, totalAmountToman: latestOrder.totalAmountToman, createdAt: latestOrder.createdAt } : null,
+      nextReservation: nextReservation ? { id: nextReservation.id, reservationDate: nextReservation.reservationDate, startTime: nextReservation.startTime.slice(0, 5), partySize: nextReservation.partySize, status: nextReservation.status, branch: nextReservation.branch ? { name: nextReservation.branch.name, address: nextReservation.branch.address } : null } : null,
+    };
   }
 
   async addresses(coffeeShopId: string, clientId: string) {

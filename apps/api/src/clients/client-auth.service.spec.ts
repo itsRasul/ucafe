@@ -19,6 +19,7 @@ function createHarness() {
   });
   const crypto = new AuthCryptoService(config);
   const clients: Client[] = [];
+  const sessionUpdates: Array<{ where: object; value: object }> = [];
   let activeChallenge: OtpChallenge;
 
   const manager = {
@@ -32,9 +33,9 @@ function createHarness() {
       };
       return { createQueryBuilder: () => builder };
     },
-    findOneBy: async (entity: unknown, where: { coffeeShopId: string; phone: string }) => {
+    findOneBy: async (entity: unknown, where: { coffeeShopId: string; phone?: string; id?: string }) => {
       assert.equal(entity, Client);
-      return clients.find((client) => client.coffeeShopId === where.coffeeShopId && client.phone === where.phone) ?? null;
+      return clients.find((client) => client.coffeeShopId === where.coffeeShopId && (where.phone ? client.phone === where.phone : client.id === where.id)) ?? null;
     },
     create: (entity: unknown, value: object) => Object.assign(entity === Client ? new Client() : new ClientAuthSession(), value),
     save: async (typeOrEntity: unknown, value?: unknown) => {
@@ -44,6 +45,10 @@ function createHarness() {
         if (!clients.includes(entity)) clients.push(entity);
       }
       return entity;
+    },
+    update: async (entity: unknown, where: object, value: object) => {
+      assert.equal(entity, ClientAuthSession);
+      sessionUpdates.push({ where, value });
     },
   };
   const dataSource = { transaction: async (work: (value: typeof manager) => Promise<unknown>) => work(manager) };
@@ -72,7 +77,7 @@ function createHarness() {
     return { id, otp };
   }
 
-  return { service, clients, challenge };
+  return { service, clients, challenge, sessionUpdates, activeChallenge: () => activeChallenge };
 }
 
 test("client OTP registers once, then logs in without names and remains tenant scoped", async () => {
@@ -92,4 +97,38 @@ test("client OTP registers once, then logs in without names and remains tenant s
   assert.notEqual(secondRegistration.client.id, registration.client.id);
   assert.equal(clients.length, 2);
   assert.deepEqual(clients.map((client) => client.status), [ClientStatus.Active, ClientStatus.Active]);
+});
+
+test("verified phone change keeps the current session and revokes the others", async () => {
+  const { service, clients, challenge, sessionUpdates } = createHarness();
+  const registration = challenge("cafe-a", "+989121234567");
+  const auth = await service.verifyOtp("cafe-a", registration.id, registration.otp, {}, { firstName: "سارا", lastName: "احمدی" });
+  const phoneChange = challenge("cafe-a", "+989121234568");
+
+  const client = await service.verifyPhoneChange("cafe-a", auth.client.id, "current-session", phoneChange.id, phoneChange.otp);
+
+  assert.equal(client.phone, "+989121234568");
+  assert.equal(clients[0]?.phone, "+989121234568");
+  assert.equal(sessionUpdates.length, 1);
+  assert.ok((sessionUpdates[0]?.value as { revokedAt: Date }).revokedAt instanceof Date);
+  assert.equal((sessionUpdates[0]?.where as { clientId: string }).clientId, auth.client.id);
+});
+
+test("phone change rejects invalid and expired OTPs and a duplicate tenant phone", async () => {
+  const { service, clients, challenge, activeChallenge } = createHarness();
+  const first = challenge("cafe-a", "+989121234567");
+  const owner = await service.verifyOtp("cafe-a", first.id, first.otp, {}, { firstName: "سارا", lastName: "احمدی" });
+  clients.push(Object.assign(new Client(), { id: "client-2", coffeeShopId: "cafe-a", phone: "+989121234569", firstName: "علی", lastName: "رضایی", status: ClientStatus.Active }));
+
+  const invalid = challenge("cafe-a", "+989121234568");
+  await assert.rejects(() => service.verifyPhoneChange("cafe-a", owner.client.id, "session", invalid.id, "000000"), /invalid or expired/);
+  assert.equal(activeChallenge().attempts, 1);
+
+  const expired = challenge("cafe-a", "+989121234568");
+  activeChallenge().expiresAt = new Date(Date.now() - 1);
+  await assert.rejects(() => service.verifyPhoneChange("cafe-a", owner.client.id, "session", expired.id, expired.otp), /invalid or expired/);
+  assert.equal(activeChallenge().status, OtpChallengeStatus.Expired);
+
+  const duplicate = challenge("cafe-a", "+989121234569");
+  await assert.rejects(() => service.verifyPhoneChange("cafe-a", owner.client.id, "session", duplicate.id, duplicate.otp), /already in use/);
 });

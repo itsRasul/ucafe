@@ -7,7 +7,7 @@ import { NotificationsService } from "../notifications/notifications.service";
 import { displayOrderNumber, displayToman, NotificationType } from "../notifications/notification-type";
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { SubscriptionFeatures } from "../subscriptions/subscription-features";
-import { CheckoutAddressDto, CheckoutLineDto, CreateOrderDto, OrdersQueryDto, UpdateOnlineOrderingSettingsDto } from "./dto/ordering.dto";
+import { CheckoutAddressDto, CheckoutLineDto, ClientOrdersQueryDto, CreateOrderDto, OrdersQueryDto, UpdateOnlineOrderingSettingsDto } from "./dto/ordering.dto";
 import { OnlineOrderingSettings, Order, OrderDeliveryMethod, OrderItem, OrderPaymentMethod, OrderStatus } from "./entities";
 import { nextOrderStatuses } from "./order-status.util";
 
@@ -15,7 +15,7 @@ type UnavailableLine = { menuItemId: string; variantId: string | null; reason: s
 
 @Injectable()
 export class OrderingService {
-  constructor(private readonly dataSource: DataSource, private readonly subscriptions: SubscriptionsService, private readonly notifications: NotificationsService) {}
+  constructor(private readonly dataSource: DataSource, private readonly subscriptions: SubscriptionsService, private readonly notifications: NotificationsService) { }
 
   async publicState(coffeeShopId: string) {
     const [feature, settings, branch] = await Promise.all([
@@ -60,7 +60,7 @@ export class OrderingService {
     return this.dataSource.transaction(async (manager) => {
       await manager.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`order:${coffeeShopId}:${clientId}:${input.idempotencyKey}`]);
       const existing = await manager.findOne(Order, { where: { coffeeShopId, clientId, idempotencyKey: input.idempotencyKey }, relations: { client: true, items: true } });
-      if (existing) return this.project(existing);
+      if (existing) return this.clientProject(existing);
 
       await this.subscriptions.requireFeature(coffeeShopId, SubscriptionFeatures.OnlineOrdering);
       const settings = await manager.findOneBy(OnlineOrderingSettings, { coffeeShopId }) ?? await manager.save(OnlineOrderingSettings, manager.create(OnlineOrderingSettings, { coffeeShopId }));
@@ -96,14 +96,24 @@ export class OrderingService {
       await this.notifications.enqueue(manager, { coffeeShopId, type: NotificationType.OrderPlaced, relatedEntityType: "order", relatedEntityId: order.id, deduplicationKey: `${NotificationType.OrderPlaced}:${order.id}`, phone: client.phone, payload });
       if (settings.notifyAdminNewOrder) await this.notifications.enqueueOwners(manager, { coffeeShopId, type: NotificationType.AdminNewOrder, relatedEntityType: "order", relatedEntityId: order.id, deduplicationKey: `${NotificationType.AdminNewOrder}:${order.id}`, payload: { cafeName: cafe.name, orderNumber, totalPrice: payload.totalPrice } });
       const saved = await manager.findOneOrFail(Order, { where: { id: order.id }, relations: { client: true, items: true } });
-      return this.project(saved);
+      return this.clientProject(saved);
     });
+  }
+
+  async clientList(coffeeShopId: string, clientId: string, query: ClientOrdersQueryDto) {
+    const [items, total] = await this.dataSource.getRepository(Order).findAndCount({
+      where: { coffeeShopId, clientId },
+      order: { createdAt: "DESC" },
+      skip: (query.page - 1) * query.pageSize,
+      take: query.pageSize,
+    });
+    return { items: items.map((order) => this.clientSummary(order)), total, page: query.page, pageSize: query.pageSize };
   }
 
   async clientDetail(coffeeShopId: string, clientId: string, id: string) {
     const order = await this.dataSource.getRepository(Order).findOne({ where: { id, coffeeShopId, clientId }, relations: { client: true, items: true } });
     if (!order) throw new NotFoundException("Order not found");
-    return this.project(order);
+    return this.clientProject(order);
   }
 
   async list(coffeeShopId: string, query: OrdersQueryDto) {
@@ -123,7 +133,7 @@ export class OrderingService {
   async detail(coffeeShopId: string, id: string) {
     const order = await this.dataSource.getRepository(Order).findOne({ where: { id, coffeeShopId }, relations: { client: true, items: true } });
     if (!order) throw new NotFoundException("Order not found");
-    return this.project(order);
+    return this.adminProject(order);
   }
 
   async updateStatus(coffeeShopId: string, id: string, actorUserId: string, next: OrderStatus) {
@@ -141,7 +151,8 @@ export class OrderingService {
         const cafe = await manager.findOneByOrFail(CoffeeShop, { id: coffeeShopId });
         await this.notifications.enqueue(manager, { coffeeShopId, type, relatedEntityType: "order", relatedEntityId: id, deduplicationKey: `${type}:${id}`, phone: saved.client.phone, payload: { customerName: saved.client.firstName, orderNumber: displayOrderNumber(id), cafeName: cafe.name } });
       }
-      return this.project(saved);
+      // return this.project(saved);
+      return this.adminProject(saved);
     });
   }
 
@@ -228,22 +239,48 @@ export class OrderingService {
     };
   }
 
-  private project(order: Order) {
+  private clientSummary(order: Order) {
+    return {
+      id: order.id,
+      status: order.status,
+      deliveryMethod: order.deliveryMethod,
+      paymentMethod: order.paymentMethod,
+      totalAmountToman: order.totalAmountToman,
+      createdAt: order.createdAt,
+      updatedAt: order.updatedAt,
+    };
+  }
+
+  private orderItems(order: Order) {
+    return [...(order.items ?? [])].sort((a, b) => a.itemName.localeCompare(b.itemName, "fa")).map((item) => ({
+      id: item.id,
+      menuItemId: item.menuItemId,
+      variantId: item.menuItemVariantId,
+      itemName: item.itemName,
+      variantName: item.variantName,
+      unitPriceToman: item.unitPriceToman,
+      quantity: item.quantity,
+      lineTotalToman: item.lineTotalToman,
+    }));
+  }
+
+  private clientProject(order: Order) {
+    return {
+      ...this.clientSummary(order),
+      deliveryAddressSnapshot: order.deliveryAddressSnapshot,
+      customerNote: order.customerNote,
+      statusChangedAt: order.statusChangedAt,
+      items: this.orderItems(order),
+    };
+  }
+
+  private adminProject(order: Order) {
     return {
       ...this.summary(order),
       deliveryAddressSnapshot: order.deliveryAddressSnapshot,
       customerNote: order.customerNote,
       statusChangedAt: order.statusChangedAt,
-      items: [...(order.items ?? [])].sort((a, b) => a.itemName.localeCompare(b.itemName, "fa")).map((item) => ({
-        id: item.id,
-        menuItemId: item.menuItemId,
-        variantId: item.menuItemVariantId,
-        itemName: item.itemName,
-        variantName: item.variantName,
-        unitPriceToman: item.unitPriceToman,
-        quantity: item.quantity,
-        lineTotalToman: item.lineTotalToman,
-      })),
+      items: this.orderItems(order),
       nextStatuses: this.nextStatuses(order),
     };
   }

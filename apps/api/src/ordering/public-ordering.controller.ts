@@ -1,10 +1,10 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from "@nestjs/common";
 import { ClientAccessTokenGuard } from "../clients/client-access-token.guard";
 import { CLIENT_PRINCIPAL, ClientAuthorizedRequest } from "../clients/client-principal";
 import { PublicTenantAvailableGuard } from "../tenants/public-tenant-available.guard";
 import { TENANT_CONTEXT, TenantContextRequest } from "../tenants/tenant-context";
 import { TenantContextGuard } from "../tenants/tenant-context.guard";
-import { CreateOrderDto } from "./dto/ordering.dto";
+import { ClientOrdersQueryDto, CreateOrderDto } from "./dto/ordering.dto";
 import { OrderingService } from "./ordering.service";
 
 @Controller()
@@ -21,6 +21,12 @@ export class PublicOrderingController {
   @UseGuards(ClientAccessTokenGuard)
   create(@Req() request: TenantContextRequest & ClientAuthorizedRequest, @Body() input: CreateOrderDto) {
     return this.ordering.createOrder(request[TENANT_CONTEXT]!.coffeeShopId, request[CLIENT_PRINCIPAL]!.clientId, input);
+  }
+
+  @Get("public/orders")
+  @UseGuards(ClientAccessTokenGuard)
+  list(@Req() request: TenantContextRequest & ClientAuthorizedRequest, @Query() query: ClientOrdersQueryDto) {
+    return this.ordering.clientList(request[TENANT_CONTEXT]!.coffeeShopId, request[CLIENT_PRINCIPAL]!.clientId, query);
   }
 
   @Get("public/orders/:id")

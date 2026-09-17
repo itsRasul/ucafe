@@ -23,6 +23,11 @@ export class ReservationListQueryDto {
   @IsOptional() @IsEnum(ReservationStatus) status?: ReservationStatus;
 }
 
+export class ClientReservationsQueryDto {
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) page = 1;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(50) pageSize = 10;
+}
+
 export class UpdateReservationSettingsDto {
   @IsOptional() @IsBoolean() isEnabled?: boolean;
   @IsOptional() @IsInt() @Min(15) @Max(120) slotIntervalMinutes?: number;

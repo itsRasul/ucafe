@@ -57,6 +57,11 @@ export class OrdersQueryDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) pageSize = 20;
 }
 
+export class ClientOrdersQueryDto {
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) page = 1;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(50) pageSize = 10;
+}
+
 export class UpdateOrderStatusDto {
   @IsEnum(OrderStatus) status!: OrderStatus;
 }

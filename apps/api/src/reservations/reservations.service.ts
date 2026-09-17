@@ -7,13 +7,13 @@ import { jalaliDate, NotificationType } from "../notifications/notification-type
 import { BranchOpeningHour } from "../site/entities";
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { SubscriptionFeatures } from "../subscriptions/subscription-features";
-import { AvailabilityQueryDto, CreateReservationDto, ReservationListQueryDto, UpdateReservationDto, UpdateReservationSettingsDto, UpdateReservationStatusDto } from "./dto/reservation.dto";
+import { AvailabilityQueryDto, CreateReservationDto, ReservationListQueryDto, UpdateReservationDto, UpdateReservationSettingsDto, UpdateReservationStatusDto, ClientReservationsQueryDto } from "./dto/reservation.dto";
 import { Reservation, ReservationSettings, ReservationStatus } from "./entities";
 import { generateReservationSlots, isValidIsoDate, localDateTimeParts, timeToMinutes } from "./reservation-time.util";
 
 @Injectable()
 export class ReservationsService {
-  constructor(private readonly dataSource: DataSource, private readonly notifications: NotificationsService, private readonly subscriptions: SubscriptionsService) {}
+  constructor(private readonly dataSource: DataSource, private readonly notifications: NotificationsService, private readonly subscriptions: SubscriptionsService) { }
 
   private async context(manager: EntityManager, coffeeShopId: string) {
     const branch = await manager.findOneBy(Branch, { coffeeShopId, isPrimary: true, isActive: true });
@@ -74,13 +74,20 @@ export class ReservationsService {
       await this.notifications.enqueue(manager, { coffeeShopId, type: NotificationType.ReservationPlaced, relatedEntityType: "reservation", relatedEntityId: reservation.id, deduplicationKey: `${NotificationType.ReservationPlaced}:${reservation.id}`, phone: client.phone, payload });
       const settings = await manager.findOneByOrFail(ReservationSettings, { branchId: branch.id });
       if (settings.notifyAdminNewReservation) await this.notifications.enqueueOwners(manager, { coffeeShopId, type: NotificationType.AdminNewReservation, relatedEntityType: "reservation", relatedEntityId: reservation.id, deduplicationKey: `${NotificationType.AdminNewReservation}:${reservation.id}`, payload: { cafeName: cafe.name, guestCount: payload.guestCount, date: payload.date, time: payload.time } });
-      return this.safe(reservation);
+      // return this.safe(reservation);
+      return this.clientSafe(reservation);
     });
   }
 
-  async mine(coffeeShopId: string, clientId: string) {
-    const rows = await this.dataSource.getRepository(Reservation).find({ where: { coffeeShopId, clientId }, order: { reservationDate: "DESC", startTime: "DESC" } });
-    return rows.map((row) => this.safe(row));
+  async mine(coffeeShopId: string, clientId: string, query: ClientReservationsQueryDto) {
+    const [items, total] = await this.dataSource.getRepository(Reservation).findAndCount({ where: { coffeeShopId, clientId }, order: { reservationDate: "DESC", startTime: "DESC" }, skip: (query.page - 1) * query.pageSize, take: query.pageSize });
+    return { items: items.map((row) => this.clientSafe(row)), total, page: query.page, pageSize: query.pageSize };
+  }
+
+  async clientDetail(coffeeShopId: string, clientId: string, id: string) {
+    const reservation = await this.dataSource.getRepository(Reservation).findOne({ relations: { branch: true }, where: { id, coffeeShopId, clientId } });
+    if (!reservation) throw new NotFoundException("Reservation not found");
+    return { ...this.clientSafe(reservation), branch: reservation.branch ? { id: reservation.branch.id, name: reservation.branch.name, address: reservation.branch.address } : null };
   }
 
   async list(coffeeShopId: string, query: ReservationListQueryDto) {
@@ -97,26 +104,26 @@ export class ReservationsService {
 
   async updateStatus(coffeeShopId: string, id: string, actorUserId: string, input: UpdateReservationStatusDto) {
     return this.dataSource.transaction(async (manager) => {
-    const repository = manager.getRepository(Reservation);
-    const reservation = await repository.findOne({ where: { id, coffeeShopId }, lock: { mode: "pessimistic_write" } });
-    if (!reservation) throw new NotFoundException("Reservation not found");
-    const transitions: Record<ReservationStatus, ReservationStatus[]> = {
-      PENDING: [ReservationStatus.Confirmed, ReservationStatus.Rejected, ReservationStatus.Canceled], CONFIRMED: [ReservationStatus.Canceled, ReservationStatus.Completed, ReservationStatus.NoShow],
-      REJECTED: [], CANCELED: [], COMPLETED: [], NO_SHOW: [],
-    };
-    if (!transitions[reservation.status].includes(input.status)) throw new ConflictException("Invalid reservation status transition");
-    reservation.status = input.status; reservation.staffNote = input.staffNote?.trim() || null; reservation.statusChangedAt = new Date(); reservation.statusChangedByUserId = actorUserId;
-    const saved = await repository.save(reservation);
-    const client = await manager.getRepository(Client).findOneByOrFail({ id: reservation.clientId, coffeeShopId });
-    if (input.status === ReservationStatus.Confirmed) {
-      const cafe = await manager.findOneByOrFail(CoffeeShop, { id: coffeeShopId });
-      await this.notifications.enqueue(manager, { coffeeShopId, type: NotificationType.ReservationConfirmed, relatedEntityType: "reservation", relatedEntityId: id, deduplicationKey: `${NotificationType.ReservationConfirmed}:${id}`, phone: client.phone, payload: { customerName: reservation.contactName, cafeName: cafe.name, date: jalaliDate(reservation.reservationDate), time: reservation.startTime.slice(0, 5), guestCount: String(reservation.partySize) } });
-    } else if (input.status === ReservationStatus.Canceled) {
-      const cafe = await manager.findOneByOrFail(CoffeeShop, { id: coffeeShopId });
-      await this.notifications.enqueue(manager, { coffeeShopId, type: NotificationType.ReservationCancelled, relatedEntityType: "reservation", relatedEntityId: id, deduplicationKey: `${NotificationType.ReservationCancelled}:${id}`, phone: client.phone, payload: { customerName: reservation.contactName, cafeName: cafe.name, date: jalaliDate(reservation.reservationDate), time: reservation.startTime.slice(0, 5) } });
-    }
-    saved.client = client;
-    return this.adminSafe(saved);
+      const repository = manager.getRepository(Reservation);
+      const reservation = await repository.findOne({ where: { id, coffeeShopId }, lock: { mode: "pessimistic_write" } });
+      if (!reservation) throw new NotFoundException("Reservation not found");
+      const transitions: Record<ReservationStatus, ReservationStatus[]> = {
+        PENDING: [ReservationStatus.Confirmed, ReservationStatus.Rejected, ReservationStatus.Canceled], CONFIRMED: [ReservationStatus.Canceled, ReservationStatus.Completed, ReservationStatus.NoShow],
+        REJECTED: [], CANCELED: [], COMPLETED: [], NO_SHOW: [],
+      };
+      if (!transitions[reservation.status].includes(input.status)) throw new ConflictException("Invalid reservation status transition");
+      reservation.status = input.status; reservation.staffNote = input.staffNote?.trim() || null; reservation.statusChangedAt = new Date(); reservation.statusChangedByUserId = actorUserId;
+      const saved = await repository.save(reservation);
+      const client = await manager.getRepository(Client).findOneByOrFail({ id: reservation.clientId, coffeeShopId });
+      if (input.status === ReservationStatus.Confirmed) {
+        const cafe = await manager.findOneByOrFail(CoffeeShop, { id: coffeeShopId });
+        await this.notifications.enqueue(manager, { coffeeShopId, type: NotificationType.ReservationConfirmed, relatedEntityType: "reservation", relatedEntityId: id, deduplicationKey: `${NotificationType.ReservationConfirmed}:${id}`, phone: client.phone, payload: { customerName: reservation.contactName, cafeName: cafe.name, date: jalaliDate(reservation.reservationDate), time: reservation.startTime.slice(0, 5), guestCount: String(reservation.partySize) } });
+      } else if (input.status === ReservationStatus.Canceled) {
+        const cafe = await manager.findOneByOrFail(CoffeeShop, { id: coffeeShopId });
+        await this.notifications.enqueue(manager, { coffeeShopId, type: NotificationType.ReservationCancelled, relatedEntityType: "reservation", relatedEntityId: id, deduplicationKey: `${NotificationType.ReservationCancelled}:${id}`, phone: client.phone, payload: { customerName: reservation.contactName, cafeName: cafe.name, date: jalaliDate(reservation.reservationDate), time: reservation.startTime.slice(0, 5) } });
+      }
+      saved.client = client;
+      return this.adminSafe(saved);
     });
   }
 
@@ -150,11 +157,11 @@ export class ReservationsService {
     return this.dataSource.getRepository(ReservationSettings).save(settings);
   }
 
-  private safe(row: Reservation) {
-    return { id: row.id, branchId: row.branchId, contactName: row.contactName, reservationDate: row.reservationDate, startTime: row.startTime.slice(0, 5), endTime: row.endTime.slice(0, 5), partySize: row.partySize, status: row.status, customerNote: row.customerNote, staffNote: row.staffNote, createdAt: row.createdAt };
+  private clientSafe(row: Reservation) {
+    return { id: row.id, branchId: row.branchId, contactName: row.contactName, reservationDate: row.reservationDate, startTime: row.startTime.slice(0, 5), endTime: row.endTime.slice(0, 5), partySize: row.partySize, status: row.status, customerNote: row.customerNote, createdAt: row.createdAt };
   }
 
   private adminSafe(row: Reservation) {
-    return { ...this.safe(row), customerPhone: row.client?.phone ?? null };
+    return { ...this.clientSafe(row), staffNote: row.staffNote, customerPhone: row.client?.phone ?? null };
   }
 }

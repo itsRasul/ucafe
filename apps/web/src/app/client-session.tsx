@@ -85,7 +85,14 @@ export function useClientSession() {
     finally { sessionStorage.removeItem(storageKey()); setToken(""); setClient(null); }
   }
 
-  return { state, client, token, api, requestOtp, verifyOtp, signOut };
+  const reloadClient = useCallback(async () => {
+    if (!token) throw new Error("نشست مشتری در دسترس نیست.");
+    const me = await clientRequest<ClientIdentity>("/public/client-auth/me", token);
+    setClient(me);
+    return me;
+  }, [token]);
+
+  return { state, client, token, api, requestOtp, verifyOtp, signOut, reloadClient };
 }
 
 export type ClientSession = ReturnType<typeof useClientSession>;
