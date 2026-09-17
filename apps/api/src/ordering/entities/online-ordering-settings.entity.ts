@@ -15,6 +15,9 @@ export class OnlineOrderingSettings {
   @Column({ name: "offline_payment_enabled", type: "boolean", default: true })
   offlinePaymentEnabled!: boolean;
 
+  @Column({ name: "notify_admin_new_order", type: "boolean", default: false })
+  notifyAdminNewOrder!: boolean;
+
   @UpdateDateColumn({ name: "updated_at", type: "timestamptz" })
   updatedAt!: Date;
 

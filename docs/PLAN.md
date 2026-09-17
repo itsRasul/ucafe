@@ -145,13 +145,13 @@ Each phase is intended for one reviewable session. Do not start a later phase un
 - **Completion note:** private tenant-prefixed S3/MinIO storage, byte/pixel/dimension validation, WebP/AVIF variants, focal-point metadata, capped logo/hero/gallery APIs, tenant/platform guard separation, owner controls and responsive public rendering were implemented and live-verified on 2026-08-28.
 - **Do not:** video pipeline or unrestricted asset library.
 
-## Phase 11 — Production SMS and notifications — Completed for simulated delivery; production activation pending credentials
+## Phase 11 — Production SMS and notifications — Completed for simulated delivery; production activation pending template IDs
 
-- **Objective/scope:** real Kavenegar adapter, secrets/configuration, reservation confirmation SMS and resilient delivery jobs.
+- **Objective/scope:** sms.ir adapter, secrets/configuration, order/reservation/subscription transactional SMS and resilient scheduled delivery jobs.
 - **Dependencies:** credentials and approved message templates.
 - **Acceptance:** idempotent delivery, redacted logs, failure/retry behavior.
 - **Do not:** marketing campaigns.
-- **Completion note:** Kavenegar Lookup adapters for OTP and reservation confirmation, strict provider configuration, encrypted idempotent outbox delivery and bounded retries were implemented on 2026-08-28. Docker delivery is verified with the development simulator; a real send remains blocked on API key and approved panel templates.
+- **Completion note:** the sms.ir verify adapter and encrypted outbox now cover order lifecycle, reservation lifecycle/reminders, tenant-owner opt-in alerts, subscription expiration reminders, verified renewal and failed verification. One dispatcher handles retries and scheduled work with durable deduplication; Docker delivery is verified with the development simulator, while real sends remain blocked on configured numeric panel template IDs.
 
 ## Phase 12 — Iranian payment gateway — Completed in simulation
 

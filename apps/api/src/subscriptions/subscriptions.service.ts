@@ -5,10 +5,12 @@ import { PlanStatus, Subscription, SubscriptionPayment, SubscriptionPaymentStatu
 import { addDays, addUtcMonths, effectiveSubscriptionStatus } from "./subscription-lifecycle";
 import { UpdatePlanDto } from "./dto/update-plan.dto";
 import { mergePlanFeatures, SubscriptionFeatureKey } from "./subscription-features";
+import { NotificationsService } from "../notifications/notifications.service";
+import { NotificationType } from "../notifications/notification-type";
 
 @Injectable()
 export class SubscriptionsService {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(private readonly dataSource: DataSource, private readonly notifications: NotificationsService) {}
 
   async listPlans() { return this.dataSource.getRepository(SubscriptionPlan).find({ order: { priceToman: "ASC" } }); }
 
@@ -141,6 +143,14 @@ export class SubscriptionsService {
       coffeeShop.suspendedAt = null;
       if (!coffeeShop.publishedAt) coffeeShop.publishedAt = now;
       await manager.save(coffeeShop);
+      await this.notifications.enqueueOwners(manager, {
+        coffeeShopId,
+        type: NotificationType.SubscriptionActivated,
+        relatedEntityType: "subscription_payment",
+        relatedEntityId: payment.id,
+        deduplicationKey: `${NotificationType.SubscriptionActivated}:${payment.id}`,
+        payload: this.notifications.subscriptionActivatedPayload(coffeeShop.name, plan.name, periodEndsAt, coffeeShop.timezone),
+      });
       return { subscription, payment };
     });
   }

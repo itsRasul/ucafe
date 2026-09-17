@@ -46,6 +46,7 @@ export class UpdateOnlineOrderingSettingsDto {
   @IsOptional() @IsBoolean() pickupEnabled?: boolean;
   @IsOptional() @IsBoolean() courierEnabled?: boolean;
   @IsOptional() @IsBoolean() offlinePaymentEnabled?: boolean;
+  @IsOptional() @IsBoolean() notifyAdminNewOrder?: boolean;
 }
 
 export class OrdersQueryDto {

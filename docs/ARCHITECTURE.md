@@ -34,7 +34,7 @@ Worker scaffold ------------------------------------> future background jobs
 - `menu`: category/item/variant CRUD plus public projection.
 - `reservations`: branch settings, slot availability, authenticated creation, capacity lock and status workflow.
 - `media`: private S3-compatible objects, tenant-scoped metadata, validated logo/hero/gallery upload, focal points, optimized variants and guarded public streaming.
-- `notifications`: encrypted database outbox, idempotent reservation-confirmation jobs, bounded retry/backoff and crash recovery.
+- `notifications`: encrypted tenant-scoped SMS outbox for order, reservation and subscription events, idempotent scheduled reminders, bounded retry/backoff and crash recovery.
 - `payments`: tenant-owner Silver checkout intents, provider abstraction, public verified callback and idempotent subscription settlement.
 - **Planned:** broader worker jobs.
 
@@ -99,7 +99,7 @@ An explicit seven-day trial leads to suspension if unpaid. Paid service is prepa
 - **Implemented:** the `ucafe-media` bucket remains private. Image bytes are decoded and limited to JPEG/PNG/WebP, 8 MB and 24 megapixels, with role-specific minimum dimensions. The API creates small/large AVIF and WebP crops, stores only tenant/asset-prefixed keys, and serves immutable variants through hostname-resolved public routes. Logo and hero are single slots; gallery is capped at eight; focal points and gallery order are bounded metadata. Missing/deleted media uses the existing stable CSS layout.
 - **Implemented:** uploads are currently processed synchronously in the API because Phase 10 excludes a worker pipeline. Original upload bytes are not retained or publicly served.
 - Redis is configured and used by authentication for rate limiting/ephemeral OTP controls; broader tenant-config caching is planned.
-- Reservation confirmation delivery currently runs as a bounded API-hosted outbox dispatcher; unique reservation/type keys prevent duplicate jobs, stale claims recover, and failures retry three times with exponential backoff. A dedicated horizontally coordinated worker remains launch hardening.
+- Transactional and scheduled SMS delivery currently runs as one bounded API-hosted outbox dispatcher. Stable deduplication keys prevent duplicate status/payment/reminder sends, stale claims recover, failures retry three times with exponential backoff, and time-sensitive jobs recheck eligibility before delivery. A dedicated horizontally coordinated worker remains launch hardening.
 
 ## Configuration and logging
 

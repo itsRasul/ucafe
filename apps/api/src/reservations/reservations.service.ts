@@ -1,12 +1,13 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
-import { DataSource, EntityManager, In } from "typeorm";
+import { DataSource, EntityManager, In, Not } from "typeorm";
 import { Client } from "../clients/entities";
 import { Branch, CoffeeShop } from "../database/entities";
 import { NotificationsService } from "../notifications/notifications.service";
+import { jalaliDate, NotificationType } from "../notifications/notification-type";
 import { BranchOpeningHour } from "../site/entities";
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { SubscriptionFeatures } from "../subscriptions/subscription-features";
-import { AvailabilityQueryDto, CreateReservationDto, ReservationListQueryDto, UpdateReservationSettingsDto, UpdateReservationStatusDto } from "./dto/reservation.dto";
+import { AvailabilityQueryDto, CreateReservationDto, ReservationListQueryDto, UpdateReservationDto, UpdateReservationSettingsDto, UpdateReservationStatusDto } from "./dto/reservation.dto";
 import { Reservation, ReservationSettings, ReservationStatus } from "./entities";
 import { generateReservationSlots, isValidIsoDate, localDateTimeParts, timeToMinutes } from "./reservation-time.util";
 
@@ -30,7 +31,7 @@ export class ReservationsService {
     return { today, days };
   }
 
-  private async available(manager: EntityManager, coffeeShopId: string, query: AvailabilityQueryDto) {
+  private async available(manager: EntityManager, coffeeShopId: string, query: AvailabilityQueryDto, excludeReservationId?: string) {
     const { branch, settings } = await this.context(manager, coffeeShopId);
     if (!settings.isEnabled) throw new BadRequestException("Reservations are currently disabled");
     if (query.partySize < settings.minimumPartySize || query.partySize > settings.maximumPartySize) throw new BadRequestException("Party size is outside the allowed range");
@@ -39,7 +40,7 @@ export class ReservationsService {
     const hours = await manager.findOneBy(BranchOpeningHour, { branchId: branch.id, dayOfWeek });
     if (!hours || hours.isClosed || !hours.opensAt || !hours.closesAt) return { branchId: branch.id, date: query.date, partySize: query.partySize, slots: [] };
     const active = [ReservationStatus.Pending, ReservationStatus.Confirmed];
-    const reservations = await manager.findBy(Reservation, { branchId: branch.id, reservationDate: query.date, status: In(active) });
+    const reservations = await manager.findBy(Reservation, { branchId: branch.id, reservationDate: query.date, status: In(active), ...(excludeReservationId ? { id: Not(excludeReservationId) } : {}) });
     const localNow = localDateTimeParts(branch.timezone);
     const slots = generateReservationSlots(hours.opensAt, hours.closesAt, settings.slotIntervalMinutes, settings.durationMinutes).map((slot) => {
       const occupied = reservations.filter((r) => r.startTime.slice(0, 5) < slot.endTime && r.endTime.slice(0, 5) > slot.startTime).reduce((sum, r) => sum + r.partySize, 0);
@@ -58,7 +59,8 @@ export class ReservationsService {
     await this.subscriptions.requireFeature(coffeeShopId, SubscriptionFeatures.Reservations);
     return this.dataSource.transaction(async (manager) => {
       const { branch } = await this.context(manager, coffeeShopId);
-      if (!await manager.existsBy(Client, { id: clientId, coffeeShopId })) throw new NotFoundException("Client not found");
+      const client = await manager.findOneBy(Client, { id: clientId, coffeeShopId });
+      if (!client) throw new NotFoundException("Client not found");
       await manager.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`${branch.id}:${input.date}`]);
       const availability = await this.available(manager, coffeeShopId, input);
       const slot = availability.slots.find((candidate) => candidate.startTime === input.startTime && candidate.available);
@@ -67,6 +69,11 @@ export class ReservationsService {
         coffeeShopId, branchId: branch.id, clientId, contactName: input.contactName.trim(), reservationDate: input.date,
         startTime: slot.startTime, endTime: slot.endTime, partySize: input.partySize, customerNote: input.note?.trim() || null,
       }));
+      const cafe = await manager.findOneByOrFail(CoffeeShop, { id: coffeeShopId });
+      const payload = { customerName: reservation.contactName, cafeName: cafe.name, guestCount: String(reservation.partySize), date: jalaliDate(reservation.reservationDate), time: reservation.startTime.slice(0, 5) };
+      await this.notifications.enqueue(manager, { coffeeShopId, type: NotificationType.ReservationPlaced, relatedEntityType: "reservation", relatedEntityId: reservation.id, deduplicationKey: `${NotificationType.ReservationPlaced}:${reservation.id}`, phone: client.phone, payload });
+      const settings = await manager.findOneByOrFail(ReservationSettings, { branchId: branch.id });
+      if (settings.notifyAdminNewReservation) await this.notifications.enqueueOwners(manager, { coffeeShopId, type: NotificationType.AdminNewReservation, relatedEntityType: "reservation", relatedEntityId: reservation.id, deduplicationKey: `${NotificationType.AdminNewReservation}:${reservation.id}`, payload: { cafeName: cafe.name, guestCount: payload.guestCount, date: payload.date, time: payload.time } });
       return this.safe(reservation);
     });
   }
@@ -103,10 +110,34 @@ export class ReservationsService {
     const client = await manager.getRepository(Client).findOneByOrFail({ id: reservation.clientId, coffeeShopId });
     if (input.status === ReservationStatus.Confirmed) {
       const cafe = await manager.findOneByOrFail(CoffeeShop, { id: coffeeShopId });
-      await this.notifications.enqueueConfirmation(manager, { coffeeShopId, reservationId: id, phone: client.phone, cafeName: cafe.name, date: reservation.reservationDate, time: reservation.startTime.slice(0, 5) });
+      await this.notifications.enqueue(manager, { coffeeShopId, type: NotificationType.ReservationConfirmed, relatedEntityType: "reservation", relatedEntityId: id, deduplicationKey: `${NotificationType.ReservationConfirmed}:${id}`, phone: client.phone, payload: { customerName: reservation.contactName, cafeName: cafe.name, date: jalaliDate(reservation.reservationDate), time: reservation.startTime.slice(0, 5), guestCount: String(reservation.partySize) } });
+    } else if (input.status === ReservationStatus.Canceled) {
+      const cafe = await manager.findOneByOrFail(CoffeeShop, { id: coffeeShopId });
+      await this.notifications.enqueue(manager, { coffeeShopId, type: NotificationType.ReservationCancelled, relatedEntityType: "reservation", relatedEntityId: id, deduplicationKey: `${NotificationType.ReservationCancelled}:${id}`, phone: client.phone, payload: { customerName: reservation.contactName, cafeName: cafe.name, date: jalaliDate(reservation.reservationDate), time: reservation.startTime.slice(0, 5) } });
     }
     saved.client = client;
     return this.adminSafe(saved);
+    });
+  }
+
+  async update(coffeeShopId: string, id: string, input: UpdateReservationDto) {
+    return this.dataSource.transaction(async (manager) => {
+      const reservation = await manager.getRepository(Reservation).findOne({ where: { id, coffeeShopId }, lock: { mode: "pessimistic_write" } });
+      if (!reservation) throw new NotFoundException("Reservation not found");
+      if (![ReservationStatus.Pending, ReservationStatus.Confirmed].includes(reservation.status)) throw new ConflictException("Reservation can no longer be edited");
+      const date = input.date ?? reservation.reservationDate;
+      const startTime = input.startTime ?? reservation.startTime.slice(0, 5);
+      const partySize = input.partySize ?? reservation.partySize;
+      if (date === reservation.reservationDate && startTime === reservation.startTime.slice(0, 5) && partySize === reservation.partySize) return this.adminSafe({ ...reservation, client: await manager.findOneByOrFail(Client, { id: reservation.clientId, coffeeShopId }) });
+      const availability = await this.available(manager, coffeeShopId, { date, partySize }, id);
+      const slot = availability.slots.find((candidate) => candidate.startTime === startTime && candidate.available);
+      if (!slot) throw new ConflictException("The selected time is no longer available");
+      reservation.reservationDate = date; reservation.startTime = slot.startTime; reservation.endTime = slot.endTime; reservation.partySize = partySize;
+      const saved = await manager.save(reservation);
+      const [client, cafe] = await Promise.all([manager.findOneByOrFail(Client, { id: reservation.clientId, coffeeShopId }), manager.findOneByOrFail(CoffeeShop, { id: coffeeShopId })]);
+      await this.notifications.enqueue(manager, { coffeeShopId, type: NotificationType.ReservationEdited, relatedEntityType: "reservation", relatedEntityId: id, deduplicationKey: `${NotificationType.ReservationEdited}:${id}:${saved.updatedAt.toISOString()}`, phone: client.phone, payload: { customerName: saved.contactName, cafeName: cafe.name, date: jalaliDate(saved.reservationDate), time: saved.startTime.slice(0, 5), guestCount: String(saved.partySize) } });
+      saved.client = client;
+      return this.adminSafe(saved);
     });
   }
 

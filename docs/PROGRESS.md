@@ -1,6 +1,6 @@
 # ucafe progress checkpoint
 
-**Checkpoint date:** 2026-09-10 (Asia/Tehran)
+**Checkpoint date:** 2026-09-17 (Asia/Tehran)
 **Repository path:** `E:\programming\nodeJs\cafexa`
 **Last fully completed product phase:** Phase 15 — Platform user and role access corrections
 **Current phase:** none (**Local hardening complete; production launch blocked on external credentials/infrastructure**)
@@ -8,11 +8,13 @@
 
 ## Current status
 
-The complete MVP feature set and local launch-hardening scope are implemented. Production now fails closed if simulators are selected; real sms.ir/Zarinpal acceptance plus hosting, DNS, TLS and monitoring configuration remain external launch blockers.
+The complete MVP feature set and the expanded transactional SMS phase are implemented locally. Production fails closed unless every sms.ir template ID and the real providers are configured; real sms.ir/Zarinpal acceptance plus hosting, DNS, TLS and monitoring remain external launch blockers.
 
 This repository currently has no Git commit history/tracked baseline: `git status --short` reports the repository files as untracked. Do not assume a clean diff or use destructive Git cleanup.
 
 ## Completed work
+
+- Complete tenant-aware SMS notification flow now reuses the encrypted notification outbox and sms.ir verify adapter for order creation/status/cancellation/completion, reservation request/confirmation/admin edit/cancellation/reminder, optional owner alerts, subscription expiry reminders, suspension/follow-up, verified activation and failed verification. Delivery is asynchronous, retries are bounded, scheduled and callback notifications are deduplicated, stale reservation/renewal jobs recheck eligibility, recipient phones remain encrypted/masked, and all panel template IDs are validated configuration.
 
 - Tenant-branded client authentication now uses a dedicated responsive `/login` split shell with the shared café photograph, the resolved tenant identity, login/register modes, a signed-in success card and restrained reduced-motion-aware entrance animation. A shared accessible six-cell OTP input now powers client login, checkout, reservation and the existing admin flow, including Persian/Arabic digit normalization, paste, keyboard navigation and one-shot completion submission. The client auth form consumes its parent session so authentication updates `/login` and checkout immediately, while navbar login/register CTAs now exactly match the reservation CTA.
 - Platform admin now has a dedicated invoices section under `/platform`. Platform operators with both subscription-management and user-read authority can list tenant-created renewal invoices and open a detail view with cafe identity, payment status, plan/amount, gateway authority/reference, primary branch data and cafe admin/member contact/role data. The implementation reuses existing `payment_intents` as invoices and adds no schema migration.
@@ -129,7 +131,7 @@ No real sms.ir or Zarinpal provider acceptance or production deployment exists b
 
 ## Migrations
 
-Source contains sixteen migrations:
+Source contains twenty-one migrations:
 
 1. `1787742000000-CreateTenantFoundation.ts`
 2. `1787745600000-CreateIdentityAndRbac.ts`
@@ -147,10 +149,17 @@ Source contains sixteen migrations:
 14. `1787785200000-CreatePlatformOrderRequests.ts`
 15. `1787788800000-ExpandPlatformAccessManagement.ts`
 16. `1787792400000-AddClientOrderingAndPlanModules.ts`
+17. `1787796000000-ExpandClientAddresses.ts`
+18. `1787799600000-EnableCourierDelivery.ts`
+19. `1787803200000-RemoveWebsiteAnnouncement.ts`
+20. `1787806800000-ExpandSmsNotifications.ts`
+21. `1787810400000-AddCanceledPaymentStatus.ts`
 
-All sixteen migrations were applied and rechecked with `migration:show`; there are no pending migrations.
+All twenty-one migrations were applied and rechecked with `migration:show`; there are no pending migrations.
 
 ## Latest checks
+
+- 2026-09-17: Complete SMS notifications implemented over the existing encrypted outbox and sms.ir provider without adding a queue dependency. API tests passed **64/64**; focused post-fix tests passed **10/10**; full API/web/worker type-check and builds passed. Migrations 20 and 21 were applied and rechecked with none pending. The rebuilt development API returned ready with PostgreSQL, Redis and object storage healthy. Real sends were not attempted because numeric panel template IDs are not present in this workspace.
 
 - 2026-09-10: Client authentication redesign and shared OTP behavior completed with no schema or API-contract change. API/web type-checks passed, the web production build passed, and the API suite passed **60/60**, including new coverage for first registration, repeat login without names, no duplicate client and tenant separation. A live disposable registration confirmed access-token `/me`, refresh rotation and logout; a second OTP verification without names returned the same client id and the database contained exactly one client. Development SMS logging showed only the masked number plus OTP. The exact test client, its sessions and three OTP challenges were removed afterward. PostgreSQL directly reports all 16 migrations with latest timestamp `1787792400000`. Browser QA at 1440×900 and 390×844 confirmed RTL, one H1, no horizontal overflow, 44px+ controls, a clean console and pixel-equivalent navbar login/reservation CTA styles. A final Docker API/web rebuild was attempted but could not fetch `node:22-alpine` metadata because the configured Liara registry mirror timed out during TLS negotiation; the previously built API/web containers remain running, so the final web image still requires a rebuild when registry access recovers.
 - 2026-09-09: Online ordering, cafe clients, client OTP auth, cart/checkout, client addresses, tenant-admin order management, online-ordering settings, reservation-client integration and platform plan-module toggles were implemented. Plan modules use the existing `subscription_plans.features` JSON: Silver has `reservations=true` and `onlineOrdering=false`; Golden is active with both enabled. Migration `1787792400000-AddClientOrderingAndPlanModules.ts` creates tenant-scoped `clients`, client sessions, addresses, online ordering settings, orders/order items, order permissions, reservation `client_id` backfill and tenant-scope database triggers. `npm run typecheck --workspace=@ucafe/api`, `npm run typecheck --workspace=@ucafe/web`, API tests passed (**59/59**), `npm run build --workspace=@ucafe/web` passed, direct API TypeScript build via `npx tsc -p apps/api/tsconfig.build.json` passed, and Docker `compose up -d --build api web` rebuilt and restarted both services. Docker migration show reports all 16 migrations applied. Live checks returned HTTP 200 for API `/api/v1/health`, web `/health`, public `/menu`, `/cart`, `/checkout`, `/login` and `/reserve`; Silver public ordering settings returned the required disabled-ordering message, public reservation availability still worked, unauthenticated public order/reservation creation returned 401, tenant order reads returned 401 without admin auth, and invalid client OTP request returned 400. Impeccable detector returned no findings for the changed frontend targets. Host-side `npm run build --workspace=@ucafe/api` still fails because the Windows install lacks the `nest` CLI binary; `npm install` on Windows is blocked by the existing Linux-only Sharp package dependency, while the Linux Docker build succeeds.

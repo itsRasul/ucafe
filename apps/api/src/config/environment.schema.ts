@@ -1,5 +1,7 @@
 import Joi from "joi";
 
+const smsTemplateId = Joi.when("SMS_PROVIDER", { is: "smsir", then: Joi.string().pattern(/^[0-9]+$/).required(), otherwise: Joi.string().allow("").optional() });
+
 export const environmentSchema = Joi.object({
   NODE_ENV: Joi.string().valid("development", "test", "production").default("development"),
   API_PORT: Joi.number().port().default(3001),
@@ -33,7 +35,27 @@ export const environmentSchema = Joi.object({
   SMS_PROVIDER: Joi.string().valid("development", "smsir").default("development"),
   SMSIR_API_KEY: Joi.when("SMS_PROVIDER", { is: "smsir", then: Joi.string().min(8).required(), otherwise: Joi.string().optional() }),
   SMSIR_OTP_TEMPLATE_ID: Joi.when("SMS_PROVIDER", { is: "smsir", then: Joi.string().pattern(/^[0-9]+$/).required(), otherwise: Joi.string().optional() }),
-  SMSIR_RESERVATION_CONFIRMED_TEMPLATE_ID: Joi.when("SMS_PROVIDER", { is: "smsir", then: Joi.string().pattern(/^[0-9]+$/).required(), otherwise: Joi.string().optional() }),
+  ORDER_PLACED: smsTemplateId,
+  ORDER_CONFIRMED: smsTemplateId,
+  ORDER_READY_ON_SITE: smsTemplateId,
+  ORDER_READY_DELIVERY: smsTemplateId,
+  ORDER_COMPLETED: smsTemplateId,
+  ORDER_CANCELLED: smsTemplateId,
+  ORDER_PLACED_FOR_ADMIN_TENANT: smsTemplateId,
+  RESERVATION_PLACED: smsTemplateId,
+  RESERVATION_CONFIRMED: smsTemplateId,
+  RESERVATION_EDITED_BY_ADMIN: smsTemplateId,
+  RESERVATION_CANCELLED: smsTemplateId,
+  RESERVATION_PLACED_TO_ADMIN: smsTemplateId,
+  RESERVATION_REMINDER: smsTemplateId,
+  RENEWING_SUBSCRIPTION_REMINDER_3: smsTemplateId,
+  RENEWING_REMINDER_SUBSCRIPTION_2: smsTemplateId,
+  RENEWING_SUBSCRIPTION_REMINDER_1: smsTemplateId,
+  RENEWING_SUBSCRIPTION_LAST_DAY: smsTemplateId,
+  SUBSCRIPTION_EXPIRED: smsTemplateId,
+  SUBSCRIPTION_REMINDER_FOLLOW_UP: smsTemplateId,
+  SUBSCRIPTION_SUCCESSFULLY_PAID: smsTemplateId,
+  SUBSCRIPTION_FAILD_PAID: smsTemplateId,
   PAYMENT_PROVIDER: Joi.string().valid("simulated", "zarinpal").default("simulated"),
   PAYMENT_CALLBACK_BASE_URL: Joi.string().uri({scheme:["http","https"]}).required(),
   ZARINPAL_MERCHANT_ID: Joi.when("PAYMENT_PROVIDER", { is:"zarinpal", then:Joi.string().guid().required(), otherwise:Joi.string().allow("").optional() }),

@@ -2,7 +2,7 @@ import { Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { randomUUID } from "node:crypto";
 import { maskPhone } from "./iran-phone.util";
-import { SendOtpMessage, SmsDeliveryResult, SmsProvider } from "./sms-provider";
+import { SendOtpMessage, SendTemplateMessage, SmsDeliveryResult, SmsProvider } from "./sms-provider";
 
 export class DevelopmentSmsProvider implements SmsProvider {
   private readonly logger = new Logger("DevelopmentSmsProvider");
@@ -18,8 +18,8 @@ export class DevelopmentSmsProvider implements SmsProvider {
     return { providerMessageId: `dev-${randomUUID()}` };
   }
 
-  async sendReservationConfirmation(message: { phone: string; cafeName: string; date: string; time: string }): Promise<SmsDeliveryResult> {
-    this.logger.log(`[DEV SMS] ${maskPhone(message.phone)} reservation-confirmed`);
+  async sendTemplate(message: SendTemplateMessage): Promise<SmsDeliveryResult> {
+    this.logger.log(`[DEV SMS] ${maskPhone(message.phone)} template=${message.templateId}`);
     return { providerMessageId: `dev-${randomUUID()}` };
   }
 }

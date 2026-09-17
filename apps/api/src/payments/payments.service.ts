@@ -7,10 +7,13 @@ import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { CreateCheckoutDto, PaymentCallbackDto } from "./dto/payment.dto";
 import { PaymentIntent, PaymentIntentStatus } from "./entities";
 import { PAYMENT_GATEWAY, PaymentGateway } from "./payment-gateway";
+import { NotificationsService } from "../notifications/notifications.service";
+import { NotificationType } from "../notifications/notification-type";
+import { CoffeeShop } from "../database/entities";
 
 @Injectable()
 export class PaymentsService {
-  constructor(private readonly db: DataSource, private readonly config: ConfigService, private readonly subscriptions: SubscriptionsService, @Inject(PAYMENT_GATEWAY) private readonly gateway: PaymentGateway) {}
+  constructor(private readonly db: DataSource, private readonly config: ConfigService, private readonly subscriptions: SubscriptionsService, private readonly notifications: NotificationsService, @Inject(PAYMENT_GATEWAY) private readonly gateway: PaymentGateway) {}
 
   async checkout(coffeeShopId: string, input: CreateCheckoutDto) {
     return this.db.transaction(async (manager) => {
@@ -99,7 +102,7 @@ export class PaymentsService {
     const intent = await repository.findOneBy({ id: input.intentId, authority: input.Authority });
     if (!intent) throw new NotFoundException("Payment was not found");
     if (intent.status === PaymentIntentStatus.Paid) return this.withResultUrl(intent);
-    if (input.Status !== "OK") { intent.status = PaymentIntentStatus.Failed; return this.withResultUrl(await repository.save(intent)); }
+    if (input.Status !== "OK") { intent.status = PaymentIntentStatus.Canceled; return this.withResultUrl(await repository.save(intent)); }
     if (intent.expiresAt <= new Date()) { intent.status = PaymentIntentStatus.Expired; return this.withResultUrl(await repository.save(intent)); }
     const prior = await this.db.getRepository(SubscriptionPayment).findOneBy({ provider: "ZARINPAL", providerReference: input.Authority });
     if (prior) { intent.status = PaymentIntentStatus.Paid; intent.paidAt = prior.paidAt; return this.withResultUrl(await repository.save(intent)); }
@@ -113,7 +116,7 @@ export class PaymentsService {
       verified = await this.gateway.verify({ authority: input.Authority, amountRial: this.toRial(intent.amountToman) });
     } catch {
       intent.status = PaymentIntentStatus.Failed;
-      return this.withResultUrl(await repository.save(intent));
+      const saved = await repository.save(intent); await this.enqueueFailedPayment(saved); return this.withResultUrl(saved);
     }
     const result = await this.subscriptions.recordPrepaidMonth(intent.coffeeShopId, { planKey: intent.planKeySnapshot, provider: "ZARINPAL", providerReference: input.Authority });
     intent.status = PaymentIntentStatus.Paid; intent.providerReference = verified.reference; intent.paidAt = result.payment.paidAt;
@@ -121,6 +124,12 @@ export class PaymentsService {
   }
 
   private toRial(amountToman: string) { const amount = Number(amountToman); if (!Number.isSafeInteger(amount) || amount <= 0 || !Number.isSafeInteger(amount * 10)) throw new ConflictException("Payment amount is invalid"); return amount * 10; }
+  private async enqueueFailedPayment(intent: PaymentIntent) {
+    await this.db.transaction(async (manager) => {
+      const cafe = await manager.findOneByOrFail(CoffeeShop, { id: intent.coffeeShopId });
+      await this.notifications.enqueueOwners(manager, { coffeeShopId: intent.coffeeShopId, type: NotificationType.SubscriptionPaymentFailed, relatedEntityType: "payment_intent", relatedEntityId: intent.id, deduplicationKey: `${NotificationType.SubscriptionPaymentFailed}:${intent.id}`, payload: { cafeName: cafe.name, planName: intent.planNameSnapshot } });
+    });
+  }
   private callbackUrl(intentId: string) { const base = this.config.getOrThrow<string>("PAYMENT_CALLBACK_BASE_URL").replace(/\/$/, ""); return `${base}/api/v1/public/payments/callback?intentId=${intentId}`; }
   private payableUrl(intent: PaymentIntent) { return intent.status === PaymentIntentStatus.Pending && intent.authority && intent.expiresAt > new Date() ? this.gateway.paymentUrl(intent.authority, this.callbackUrl(intent.id)) : undefined; }
   private async resultUrl(intent: PaymentIntent) {

@@ -8,9 +8,15 @@ export interface SmsDeliveryResult {
   providerMessageId: string;
 }
 
+export interface SendTemplateMessage {
+  phone: string;
+  templateId: number;
+  parameters: Array<{ name: string; value: string }>;
+}
+
 export interface SmsProvider {
   sendOtp(message: SendOtpMessage): Promise<SmsDeliveryResult>;
-  sendReservationConfirmation(message: { phone: string; cafeName: string; date: string; time: string }): Promise<SmsDeliveryResult>;
+  sendTemplate(message: SendTemplateMessage): Promise<SmsDeliveryResult>;
 }
 
 export const SMS_PROVIDER = Symbol("SMS_PROVIDER");

@@ -1,8 +1,10 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { DataSource, In, IsNull } from "typeorm";
 import { Client, ClientAddress } from "../clients/entities";
-import { Branch } from "../database/entities";
+import { Branch, CoffeeShop } from "../database/entities";
 import { MenuCategory, MenuItem, MenuItemVariant } from "../menu/entities";
+import { NotificationsService } from "../notifications/notifications.service";
+import { displayOrderNumber, displayToman, NotificationType } from "../notifications/notification-type";
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { SubscriptionFeatures } from "../subscriptions/subscription-features";
 import { CheckoutAddressDto, CheckoutLineDto, CreateOrderDto, OrdersQueryDto, UpdateOnlineOrderingSettingsDto } from "./dto/ordering.dto";
@@ -13,7 +15,7 @@ type UnavailableLine = { menuItemId: string; variantId: string | null; reason: s
 
 @Injectable()
 export class OrderingService {
-  constructor(private readonly dataSource: DataSource, private readonly subscriptions: SubscriptionsService) {}
+  constructor(private readonly dataSource: DataSource, private readonly subscriptions: SubscriptionsService, private readonly notifications: NotificationsService) {}
 
   async publicState(coffeeShopId: string) {
     const [feature, settings, branch] = await Promise.all([
@@ -50,6 +52,7 @@ export class OrderingService {
     if (input.pickupEnabled !== undefined) settings.pickupEnabled = input.pickupEnabled;
     if (input.courierEnabled !== undefined) settings.courierEnabled = input.courierEnabled;
     if (input.offlinePaymentEnabled !== undefined) settings.offlinePaymentEnabled = input.offlinePaymentEnabled;
+    if (input.notifyAdminNewOrder !== undefined) settings.notifyAdminNewOrder = input.notifyAdminNewOrder;
     return this.dataSource.getRepository(OnlineOrderingSettings).save(settings);
   }
 
@@ -87,6 +90,11 @@ export class OrderingService {
         customerNote: input.customerNote?.trim() || null,
       }));
       await manager.save(OrderItem, lines.map((line) => manager.create(OrderItem, { ...line, coffeeShopId, orderId: order.id })));
+      const cafe = await manager.findOneByOrFail(CoffeeShop, { id: coffeeShopId });
+      const orderNumber = displayOrderNumber(order.id);
+      const payload = { customerName: client.firstName, orderNumber, cafeName: cafe.name, totalPrice: displayToman(order.totalAmountToman) };
+      await this.notifications.enqueue(manager, { coffeeShopId, type: NotificationType.OrderPlaced, relatedEntityType: "order", relatedEntityId: order.id, deduplicationKey: `${NotificationType.OrderPlaced}:${order.id}`, phone: client.phone, payload });
+      if (settings.notifyAdminNewOrder) await this.notifications.enqueueOwners(manager, { coffeeShopId, type: NotificationType.AdminNewOrder, relatedEntityType: "order", relatedEntityId: order.id, deduplicationKey: `${NotificationType.AdminNewOrder}:${order.id}`, payload: { cafeName: cafe.name, orderNumber, totalPrice: payload.totalPrice } });
       const saved = await manager.findOneOrFail(Order, { where: { id: order.id }, relations: { client: true, items: true } });
       return this.project(saved);
     });
@@ -128,6 +136,11 @@ export class OrderingService {
       order.statusChangedByUserId = actorUserId;
       await manager.save(order);
       const saved = await manager.findOneOrFail(Order, { where: { id, coffeeShopId }, relations: { client: true, items: true } });
+      const type = this.notificationType(saved);
+      if (type) {
+        const cafe = await manager.findOneByOrFail(CoffeeShop, { id: coffeeShopId });
+        await this.notifications.enqueue(manager, { coffeeShopId, type, relatedEntityType: "order", relatedEntityId: id, deduplicationKey: `${type}:${id}`, phone: saved.client.phone, payload: { customerName: saved.client.firstName, orderNumber: displayOrderNumber(id), cafeName: cafe.name } });
+      }
       return this.project(saved);
     });
   }
@@ -191,6 +204,15 @@ export class OrderingService {
 
   private nextStatuses(order: Order) {
     return nextOrderStatuses(order.status, order.deliveryMethod);
+  }
+
+  private notificationType(order: Order) {
+    if (order.status === OrderStatus.Preparing) return NotificationType.OrderConfirmed;
+    if (order.status === OrderStatus.Ready && order.deliveryMethod === OrderDeliveryMethod.Pickup) return NotificationType.OrderReadyOnSite;
+    if (order.status === OrderStatus.OutForDelivery && order.deliveryMethod === OrderDeliveryMethod.Courier) return NotificationType.OrderReadyDelivery;
+    if (order.status === OrderStatus.Delivered) return NotificationType.OrderCompleted;
+    if (order.status === OrderStatus.Canceled) return NotificationType.OrderCancelled;
+    return null;
   }
 
   private summary(order: Order) {

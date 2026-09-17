@@ -6,7 +6,7 @@ import { TenantPermissions } from "../authorization/permission.constants";
 import { TenantPermissionGuard } from "../authorization/tenant-permission.guard";
 import { TENANT_CONTEXT, TenantContextRequest } from "../tenants/tenant-context";
 import { TenantContextGuard } from "../tenants/tenant-context.guard";
-import { ReservationListQueryDto, UpdateReservationSettingsDto, UpdateReservationStatusDto } from "./dto/reservation.dto";
+import { ReservationListQueryDto, UpdateReservationDto, UpdateReservationSettingsDto, UpdateReservationStatusDto } from "./dto/reservation.dto";
 import { ReservationsService } from "./reservations.service";
 
 @Controller("tenant/reservations")
@@ -18,5 +18,6 @@ export class TenantReservationsController {
   @Get("settings") @RequireTenantPermissions(TenantPermissions.ReservationsManage) settings(@Req() req: TenantContextRequest) { return this.reservations.getSettings(this.tenant(req)); }
   @Patch("settings") @RequireTenantPermissions(TenantPermissions.ReservationsManage) updateSettings(@Req() req: TenantContextRequest, @Body() input: UpdateReservationSettingsDto) { return this.reservations.updateSettings(this.tenant(req), input); }
   @Get(":id") @RequireTenantPermissions(TenantPermissions.ReservationsRead) detail(@Req() req: TenantContextRequest, @Param("id", ParseUUIDPipe) id: string) { return this.reservations.detail(this.tenant(req), id); }
+  @Patch(":id") @RequireTenantPermissions(TenantPermissions.ReservationsManage) update(@Req() req: TenantContextRequest, @Param("id", ParseUUIDPipe) id: string, @Body() input: UpdateReservationDto) { return this.reservations.update(this.tenant(req), id, input); }
   @Patch(":id/status") @RequireTenantPermissions(TenantPermissions.ReservationsManage) status(@Req() req: TenantContextRequest & AuthorizedRequest, @Param("id", ParseUUIDPipe) id: string, @Body() input: UpdateReservationStatusDto) { return this.reservations.updateStatus(this.tenant(req), id, req[AUTH_PRINCIPAL]!.userId, input); }
 }

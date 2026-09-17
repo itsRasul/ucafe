@@ -12,5 +12,7 @@ export class ReservationSettings {
   @Column({ name: "maximum_concurrent_guests", type: "smallint", default: 20 }) maximumConcurrentGuests!: number;
   @Column({ name: "minimum_lead_minutes", type: "integer", default: 60 }) minimumLeadMinutes!: number;
   @Column({ name: "maximum_advance_days", type: "smallint", default: 30 }) maximumAdvanceDays!: number;
+  @Column({ name: "notify_admin_new_reservation", type: "boolean", default: false }) notifyAdminNewReservation!: boolean;
+  @Column({ name: "reminder_hours", type: "smallint", default: 3 }) reminderHours!: number;
   @OneToOne(() => Branch, { onDelete: "CASCADE" }) @JoinColumn({ name: "branch_id" }) branch!: Branch;
 }

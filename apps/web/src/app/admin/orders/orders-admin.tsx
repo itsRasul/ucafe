@@ -5,15 +5,15 @@ import { JalaliDateInput } from "../../jalali-date-input";
 import { formatJalaliDate, toIsoDate } from "../../jalali-date";
 import { useAdminSession } from "../admin-session";
 
-type Status = "UNDER_REVIEW" | "PREPARING" | "READY" | "OUT_FOR_DELIVERY" | "DELIVERED";
+type Status = "UNDER_REVIEW" | "PREPARING" | "READY" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CANCELED";
 type Delivery = "PICKUP" | "COURIER";
 type OrderSummary = { id: string; status: Status; deliveryMethod: Delivery; totalAmountToman: string; client: { firstName: string; lastName: string; phone: string } | null; createdAt: string };
 type OrderDetail = OrderSummary & { paymentMethod: "OFFLINE"; deliveryAddressSnapshot: { label: string | null; addressLine: string } | null; customerNote: string | null; nextStatuses: Status[]; items: Array<{ id: string; itemName: string; variantName: string | null; unitPriceToman: string; quantity: number; lineTotalToman: string }> };
 type OrdersResponse = { items: OrderSummary[]; total: number; page: number; pageSize: number };
-type Settings = { pickupEnabled: boolean; courierEnabled: boolean; offlinePaymentEnabled: boolean };
+type Settings = { pickupEnabled: boolean; courierEnabled: boolean; offlinePaymentEnabled: boolean; notifyAdminNewOrder: boolean };
 
 const fa = new Intl.NumberFormat("fa-IR");
-const labels: Record<Status, string> = { UNDER_REVIEW: "در حال بررسی", PREPARING: "در حال آماده‌سازی", READY: "آماده شده", OUT_FOR_DELIVERY: "در حال ارسال", DELIVERED: "تحویل داده شده" };
+const labels: Record<Status, string> = { UNDER_REVIEW: "در حال بررسی", PREPARING: "در حال آماده‌سازی", READY: "آماده شده", OUT_FOR_DELIVERY: "در حال ارسال", DELIVERED: "تحویل داده شده", CANCELED: "لغو شده" };
 const deliveryLabels: Record<Delivery, string> = { PICKUP: "تحویل در کافه", COURIER: "تحویل با پیک" };
 
 function toman(value: string) { return `${fa.format(Number(value))} تومان`; }

@@ -10,6 +10,7 @@ export enum OrderStatus {
   Ready = "READY",
   OutForDelivery = "OUT_FOR_DELIVERY",
   Delivered = "DELIVERED",
+  Canceled = "CANCELED",
 }
 
 export enum OrderPaymentMethod {

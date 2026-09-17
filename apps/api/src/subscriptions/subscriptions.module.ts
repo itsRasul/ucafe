@@ -9,9 +9,10 @@ import { SubscriptionsService } from "./subscriptions.service";
 import { TenantSubscriptionController } from "./tenant-subscription.controller";
 import { PlatformPlansController } from "./platform-plans.controller";
 import { AuditModule } from "../audit/audit.module";
+import { NotificationsModule } from "../notifications/notifications.module";
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CoffeeShop, SubscriptionPlan, Subscription, SubscriptionPayment]), AuthModule, AuthorizationModule, AuditModule],
+  imports: [NotificationsModule, TypeOrmModule.forFeature([CoffeeShop, SubscriptionPlan, Subscription, SubscriptionPayment]), AuthModule, AuthorizationModule, AuditModule],
   controllers: [PlatformSubscriptionsController, PlatformPlansController, TenantSubscriptionController],
   providers: [SubscriptionsService],
   exports: [SubscriptionsService],
