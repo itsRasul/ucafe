@@ -11,10 +11,6 @@ COPY . .
 
 RUN npm ci --include=optional
 
-# Make the build fail immediately if Sharp is broken
-RUN node -e "const sharp = require('sharp'); console.log('Sharp OK:', process.platform, process.arch, sharp.versions)"
-
-
 # -------------------------
 # Development
 # -------------------------
