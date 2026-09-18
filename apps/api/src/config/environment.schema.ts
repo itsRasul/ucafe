@@ -43,6 +43,7 @@ export const environmentSchema = Joi.object({
   ORDER_CANCELLED: smsTemplateId,
   ORDER_PLACED_FOR_ADMIN_TENANT: smsTemplateId,
   RESERVATION_PLACED: smsTemplateId,
+  RESERVATION_PLACED_BY_ADMIN: smsTemplateId,
   RESERVATION_CONFIRMED: smsTemplateId,
   RESERVATION_EDITED_BY_ADMIN: smsTemplateId,
   RESERVATION_CANCELLED: smsTemplateId,

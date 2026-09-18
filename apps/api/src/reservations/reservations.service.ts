@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { DataSource, EntityManager, In, Not } from "typeorm";
+import { normalizeIranianMobile } from "../auth/iran-phone.util";
 import { Client } from "../clients/entities";
 import { Branch, CoffeeShop } from "../database/entities";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -7,7 +8,7 @@ import { jalaliDate, NotificationType } from "../notifications/notification-type
 import { BranchOpeningHour } from "../site/entities";
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { SubscriptionFeatures } from "../subscriptions/subscription-features";
-import { AvailabilityQueryDto, CreateReservationDto, ReservationListQueryDto, UpdateReservationDto, UpdateReservationSettingsDto, UpdateReservationStatusDto, ClientReservationsQueryDto } from "./dto/reservation.dto";
+import { AdminCreateReservationDto, AvailabilityQueryDto, CreateReservationDto, ReservationListQueryDto, UpdateReservationDto, UpdateReservationSettingsDto, UpdateReservationStatusDto, ClientReservationsQueryDto } from "./dto/reservation.dto";
 import { Reservation, ReservationSettings, ReservationStatus } from "./entities";
 import { generateReservationSlots, isValidIsoDate, localDateTimeParts, timeToMinutes } from "./reservation-time.util";
 
@@ -58,25 +59,45 @@ export class ReservationsService {
   async create(coffeeShopId: string, clientId: string, input: CreateReservationDto) {
     await this.subscriptions.requireFeature(coffeeShopId, SubscriptionFeatures.Reservations);
     return this.dataSource.transaction(async (manager) => {
-      const { branch } = await this.context(manager, coffeeShopId);
       const client = await manager.findOneBy(Client, { id: clientId, coffeeShopId });
       if (!client) throw new NotFoundException("Client not found");
-      await manager.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`${branch.id}:${input.date}`]);
-      const availability = await this.available(manager, coffeeShopId, input);
-      const slot = availability.slots.find((candidate) => candidate.startTime === input.startTime && candidate.available);
-      if (!slot) throw new ConflictException("The selected time is no longer available");
-      const reservation = await manager.save(Reservation, manager.create(Reservation, {
-        coffeeShopId, branchId: branch.id, clientId, contactName: input.contactName.trim(), reservationDate: input.date,
-        startTime: slot.startTime, endTime: slot.endTime, partySize: input.partySize, customerNote: input.note?.trim() || null,
-      }));
-      const cafe = await manager.findOneByOrFail(CoffeeShop, { id: coffeeShopId });
-      const payload = { customerName: reservation.contactName, cafeName: cafe.name, guestCount: String(reservation.partySize), date: jalaliDate(reservation.reservationDate), time: reservation.startTime.slice(0, 5) };
-      await this.notifications.enqueue(manager, { coffeeShopId, type: NotificationType.ReservationPlaced, relatedEntityType: "reservation", relatedEntityId: reservation.id, deduplicationKey: `${NotificationType.ReservationPlaced}:${reservation.id}`, phone: client.phone, payload });
-      const settings = await manager.findOneByOrFail(ReservationSettings, { branchId: branch.id });
-      if (settings.notifyAdminNewReservation) await this.notifications.enqueueOwners(manager, { coffeeShopId, type: NotificationType.AdminNewReservation, relatedEntityType: "reservation", relatedEntityId: reservation.id, deduplicationKey: `${NotificationType.AdminNewReservation}:${reservation.id}`, payload: { cafeName: cafe.name, guestCount: payload.guestCount, date: payload.date, time: payload.time } });
-      // return this.safe(reservation);
-      return this.clientSafe(reservation);
+      return this.clientSafe(await this.place(manager, coffeeShopId, client, { ...input, contactName: input.contactName.trim() }, { status: ReservationStatus.Pending, type: NotificationType.ReservationPlaced, notifyOwners: true }));
     });
+  }
+
+  async createByAdmin(coffeeShopId: string, actorUserId: string, input: AdminCreateReservationDto) {
+    await this.subscriptions.requireFeature(coffeeShopId, SubscriptionFeatures.Reservations);
+    const phone = this.normalizePhone(input.phone);
+    return this.dataSource.transaction(async (manager) => {
+      await manager.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`client:${coffeeShopId}:${phone}`]);
+      const name = input.name?.trim().replace(/\s+/g, " ") ?? "";
+      const client = await this.resolveClient(manager, coffeeShopId, phone, name);
+      const contactName = name || `${client.firstName} ${client.lastName}`.trim();
+      const reservation = await this.place(manager, coffeeShopId, client, { date: input.date, startTime: input.startTime, partySize: input.partySize, contactName, note: input.note }, { status: ReservationStatus.Confirmed, type: NotificationType.ReservationPlacedByAdmin, actorUserId });
+      reservation.client = client;
+      return this.adminSafe(reservation);
+    });
+  }
+
+  private async place(manager: EntityManager, coffeeShopId: string, client: Client, input: { date: string; startTime: string; partySize: number; contactName: string; note?: string | null }, options: { status: ReservationStatus; type: NotificationType; actorUserId?: string; notifyOwners?: boolean }) {
+    const { branch } = await this.context(manager, coffeeShopId);
+    await manager.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`${branch.id}:${input.date}`]);
+    const availability = await this.available(manager, coffeeShopId, input);
+    const slot = availability.slots.find((candidate) => candidate.startTime === input.startTime && candidate.available);
+    if (!slot) throw new ConflictException("The selected time is no longer available");
+    const confirmed = options.status === ReservationStatus.Confirmed;
+    const reservation = await manager.save(Reservation, manager.create(Reservation, {
+      coffeeShopId, branchId: branch.id, clientId: client.id, contactName: input.contactName, reservationDate: input.date,
+      startTime: slot.startTime, endTime: slot.endTime, partySize: input.partySize, customerNote: input.note?.trim() || null,
+      status: options.status, statusChangedAt: confirmed ? new Date() : null, statusChangedByUserId: options.actorUserId ?? null,
+    }));
+    const cafe = await manager.findOneByOrFail(CoffeeShop, { id: coffeeShopId });
+    const payload = { customerName: reservation.contactName, cafeName: cafe.name, guestCount: String(reservation.partySize), date: jalaliDate(reservation.reservationDate), time: reservation.startTime.slice(0, 5) };
+    await this.notifications.enqueue(manager, { coffeeShopId, type: options.type, relatedEntityType: "reservation", relatedEntityId: reservation.id, deduplicationKey: `${options.type}:${reservation.id}`, phone: client.phone, payload });
+    if (!options.notifyOwners) return reservation;
+    const settings = await manager.findOneByOrFail(ReservationSettings, { branchId: branch.id });
+    if (settings.notifyAdminNewReservation) await this.notifications.enqueueOwners(manager, { coffeeShopId, type: NotificationType.AdminNewReservation, relatedEntityType: "reservation", relatedEntityId: reservation.id, deduplicationKey: `${NotificationType.AdminNewReservation}:${reservation.id}`, payload: { cafeName: cafe.name, guestCount: payload.guestCount, date: payload.date, time: payload.time } });
+    return reservation;
   }
 
   async mine(coffeeShopId: string, clientId: string, query: ClientReservationsQueryDto) {
@@ -159,6 +180,18 @@ export class ReservationsService {
 
   private clientSafe(row: Reservation) {
     return { id: row.id, branchId: row.branchId, contactName: row.contactName, reservationDate: row.reservationDate, startTime: row.startTime.slice(0, 5), endTime: row.endTime.slice(0, 5), partySize: row.partySize, status: row.status, customerNote: row.customerNote, createdAt: row.createdAt };
+  }
+
+  private normalizePhone(value: string) {
+    try { return normalizeIranianMobile(value); } catch { throw new BadRequestException("Enter a valid Iranian mobile number"); }
+  }
+
+  private async resolveClient(manager: EntityManager, coffeeShopId: string, phone: string, name: string) {
+    const existing = await manager.findOneBy(Client, { coffeeShopId, phone });
+    if (existing) return existing;
+    if (!name) throw new BadRequestException("Customer name is required for a new customer");
+    const [firstName, ...rest] = name.split(" ");
+    return manager.save(Client, manager.create(Client, { coffeeShopId, phone, firstName, lastName: rest.join(" ") }));
   }
 
   private adminSafe(row: Reservation) {

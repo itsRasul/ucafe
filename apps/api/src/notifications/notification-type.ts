@@ -8,6 +8,7 @@ export enum NotificationType {
   OrderCancelled = "ORDER_CANCELLED",
   AdminNewOrder = "ORDER_PLACED_FOR_ADMIN_TENANT",
   ReservationPlaced = "RESERVATION_PLACED",
+  ReservationPlacedByAdmin = "RESERVATION_PLACED_BY_ADMIN",
   ReservationConfirmed = "RESERVATION_CONFIRMED",
   ReservationEdited = "RESERVATION_EDITED_BY_ADMIN",
   ReservationCancelled = "RESERVATION_CANCELLED",

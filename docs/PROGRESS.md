@@ -1,6 +1,6 @@
 # ucafe progress checkpoint
 
-**Checkpoint date:** 2026-09-17 (Asia/Tehran)
+**Checkpoint date:** 2026-09-18 (Asia/Tehran)
 **Repository path:** `E:\programming\nodeJs\cafexa`
 **Last fully completed product phase:** Phase 15 — Platform user and role access corrections
 **Current phase:** none (**Local hardening complete; production launch blocked on external credentials/infrastructure**)
@@ -10,9 +10,11 @@
 
 The complete MVP feature set and the expanded transactional SMS phase are implemented locally. Production fails closed unless every sms.ir template ID and the real providers are configured; real sms.ir/Zarinpal acceptance plus hosting, DNS, TLS and monitoring remain external launch blockers.
 
-This repository currently has no Git commit history/tracked baseline: `git status --short` reports the repository files as untracked. Do not assume a clean diff or use destructive Git cleanup.
+The repository has a tracked Git baseline (`git log` shows committed history); keep the working tree clean and never use destructive Git cleanup without explicit authorization.
 
 ## Completed work
+
+- Tenant owners can now register a reservation for any customer from the admin reservations screen: a «رزرو میز» action opens the existing admin dialog with phone, optional name, date, time, party size and note, the admin API resolves or creates the tenant customer by normalized phone (name is required only when the phone is not yet a customer, and no OTP verification is implied), stores the reservation as CONFIRMED with the acting admin in `status_changed_by_user_id`, and enqueues the new `RESERVATION_PLACED_BY_ADMIN` sms.ir template through the shared encrypted outbox. Public customer reservation creation was refactored onto the same shared placement path so availability locking, slot validation and SMS enqueue exist once.
 
 - Complete tenant-aware SMS notification flow now reuses the encrypted notification outbox and sms.ir verify adapter for order creation/status/cancellation/completion, reservation request/confirmation/admin edit/cancellation/reminder, optional owner alerts, subscription expiry reminders, suspension/follow-up, verified activation and failed verification. Delivery is asynchronous, retries are bounded, scheduled and callback notifications are deduplicated, stale reservation/renewal jobs recheck eligibility, recipient phones remain encrypted/masked, and all panel template IDs are validated configuration.
 
@@ -115,6 +117,8 @@ No real sms.ir or Zarinpal provider acceptance or production deployment exists b
 - `apps/api/src/tenants/tenant-context.middleware.ts` and `tenant-context.ts` — verified proxy-host integration.
 - `apps/web/src/app/reserve/page.tsx` and `reserve-flow.tsx`.
 - `apps/web/src/app/admin/reservations/page.tsx` and `reservations-admin.tsx`.
+- `apps/api/src/reservations/tenant-reservations.controller.ts` and `reservations.service.ts` - admin-created reservations, the shared placement path and new-customer resolution.
+- `.env.example`, `compose.yaml` and `apps/api/src/config/environment.schema.ts` - `RESERVATION_PLACED_BY_ADMIN` template id.
 - `apps/web/src/app/admin/layout.tsx`, `admin-session.tsx`, `admin-shell.tsx`, `admin.css` and overview/section pages.
 - `apps/web/src/app/admin/site/site-editor.tsx` and `site/page.tsx`.
 - `apps/web/src/app/admin/menu/menu-editor.tsx` and `menu/page.tsx`.
@@ -233,6 +237,7 @@ All twenty-one migrations were applied and rechecked with `migration:show`; ther
 - 2026-08-28: a PostgreSQL custom dump restored into a disposable database with all 12 migrations verified; the disposable database and test dump were removed afterward without changing tenant data.
 - 2026-09-15: SMS delivery moved from Kavenegar Lookup to the sms.ir `verify` endpoint, configured by `SMSIR_API_KEY` plus the numeric `SMSIR_OTP_TEMPLATE_ID` and `SMSIR_RESERVATION_CONFIRMED_TEMPLATE_ID`; the Kavenegar adapter, its contract spec and its environment variables were removed. The API type-check passed and the API suite passed **63/63**. A live call with the stored key and an unissued template ID answered HTTP 400 `status 113` (template not found), confirming the endpoint, `x-api-key` header and failure mapping; a successful send still needs the numeric template IDs from the panel.
 
+- 2026-09-18: tenant staff can create a reservation for any customer from the admin reservations screen (`رزرو میز`), which resolves or creates the tenant customer by phone and enqueues the new `RESERVATION_PLACED_BY_ADMIN` template. Live-verified on a local API instance against the Docker database: an unknown phone created the customer and stored the reservation as `CONFIRMED` with the acting admin recorded, a repeat booking reused the same customer without a name, an unnamed new phone returned HTTP 400, the public reservation flow still created a `PENDING` request with its `RESERVATION_PLACED` outbox row, and both admin bookings produced delivered outbox rows carrying the `customerName`, `cafeName`, `date`, `time` and `guestCount` parameters. The API suite passed **66/67** (only the pre-existing `client-panel.service.spec.ts` failure below), web/API type-checks and production builds passed, and all disposable test rows were deleted afterwards.
 ## Known errors and technical debt
 
 - 2026-09-18: platform consultation requests now enqueue the `REQUEST_COUNSELING` sms.ir template through the shared encrypted notification outbox and are visible in a permission-gated list/detail workspace under `/platform`. Migration `1787814000000` is applied locally; focused API tests passed 9/9, web type-check passed, Docker API/web rebuilt, unauthenticated admin access returned 401, and a live public submission created the expected outbox row before disposable test data was removed. Full API type-check/test remains blocked by the pre-existing `client-panel.service.spec.ts` constructor mismatch (`OrderingService` expects three arguments, the test passes two).
