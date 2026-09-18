@@ -352,3 +352,10 @@ The footer location map uses the classic keyless Google Maps embed (`https://map
 - **Decision:** extend the existing encrypted `notification_deliveries` outbox instead of adding an event bus or BullMQ. Order, reservation, payment and subscription services enqueue typed tenant-scoped records with stable deduplication keys; one API-hosted dispatcher performs bounded retries and a one-minute scheduled sweep. Existing order/reservation settings hold the two opt-in owner alerts and the reservation reminder lead time.
 - **Reasoning:** the repository already had the required durable delivery mechanism, phone encryption and provider abstraction. Generalizing it is smaller and safer than introducing a parallel notification stack or a queue dependency.
 - **Consequences:** business writes do not wait for sms.ir, duplicate callbacks/sweeps cannot duplicate sends, and reminder/follow-up jobs recheck current state before delivery. All actual deliveries are asynchronous. Horizontal API scaling should move dispatch to the existing worker scaffold or add a coordinated claim strategy when production throughput requires it.
+
+## D-047 - Platform consultation requests use the shared SMS outbox
+
+- **Status:** accepted and implemented on 2026-09-18
+- **Decision:** landing consultation submissions enqueue `REQUEST_COUNSELING` with the `customerName` parameter in the existing encrypted notification outbox. `notification_deliveries.coffee_shop_id` is nullable only for platform-owned notifications, and protected list/detail endpoints expose requests behind the new `consultation_requests.read` platform permission.
+- **Reasoning:** the durable dispatcher, encryption, retries and sms.ir adapter already solve delivery; a second platform messaging path would duplicate infrastructure. A dedicated read permission keeps full phone access out of unrelated platform roles.
+- **Consequences:** platform owners receive the permission through migration `1787814000000`; the `/platform` sidebar shows a searchable request list and decrypts the phone only in authorized detail responses. Production must configure the numeric sms.ir template ID in `REQUEST_COUNSELING`.

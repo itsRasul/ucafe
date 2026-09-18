@@ -7,6 +7,8 @@ import { normalizeIranianMobile } from "../auth/iran-phone.util";
 import { PlanStatus, SubscriptionPlan } from "../subscriptions/entities";
 import { CreatePlatformOrderRequestDto } from "./dto/create-platform-order-request.dto";
 import { PlatformOrderRequest, PlatformOrderStatus } from "./entities";
+import { NotificationsService } from "../notifications/notifications.service";
+import { NotificationType } from "../notifications/notification-type";
 
 const DUPLICATE_WINDOW_MS = 15 * 60 * 1000;
 
@@ -16,6 +18,7 @@ export class PlatformOrdersService {
     @InjectRepository(PlatformOrderRequest) private readonly requests: Repository<PlatformOrderRequest>,
     @InjectRepository(SubscriptionPlan) private readonly plans: Repository<SubscriptionPlan>,
     private readonly crypto: AuthCryptoService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async getPublicOffering() {
@@ -58,6 +61,26 @@ export class PlatformOrdersService {
     });
     if (!request.contactName || !request.coffeeShopName || !request.city) throw new BadRequestException("Required text fields cannot be blank");
     const saved = await this.requests.save(request);
+    await this.notifications.enqueue(this.requests.manager, {
+      coffeeShopId: null,
+      type: NotificationType.RequestCounseling,
+      relatedEntityType: "platform_order_request",
+      relatedEntityId: saved.id,
+      deduplicationKey: `${NotificationType.RequestCounseling}:${saved.id}`,
+      phone,
+      payload: { customerName: saved.contactName },
+    });
     return { id: saved.id, status: saved.status, createdAt: saved.createdAt };
+  }
+
+  async list() {
+    return this.requests.find({ select: { id: true, contactName: true, coffeeShopName: true, city: true, status: true, createdAt: true }, order: { createdAt: "DESC" } });
+  }
+
+  async detail(id: string) {
+    const request = await this.requests.createQueryBuilder("request").addSelect("request.phoneEncrypted").where("request.id = :id", { id }).getOne();
+    if (!request) throw new NotFoundException("Consultation request not found");
+    const { phoneEncrypted, phoneHash: _phoneHash, ...result } = request;
+    return { ...result, phone: this.crypto.decryptPhone(phoneEncrypted) };
   }
 }

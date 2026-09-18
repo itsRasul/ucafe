@@ -28,7 +28,7 @@ export class PlatformOrderRequest {
 
   @Column({ name: "contact_name", type: "varchar", length: 100 }) contactName!: string;
   @Column({ name: "coffee_shop_name", type: "varchar", length: 160 }) coffeeShopName!: string;
-  @Column({ name: "phone_encrypted", type: "text" }) phoneEncrypted!: string;
+  @Column({ name: "phone_encrypted", type: "text", select: false }) phoneEncrypted!: string;
   @Column({ name: "phone_hash", type: "char", length: 64 }) phoneHash!: string;
   @Column({ type: "varchar", length: 100 }) city!: string;
   @Column({ name: "business_stage", type: "enum", enum: PlatformOrderBusinessStage, enumName: "platform_order_business_stage" }) businessStage!: PlatformOrderBusinessStage;

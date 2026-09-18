@@ -8,7 +8,7 @@ import { NotificationDelivery, NotificationStatus } from "./entities";
 import { jalaliDate, NotificationPayload, NotificationType } from "./notification-type";
 
 type EnqueueInput = {
-  coffeeShopId: string;
+  coffeeShopId: string | null;
   type: NotificationType;
   relatedEntityType: string;
   relatedEntityId: string;
@@ -43,7 +43,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         recipientCiphertext: this.crypto.encryptPhone(phone),
       }).orIgnore().execute();
     } catch {
-      this.logger.warn(`Notification enqueue skipped type=${value.type} tenant=${value.coffeeShopId} entity=${value.relatedEntityType}:${value.relatedEntityId}`);
+      this.logger.warn(`Notification enqueue skipped type=${value.type} tenant=${value.coffeeShopId ?? "platform"} entity=${value.relatedEntityType}:${value.relatedEntityId}`);
     }
   }
 
@@ -83,7 +83,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
           if (!Number.isSafeInteger(templateId) || templateId <= 0) throw new Error("SMS template is not configured");
           const result = await this.sms.sendTemplate({ phone: this.crypto.decryptPhone(job.recipientCiphertext), templateId, parameters: Object.entries(job.payload).map(([name, value]) => ({ name, value })) });
           await repository.update(job.id, { status: NotificationStatus.Sent, providerMessageId: result.providerMessageId, sentAt: new Date(), lastErrorCode: null });
-          this.logger.log(`Notification sent type=${job.type} tenant=${job.coffeeShopId} entity=${job.relatedEntityType}:${job.relatedEntityId}`);
+          this.logger.log(`Notification sent type=${job.type} tenant=${job.coffeeShopId ?? "platform"} entity=${job.relatedEntityType}:${job.relatedEntityId}`);
         } catch {
           const attempts = job.attempts + 1;
           await repository.update(job.id, { attempts, status: attempts >= 3 ? NotificationStatus.Failed : NotificationStatus.Pending, nextAttemptAt: new Date(Date.now() + Math.pow(2, attempts) * 30_000), lastErrorCode: "PROVIDER_UNAVAILABLE" });

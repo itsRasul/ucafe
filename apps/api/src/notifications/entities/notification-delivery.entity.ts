@@ -4,7 +4,7 @@ export enum NotificationStatus { Pending="PENDING", Processing="PROCESSING", Sen
 @Entity({ name: "notification_deliveries" })
 export class NotificationDelivery {
   @PrimaryGeneratedColumn("uuid") id!: string;
-  @Column({ name:"coffee_shop_id", type:"uuid" }) coffeeShopId!: string;
+  @Column({ name:"coffee_shop_id", type:"uuid", nullable:true }) coffeeShopId!: string|null;
   @Column({ name:"reservation_id", type:"uuid", nullable:true }) reservationId!: string|null;
   @Column({ type:"varchar", length:50 }) type!: NotificationType;
   @Column({ name:"related_entity_type", type:"varchar", length:40 }) relatedEntityType!: string;

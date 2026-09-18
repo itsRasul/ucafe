@@ -18,6 +18,7 @@ const validInput = { contactName: "آرمان رضایی", coffeeShopName: "کا
 
 function createService(options: { recent?: boolean } = {}) {
   const saved: PlatformOrderRequest[] = [];
+  const notifications: unknown[] = [];
   const requestRepository = {
     existsBy: async () => options.recent ?? false,
     create: (value: PlatformOrderRequest) => value,
@@ -27,7 +28,7 @@ function createService(options: { recent?: boolean } = {}) {
     },
   } as unknown as Repository<PlatformOrderRequest>;
   const planRepository = { findOneBy: async () => ({ key: "silver", name: "نقره‌ای", status: PlanStatus.Active, priceToman: "1900000", billingMonths: 1, trialDays: 7 }) } as unknown as Repository<SubscriptionPlan>;
-  return { service: new PlatformOrdersService(requestRepository, planRepository, crypto), saved };
+  return { service: new PlatformOrdersService(requestRepository, planRepository, crypto, { enqueue: async (_manager: unknown, value: unknown) => { notifications.push(value); } } as never), saved, notifications };
 }
 
 test("platform order DTO rejects unknown services and empty service lists", async () => {
@@ -37,8 +38,8 @@ test("platform order DTO rejects unknown services and empty service lists", asyn
   assert.ok((await validate(empty)).some((error) => error.property === "requestedServices"));
 });
 
-test("creates an encrypted platform request without returning the phone", async () => {
-  const { service, saved } = createService();
+test("creates an encrypted platform request and enqueues its confirmation without returning the phone", async () => {
+  const { service, saved, notifications } = createService();
   const result = await service.create(validInput);
   assert.equal(result.status, PlatformOrderStatus.New);
   assert.equal("phone" in result, false);
@@ -48,6 +49,7 @@ test("creates an encrypted platform request without returning the phone", async 
   assert.notEqual(persisted.phoneEncrypted, "+989121234567");
   assert.equal(crypto.decryptPhone(persisted.phoneEncrypted), "+989121234567");
   assert.match(persisted.phoneHash, /^[a-f0-9]{64}$/);
+  assert.deepEqual(notifications, [{ coffeeShopId: null, type: "REQUEST_COUNSELING", relatedEntityType: "platform_order_request", relatedEntityId: result.id, deduplicationKey: `REQUEST_COUNSELING:${result.id}`, phone: "+989121234567", payload: { customerName: "آرمان رضایی" } }]);
 });
 
 test("rejects a repeated phone during the duplicate window", async () => {

@@ -1,4 +1,5 @@
 export enum NotificationType {
+  RequestCounseling = "REQUEST_COUNSELING",
   OrderPlaced = "ORDER_PLACED",
   OrderConfirmed = "ORDER_CONFIRMED",
   OrderReadyOnSite = "ORDER_READY_ON_SITE",

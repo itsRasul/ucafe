@@ -56,6 +56,7 @@ export const environmentSchema = Joi.object({
   SUBSCRIPTION_REMINDER_FOLLOW_UP: smsTemplateId,
   SUBSCRIPTION_SUCCESSFULLY_PAID: smsTemplateId,
   SUBSCRIPTION_FAILD_PAID: smsTemplateId,
+  REQUEST_COUNSELING: smsTemplateId,
   PAYMENT_PROVIDER: Joi.string().valid("simulated", "zarinpal").default("simulated"),
   PAYMENT_CALLBACK_BASE_URL: Joi.string().uri({scheme:["http","https"]}).required(),
   ZARINPAL_MERCHANT_ID: Joi.when("PAYMENT_PROVIDER", { is:"zarinpal", then:Joi.string().guid().required(), otherwise:Joi.string().allow("").optional() }),

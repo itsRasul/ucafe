@@ -235,6 +235,8 @@ All twenty-one migrations were applied and rechecked with `migration:show`; ther
 
 ## Known errors and technical debt
 
+- 2026-09-18: platform consultation requests now enqueue the `REQUEST_COUNSELING` sms.ir template through the shared encrypted notification outbox and are visible in a permission-gated list/detail workspace under `/platform`. Migration `1787814000000` is applied locally; focused API tests passed 9/9, web type-check passed, Docker API/web rebuilt, unauthenticated admin access returned 401, and a live public submission created the expected outbox row before disposable test data was removed. Full API type-check/test remains blocked by the pre-existing `client-panel.service.spec.ts` constructor mismatch (`OrderingService` expects three arguments, the test passes two).
+
 - The web same-origin proxy’s tenant-host forwarding works locally, but production proxy trust must still be explicit and hardened.
 - Docker still transfers the large root `node_modules` because the current offline-compatible images copy local dependencies; moving to registry-built multi-stage images is hosting/release pipeline work.
 - `README.md` incorrectly says Phase 1 is in progress; this is intentionally recorded rather than edited outside the requested documentation set.
