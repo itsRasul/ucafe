@@ -1,0 +1,52 @@
+# Testing
+
+## Current automated checks
+
+The API uses Node's built-in test runner with `ts-node/register`; no Jest setup exists. The explicit package script covers environment fail-closed behavior, sms.ir contracts, host/proxy trust, authorization guards, auth crypto/tokens/phone, client authentication/panel logic, subscription lifecycle/features, site/menu rules, reservation time rules, order transitions, notification formatting, media validation/storage behavior, payment gateways, consultation requests, and platform access.
+
+The web and worker have typecheck/build scripts but no automated component/browser test suite. The root scripts run workspace checks where present:
+
+```powershell
+npm run typecheck
+npm test
+npm run build
+```
+
+There is no lint script and no durable Playwright/Cypress-style E2E suite.
+
+## Current result
+
+On 2026-09-18, `npm test` reported 67 tests: 66 passed and one test file failed to compile. `apps/api/src/clients/client-panel.service.spec.ts` constructs `OrderingService` with two arguments while the implementation requires three. This is pre-existing application/test debt and was not modified during the documentation-only audit.
+
+Do not describe the full suite as passing until that mismatch is fixed and rerun.
+
+## Migration and live checks
+
+For schema/integration work:
+
+```powershell
+npm run migration:show --workspace=@ucafe/api
+npm run migration:run --workspace=@ucafe/api
+docker compose --env-file .env.development -f compose.yaml -f compose.dev.yaml ps
+```
+
+Use `scripts/smoke.ps1` for local readiness, web health, tenant SSR, security headers, and the 250 KiB HTML budget after setting an existing tenant host. Backup/restore behavior is checked with `scripts/backup.ps1` and `scripts/verify-restore.ps1` against a disposable database.
+
+## Manual/browser expectations
+
+UI work needs mobile and desktop verification for Persian/RTL semantics, keyboard/focus/labels, touch targets, horizontal overflow, loading/empty/error/success states, console errors, and `prefers-reduced-motion`. Exercise tenant, client, owner, and platform surfaces relevant to the change; a build is not a visual test.
+
+## High-risk regression areas
+
+- wrong-host/wrong-tenant resource IDs and authenticated proxy-header forgery
+- platform versus tenant permission separation and protected-role safeguards
+- client ownership across cafe, client, address, order, and reservation
+- server-side order prices and order idempotency
+- reservation concurrency/capacity and transition locking
+- payment authority/amount verification, duplicate callbacks, stale verifying recovery, and no double credit
+- notification encryption, deduplication, retry exhaustion, and scheduled eligibility
+- production refusal of simulators/HTTP callback
+- media spoofing, size/pixel/dimension limits, and tenant object-key scope
+
+Run the smallest focused check while iterating, but finish cross-domain/security work with the full applicable suite, typechecks/builds, migrations, and live Docker path.
+

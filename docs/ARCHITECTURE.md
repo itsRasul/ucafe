@@ -1,127 +1,84 @@
-# ucafe architecture
+# Architecture
 
-Status labels: **Implemented**, **Partial**, **Planned**.
-
-## System shape
+## System
 
 ```text
-Browser -> Next.js web (:3000) -> NestJS API (:3001) -> PostgreSQL
-                    |                    |             Redis
-                    + same-origin proxy +             MinIO (tenant media)
-                                         -> SMS provider (development simulator / sms.ir verify)
-                                         -> Payment provider (simulator / Zarinpal v4)
-Worker scaffold ------------------------------------> future background jobs
+Browser
+  -> Next.js 16 web (:3000)
+       -> server-rendered platform/tenant pages
+       -> same-origin /api/backend proxy
+            -> NestJS 11 REST API (:3001, /api/v1)
+                 -> PostgreSQL 17 (system of record)
+                 -> private S3/MinIO (generated image variants)
+                 -> Redis 7 (readiness only; reserved for future ephemeral work)
+                 -> sms.ir or development SMS provider
+                 -> Zarinpal or simulated payment gateway
+
+Nest worker scaffold (not connected to jobs)
 ```
 
-- **Implemented:** npm monorepo; Next.js 16 standalone output; NestJS 11 REST API under `/api/v1`; PostgreSQL 17; Redis and Docker Compose.
-- **Implemented:** the web same-origin proxy at `/api/backend/[...path]` handles interactive reservation calls and was runtime-verified through OTP-authenticated creation.
-- **Implemented:** private S3-compatible tenant media storage using MinIO in development, with API-mediated public delivery.
-- **Implemented:** authenticated web-to-API tenant-host forwarding, security response headers, structured request IDs and dependency readiness checks.
-- **Partial:** Zarinpal checkout/verification is implemented behind configuration and contract-tested; production activation awaits a merchant ID.
-- **Planned:** production reverse proxy/TLS/domain routing, real-provider acceptance, queues/background jobs and production observability.
+The npm-workspace monorepo contains `apps/web`, `apps/api`, `apps/worker`, and shared TypeScript configuration under `packages/`. API code is domain-oriented; the web uses the Next App Router.
 
-## Backend modules
+## Runtime boundaries
 
-- `database`: TypeORM connection and tenant/branch/domain entities.
-- `tenants`: hostname resolution middleware, public context, provisioning and availability enforcement.
-- `identity`: users, memberships, roles and permissions.
-- `identity/platform-access`: permission-guarded platform user creation/status, platform/tenant role assignment, role-permission management and read-only permission catalog. Full phone values are returned only by the protected platform user endpoints.
-- `authorization`: separate platform and tenant guards/decorators.
-- `auth`: OTP challenges, encrypted phone handling, JWT access, rotating refresh sessions and selectable development/sms.ir SMS providers.
-- `subscriptions`: plan, subscription, payment snapshot, trial/prepaid/grace/suspension reconciliation.
-- `audit`: append-only platform operator events for provisioning, plan, trial, manual payment and reconciliation changes.
-- `site`: website settings, theme normalization and primary-branch opening hours.
-- `menu`: category/item/variant CRUD plus public projection.
-- `reservations`: branch settings, slot availability, authenticated creation, capacity lock and status workflow.
-- `media`: private S3-compatible objects, tenant-scoped metadata, validated logo/hero/gallery upload, focal points, optimized variants and guarded public streaming.
-- `notifications`: encrypted tenant-scoped SMS outbox for order, reservation and subscription events, idempotent scheduled reminders, bounded retry/backoff and crash recovery.
-- `payments`: tenant-owner Silver checkout intents, provider abstraction, public verified callback and idempotent subscription settlement.
-- **Planned:** broader worker jobs.
+### Web
 
-Controllers are transport boundaries; services implement use cases; DTOs validate input; pure utilities hold deterministic rules. Nest exceptions produce standard JSON errors. There is no custom global error envelope yet.
+The root page distinguishes platform host from tenant subdomains. Tenant SSR loads context/site/menu/ordering from the internal API using the external host. Interactive client calls use `/api/backend/[...path]`, keeping the browser same-origin and internal addresses private.
 
-## Frontend
+The proxy forwards authorization/cookies and an authenticated tenant-host override. See [MULTI_TENANCY.md](MULTI_TENANCY.md). Next emits CSP, frame/content/referrer/permissions headers and HSTS in qualifying production domains.
 
-- **Implemented:** Persian RTL root layout; tenant-aware SSR home; branded suspended state; public site/menu/media rendering; responsive styling; `/reserve` four-step client UI; runtime-verified same-origin availability, OTP and pending-reservation flow; shared permission-aware owner shell; reservation management; curated site/theme/contact/hours/media editor; menu category/item/variant CRUD editor; and a separate `/platform` operations surface for tenant provisioning, subscription lifecycle, plan prices and audit history.
-- **Planned:** customer reservation history UI, broader design-system extraction and English/LTR presentation.
+### API
 
-Public SSR requests use `API_INTERNAL_URL` and the external host. Client mutations use the same-origin web proxy rather than expose internal service addresses. The proxy forwards the existing GET/POST/PATCH/PUT/DELETE operations required by current owner modules and authenticates its internal tenant-host override with `INTERNAL_PROXY_SECRET`; forged or missing secrets fall back to the direct request host.
+The API exposes REST groups under `/api/v1`: `/public`, `/auth`, `/tenant`, `/platform`, and `/health`. Global validation whitelists/transforms DTO input and rejects unknown properties. Controllers handle transport/identity metadata; services own use cases and transactions; entities map persistence; small utilities hold deterministic rules.
 
-## Data model
+Major modules: tenants, identity/authorization, auth, clients, subscriptions, site, menu, media, ordering, reservations, notifications, payments, platform consultation requests, audit, and health.
 
-PostgreSQL is the source of truth. Core relationships:
+### Data and infrastructure
+
+PostgreSQL is authoritative for business data, session/outbox state, constraints, advisory locks, and lifecycle records. TypeORM synchronization and automatic migration execution are disabled in application configuration; production API startup currently runs migrations before starting the server.
+
+MinIO/S3 objects are private fixed media variants keyed by tenant/asset. Redis is mandatory in configuration and readiness but has no current application cache/rate-limit usage. The worker only starts a Nest application context.
+
+## Core relationships
 
 ```text
-coffee_shops -> branches -> branch_opening_hours
-      |            +-----> reservation_settings -> reservations -> users
-      +-> domains
-      +-> website_settings
-      +-> memberships -> membership_roles -> roles -> role_permissions -> permissions
-      +-> subscriptions -> subscription_plan
-      |                 -> subscription_payments
-      +-> payment_intents -> subscription_plan snapshots
-      +-> menu_categories -> menu_items -> menu_item_variants
-      +-> media_assets -> private S3/MinIO variant objects
-users -> auth_sessions / otp_challenges / user_platform_roles
-users -> platform_audit_events
-reservations -> notification_deliveries
+coffee_shops
+  -> branches -> opening_hours / reservation_settings -> reservations
+  -> domains
+  -> website_settings / media_assets / menu_categories -> menu_items -> variants
+  -> memberships -> membership_roles -> roles -> permissions
+  -> clients -> client_sessions / addresses / orders / reservations
+  -> subscription -> plan / subscription_payments
+  -> payment_intents
+  -> notification_deliveries
+
+users -> auth_sessions / platform_roles / memberships / platform_audit_events
+orders -> order_items
 ```
 
-Tenant-owned records carry or inherit `coffee_shop_id`. Critical cross-tenant relations use scoped queries and database triggers/constraints. Soft deletion is used for tenant/domain/user/menu records where implemented. TypeORM synchronization is disabled.
+See [DATABASE.md](DATABASE.md) for important constraints without duplicating the schema.
 
-## Authentication and authorization
+## Key flows
 
-- OTP accepts normalized Iranian mobile numbers. OTP hashes are stored; OTP plaintext is not persisted.
-- Phone PII uses authenticated encryption; logs mask phone values. Development SMS prints OTP only outside production.
-- Access tokens contain authentication identifiers, not permissions. Database-backed sessions allow revocation and refresh-token rotation/reuse detection.
-- Tenant hostname middleware attaches tenant context. `AccessTokenGuard` authenticates; tenant/platform permission guards authorize independently.
-- Platform permissions: tenant create/read/update/lifecycle, subscription management, audit read, user read/manage, role read/manage and permission-catalog read. Role permissions remain scope-matched; protected role identity/deletion stays immutable while its permission assignments can be changed without removing the last active role-management path.
-- Tenant permissions: site manage, menu read/manage, reservation read/manage, staff manage, subscription read and owner-only subscription checkout.
+- **Tenant request:** host → domain → effective subscription/cafe status → tenant context → public or authenticated guard → tenant-scoped service query.
+- **Client action:** cafe-scoped OTP/session → client JWT tied to resolved cafe → owned resource query.
+- **Order:** feature/settings checks → server-side menu validation/pricing → transaction/snapshots → outbox.
+- **Reservation:** feature/slot checks → branch/date advisory lock → capacity recheck → transaction/outbox.
+- **Renewal:** owner permission → immutable payment intent → public authority callback → provider verification → idempotent subscription payment/reactivation.
+- **Notification:** business transaction inserts encrypted unique outbox row → API timer claims/retries → current-state eligibility check → provider.
 
-## API conventions
+## Deployment topology
 
-- REST routes under `/api/v1`; groups are `/public`, `/tenant`, `/platform`, and `/auth`.
-- Tenant public and admin routes require resolved hostname context. Public suspended tenants receive HTTP 423 and a stable code/message.
-- DTO validation uses whitelist, forbid-non-whitelisted and transformation.
-- Money is integer toman stored in numeric columns/strings at persistence boundaries; payment rows retain price snapshots.
-- Dates use `YYYY-MM-DD`, times `HH:mm`/PostgreSQL `time`, and tenant/branch timezone defaults to `Asia/Tehran`.
+Docker images use Node 22 `bookworm-slim` with development, builder, and production stages. Compose runs separate web/API containers with PostgreSQL 17 Alpine, Redis 7 Alpine, and MinIO. Production expects a TLS reverse proxy in front of web and the payment callback, private east-west API/data/object access, managed secrets/backups, and readiness-based traffic. The repository does not define the final reverse-proxy or hosting implementation.
 
-## Reservations
+## Security boundaries
 
-Slot generation is based on same-day opening hours; overnight opening ranges are not supported. Capacity counts overlapping pending/confirmed reservations. Creation uses a PostgreSQL advisory transaction lock per branch/date and rechecks availability. MVP manages guest capacity, not physical tables.
+- Host-derived tenant context and scoped queries/constraints protect tenant separation.
+- Platform, tenant-admin, and client authentication/authorization are independent.
+- Provider callbacks prove payment only after server-side verification; browser redirects are not proof.
+- Client prices, tenant headers, role visibility, and frontend feature hiding are untrusted.
+- Sensitive request bodies, phones, OTPs, tokens, encryption/provider keys, and object credentials must not enter logs or public responses.
 
-## Subscription lifecycle
+## Scaling limits
 
-An explicit seven-day trial leads to suspension if unpaid. Paid service is prepaid by calendar month; after period end it enters seven-day grace, then suspension. Public access reconciliation can update effective status. Silver checkout stores an immutable toman snapshot, converts to rials only at the gateway boundary, and verifies the intent authority and snapshot amount server-side. A unique authority plus tenant/idempotency key prevents double credit; verified settlement immediately marks the subscription and coffee shop active. Stale verification claims recover after five minutes and a payment row written before an interrupted intent update is reconciled on the next callback. Scheduled reconciliation remains planned.
-
-## Files, caching and jobs
-
-- **Implemented:** the `ucafe-media` bucket remains private. Image bytes are decoded and limited to JPEG/PNG/WebP, 8 MB and 24 megapixels, with role-specific minimum dimensions. The API creates small/large AVIF and WebP crops, stores only tenant/asset-prefixed keys, and serves immutable variants through hostname-resolved public routes. Logo and hero are single slots; gallery is capped at eight; focal points and gallery order are bounded metadata. Missing/deleted media uses the existing stable CSS layout.
-- **Implemented:** uploads are currently processed synchronously in the API because Phase 10 excludes a worker pipeline. Original upload bytes are not retained or publicly served.
-- Redis is configured and used by authentication for rate limiting/ephemeral OTP controls; broader tenant-config caching is planned.
-- Transactional and scheduled SMS delivery currently runs as one bounded API-hosted outbox dispatcher. Stable deduplication keys prevent duplicate status/payment/reminder sends, stale claims recover, failures retry three times with exponential backoff, and time-sensitive jobs recheck eligibility before delivery. A dedicated horizontally coordinated worker remains launch hardening.
-
-## Configuration and logging
-
-API environment variables are validated with Joi. `.env.example` documents names only; real secrets stay local/hosted. Nest logging is used. No production centralized logging, tracing or metrics exists yet. Sensitive bodies, OTPs in production, tokens and full phones must never be logged.
-
-The API emits structured `http_request` events containing request ID, method, path, status and duration, but no bodies, tokens or client identifiers. `/health` is liveness-only; `/health/ready` verifies PostgreSQL, Redis and the private object bucket. Production configuration refuses development SMS, simulated payments and non-HTTPS payment callbacks.
-
-## Docker and environments
-
-Compose defines API, web, PostgreSQL, Redis and health-checked MinIO; API startup ensures the private media bucket exists. Local images currently inherit a locally available `backend-app:latest` base because earlier Docker Hub access was unreliable. The `.dockerignore` does not exclude all generated output, producing very large build contexts; this is technical debt.
-
-Production remains planned: reverse proxy, TLS, DNS/wildcard/custom domains, secret management, backups, migration release procedure, health/readiness, resource limits and monitoring must be designed before launch. Pars Web Server is an acceptable hosting provider to investigate, not a confirmed deployment architecture.
-
-## Testing strategy
-
-- Implemented API unit tests use Node’s test runner through ts-node for hostname, auth crypto/tokens/phone, guards, lifecycle, theme, menu validation, reservation slot/date rules and media decoding/optimization limits.
-- Type checks exist for all workspaces; builds exist for API/web/worker. There is no lint command.
-- Migrations are checked/applied against PostgreSQL.
-- Live checks have covered public context/site/menu, auth, subscription behavior, availability, reservation creation, dependency readiness, authenticated proxy forwarding, security headers and SSR performance budgets.
-- Simulated gateway integration checks cover callback verification, immediate activation and duplicate-callback no-double-credit behavior; the real Zarinpal request/verify payload is mocked in unit tests.
-- Browser testing is required for UI phases. Full end-to-end automation, accessibility automation, load tests and security tests are planned.
-
-## Scaling and security posture
-
-The stateless API/web can scale horizontally once session/cache dependencies and proxy routing are productionized. PostgreSQL is shared multi-tenant storage; indexes exist for tenant/menu/reservation access. Future hotspots should use caching/queues rather than tenant-specific deployments. Security headers, authenticated proxy forwarding, backup/restore testing, dependency audit and operator runbooks are implemented. Production still requires hosting-specific threat review, TLS/proxy verification, monitoring destinations, provider acceptance and ongoing image/dependency scanning.
+Web/API are structurally stateless around shared stores, but notification polling/scheduling is not designed for efficient horizontal API replication. Conditional claims prevent duplicate delivery while replicas still duplicate scans and scheduled sweeps. Synchronous image transformation and public-access subscription reconciliation also remain API-hosted. Move those to coordinated background work only when production load/topology requires it.

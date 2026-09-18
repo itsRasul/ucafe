@@ -28,11 +28,11 @@ Entries distinguish confirmed decisions from pending questions. Dates reflect th
 
 ## D-004 — Plans and currency
 
-- **Status:** accepted
+- **Status:** partially superseded by D-039
 - **Options:** fixed code prices; configurable plan records.
 - **Decision:** toman; Silver default 1,900,000 and active; Golden default 2,900,000 and inactive; prices configurable and payment snapshots immutable.
 - **Reasoning:** launch only what exists while allowing price changes.
-- **Consequences:** Golden UI/features must not be publicly usable yet.
+- **Consequences:** The configurable prices and snapshot rule remain current. D-039 later activated Golden and introduced editable module flags; current feature availability must be read from plan data rather than this historical default.
 
 ## D-005 — Authentication and phone privacy
 
@@ -44,7 +44,7 @@ Entries distinguish confirmed decisions from pending questions. Dates reflect th
 
 ## D-006 — SMS implementation order
 
-- **Status:** accepted
+- **Status:** superseded by D-045 and D-046
 - **Options:** block on real Kavenegar; development provider first.
 - **Decision:** provider abstraction with development console OTP; add Kavenegar key/adapter later. Development provider must not run in production.
 - **Reasoning:** enables local end-to-end work without credentials.
@@ -92,7 +92,7 @@ Entries distinguish confirmed decisions from pending questions. Dates reflect th
 
 ## D-012 — Phase-per-chat workflow
 
-- **Status:** accepted
+- **Status:** superseded by D-049
 - **Options:** rely on conversation history; repository-owned handoff.
 - **Decision:** each future phase runs in a separate chat; canonical specification, architecture, plan, progress and decisions live in the repository.
 - **Reasoning:** prevents context dependence and reduces overwhelm.
@@ -100,11 +100,11 @@ Entries distinguish confirmed decisions from pending questions. Dates reflect th
 
 ## D-013 — Ordering and advanced features
 
-- **Status:** accepted
+- **Status:** partially superseded by D-029 and D-039
 - **Options:** include ordering/Golden/multi-template/multi-branch at launch; postpone.
 - **Decision:** postpone ordering, customer order payments, Golden modules, custom domains, multiple templates, full multi-branch UX, analytics, page builder and custom roles.
 - **Reasoning:** keep first launch an achievable MVP.
-- **Consequences:** architecture may prepare boundaries, but current phases must not implement these features.
+- **Consequences:** This constrained the original MVP. Custom roles and online ordering were subsequently implemented; customer order payments, operational custom domains, multiple templates, full multi-branch UX, analytics, and page building remain outside the current product.
 
 ## D-014 — Phase 7C owner authentication surface
 
@@ -148,18 +148,18 @@ Entries distinguish confirmed decisions from pending questions. Dates reflect th
 
 ## D-019 — Configurable Kavenegar Lookup with encrypted outbox simulation
 
-- **Status:** accepted and implemented on 2026-08-28; real delivery pending credentials
+- **Status:** superseded by D-045 and D-046
 - **Decision:** production and development use the same active provider interface. Development simulates OTP and confirmation delivery with masked logs; Kavenegar uses `verify/lookup` with approved template names and up to three tokens. Reservation confirmation creates one encrypted outbox row atomically with the status transition, retries three times with exponential backoff and never returns or logs the phone.
 - **Reasoning:** commented production code would drift and cannot be tested. Configuration-based selection keeps the real path compiled and contract-tested while failing closed when production credentials are absent.
 - **Consequences:** enabling real delivery requires only environment values and approved Kavenegar panel templates, followed by a real-provider acceptance test. The current API-hosted dispatcher is suitable for the bounded MVP but should move to a coordinated worker before horizontal scaling.
 
 ## P-001 — Production providers and hosting
 
-- **Status:** pending
+- **Status:** partially superseded by D-045; hosting and real-provider acceptance remain pending
 - **Options:** specific Iranian gateway/Kavenegar configuration and hosting topology, including Pars Web Server.
-- **Decision:** Zarinpal is selected for subscription checkout and Kavenegar for SMS; production credentials and hosting topology remain pending.
+- **Decision:** Zarinpal was selected for subscription checkout and Kavenegar was initially selected for SMS; production credentials and hosting topology remained pending.
 - **Reasoning:** credentials, contracts and hosting capabilities have not been supplied/verified.
-- **Consequences:** both providers have compiled, configuration-selected adapters and simulators, but production delivery/settlement remains blocked until credentials and real-provider acceptance tests are available.
+- **Consequences:** D-045 replaced Kavenegar with sms.ir. Production SMS/payment acceptance and hosting topology are still unresolved external launch gates.
 
 ## D-020 — Zarinpal-compatible prepaid checkout simulation
 
@@ -300,11 +300,11 @@ Entries distinguish confirmed decisions from pending questions. Dates reflect th
 
 ## D-037 — Tenant-admin reservation contact visibility
 
-- **Status:** accepted and implemented on 2026-09-08
+- **Status:** superseded by D-039 on 2026-09-09
 - **Options:** copy phone values into every reservation row; continue hiding phones everywhere; expose the verified user's phone only through tenant-admin reservation endpoints.
 - **Decision:** reservations keep storing the customer's entered full name as `contactName` and remain linked to the OTP-verified `users` row. Protected tenant reservation list/detail/status projections include `customerPhone` from that verified user, and the admin detail screen displays both full name and mobile number.
 - **Reasoning:** the OTP flow already persists the normalized verified phone on the user, so duplicating it into reservations would add stale PII without improving the admin workflow.
-- **Consequences:** no schema migration is required. Public reservation creation responses and customer `mine` responses still omit phone data; phone visibility is limited to tenant users with `reservations.read`.
+- **Consequences:** This was the one-day transitional model. D-039 migrated reservation ownership from `users` to tenant-scoped `clients`; public/client responses still omit phone and protected tenant reservation views retain operational phone visibility.
 
 ## D-038 — Platform invoice visibility reuses payment intents
 
@@ -320,7 +320,7 @@ Entries distinguish confirmed decisions from pending questions. Dates reflect th
 - **Options:** store cafe customers in `users`; create a new entitlement subsystem; use the existing subscription-plan `features` JSON with separate cafe-scoped clients.
 - **Decision:** cafe customers are stored as tenant-scoped `clients` with unique `(coffee_shop_id, phone)` and separate rotating client auth sessions. Client OTP challenges reuse the existing OTP primitives but remain scoped by cafe and purpose. Plan modules are the existing plan `features` JSON keys: `reservations` and `onlineOrdering`, editable by platform admins. Orders are created only through server-side recalculation of menu ownership, availability, variants, prices, delivery settings and plan eligibility, with order-item and delivery-address snapshots for history.
 - **Reasoning:** separating clients from administrative `users` preserves platform/tenant RBAC and allows the same phone number to be a customer of multiple cafes. Reusing plan features and OTP primitives is the smallest maintainable path and avoids a speculative entitlement or identity subsystem.
-- **Consequences:** Silver enables reservations but blocks online ordering; Golden enables both. Reservations now belong to a `Client`, public reservation creation requires client OTP auth, and tenant admins see order/reservation customer phone data only through protected tenant endpoints. Online payment, a full client panel, address editing/deletion UI and advanced delivery/payment methods remain future work.
+- **Consequences:** Migration defaults set Silver to reservations on/ordering off and Golden to both on, but platform operators can edit both module flags. Reservations belong to a `Client`, public creation requires client OTP, and protected tenant endpoints provide operational phone visibility. A client panel and address CRUD were later implemented; customer online payment and advanced payment/delivery pricing remain future work.
 
 ## D-040 — Tenant-branded client authentication and shared OTP entry
 
@@ -328,13 +328,31 @@ Entries distinguish confirmed decisions from pending questions. Dates reflect th
 - **Decision:** Active tenant storefronts use a dedicated `/login` shell branded by the resolved café, with login and registration as two modes in one card. All admin and client authentication surfaces share one six-cell OTP component with digit normalization, paste and keyboard support, and guarded automatic submission after the sixth digit. Embedded checkout authentication consumes the checkout owner's client-session instance instead of creating an isolated session.
 - **Reasoning:** The café identity should remain primary in the customer journey, and a single OTP interaction removes behavioral drift between standalone login, checkout, reservation and admin entry. Sharing the parent client session ensures successful authentication is observable immediately without a page refresh.
 - **Consequences:** Existing client-auth routes, access/refresh token contracts, development SMS provider and database schema remain unchanged. Login verification sends no names, registration sends validated first and last names, switching modes preserves the phone but clears the challenge and OTP, and reduced-motion users receive the complete interface without entrance motion.
-- **D-041 â€” Checkout result route and tenant-preserving visual redesign (accepted 2026-09-12):** Existing checkout/order APIs and cart auth modal are reused. Added authenticated `/checkout/result` using `GET /public/orders/:id`; styling remains in shared tenant CSS. No migration is required, and invalid/unauthenticated links do not expose order data.
-- **D-042 - Courier delivery availability and non-blocking auth modal (accepted 2026-09-12):** Courier delivery is enabled by default and existing online-ordering settings are backfilled through migration `1787799600000-EnableCourierDelivery`; checkout continues to reveal address entry only when courier is selected. Client auth modal remains viewport-centered without locking document scrolling.
-- **D-043 - Toast containers stay in the tenant DOM; the section entrance animation stops trapping fixed descendants (accepted 2026-09-13):** Options considered were portaling both `ToastContainer` instances into `document.body` (bulletproof against any future transformed/animated ancestor, but the toast would lose the tenant CSS variables it inherits in place) versus fixing the shared animation. Decision: keep the containers where they are and change the global `section` entrance animation fill mode from `both` to `backwards`, so a finished section animation no longer keeps a containing block for `position: fixed` descendants. The library's in-flow `<section class=Toastify>` wrappers are additionally normalized with `display: contents` in `tenant.css`, because the global section card styling made those wrappers real layout boxes that shifted the tenant navbar grid and page height. Reasoning: two small shared-CSS changes, identical entrance rendering, preserved per-tenant theming, verified in Chrome. Consequences: toasts resolve against the viewport and their wrappers occupy no layout space; a future wrapper that applies a persistent `transform`, `filter` or `contain` around a toast would reintroduce the placement bug and should then be solved with a portal.
+## D-041 — Checkout result route and tenant-preserving visual redesign
 
-- **D-044 - Website announcement banner removed (accepted 2026-09-13):** The tenant header announcement div (`tenant-announcement`), the admin "���� �����" editor field, the `announcementText` public-site field, and the `announcement_text` column are removed. Applied via migration `1787803200000-RemoveWebsiteAnnouncement`, which drops the column (existing announcement text is discarded); the original create migration is left untouched as history. Reasoning: the banner was unwanted and the smallest change is to delete it everywhere rather than hide it. Consequences: `WebsiteSettings.announcementText` and the `UpdateSiteDto.announcementText` field no longer exist; any stored announcement text is gone.
+- **Status:** accepted and implemented on 2026-09-12
+- **Decision:** reuse existing checkout/order APIs and cart auth, adding authenticated `/checkout/result` through `GET /public/orders/:id` and shared tenant styling.
+- **Consequences:** no migration; invalid or unauthenticated links do not expose order data.
 
-## 2026-09-13 - Storefront footer map uses the keyless Google Maps embed
+## D-042 — Courier availability and non-blocking auth modal
+
+- **Status:** accepted and implemented on 2026-09-12
+- **Decision:** enable courier by default/backfill through migration `1787799600000-EnableCourierDelivery`; show address only for courier and keep the auth modal centered without locking document scroll.
+
+## D-043 — Toasts remain tenant-themed without transformed ancestors
+
+- **Status:** accepted and implemented on 2026-09-13
+- **Decision:** keep Toastify containers inside the tenant tree, change the shared section animation fill from `both` to `backwards`, and render `.Toastify` wrappers with `display: contents`.
+- **Reasoning:** this preserves tenant CSS variables while removing fixed-position containing blocks and unwanted layout boxes.
+- **Consequences:** future persistent `transform`, `filter`, or `contain` ancestors would require revisiting a body portal.
+
+## D-044 — Website announcement banner removed
+
+- **Status:** accepted and implemented on 2026-09-13
+- **Decision:** remove the tenant announcement UI/DTO/entity field and drop `announcement_text` through migration `1787803200000-RemoveWebsiteAnnouncement` rather than hiding it.
+- **Consequences:** prior announcement content was intentionally discarded; the original creation migration remains unchanged history.
+
+## 2026-09-13 — Storefront footer map uses the keyless Google Maps embed
 
 The footer location map uses the classic keyless Google Maps embed (`https://maps.google.com/maps?q=<lat>,<lng>&z=15&output=embed`) instead of the Maps Embed API or the Neshan SDK. This needs no API key, no environment variable and no new dependency, and it matches the existing Google Maps link already rendered in the `/#visit` section. The tradeoff is that Google tile availability depends on the client network in Iran; if that proves unreliable, switch the `src` to a Neshan embed, which is a one-line change localised to `TenantFooter`.
 
@@ -342,9 +360,9 @@ The footer location map uses the classic keyless Google Maps embed (`https://map
 
 - **Status:** accepted and implemented on 2026-09-15
 - **Options:** keep the Kavenegar adapter; run both adapters behind a provider switch; replace Kavenegar with an sms.ir adapter.
-- **Decision:** the SMS panel is sms.ir. `SMS_PROVIDER=smsir` selects `SmsIrSmsProvider`, which calls `POST https://api.sms.ir/v1/send/verify` with the `x-api-key` header and a JSON body of `mobile`, `templateId` and named `parameters`. A send counts as delivered only when HTTP is successful, `status === 1` and `data.messageId` exists. Configuration is `SMSIR_API_KEY`, `SMSIR_OTP_TEMPLATE_ID` and `SMSIR_RESERVATION_CONFIRMED_TEMPLATE_ID`; both template values are validated as numeric panel IDs, and production still fails closed unless `SMS_PROVIDER=smsir`.
+- **Decision:** the SMS panel is sms.ir. `SMS_PROVIDER=smsir` selects `SmsIrSmsProvider`, which calls `POST https://api.sms.ir/v1/send/verify` with the `x-api-key` header and a JSON body of `mobile`, `templateId` and named `parameters`. A send counts as delivered only when HTTP is successful, `status === 1` and `data.messageId` exists. Configuration uses `SMSIR_API_KEY`, numeric `SMSIR_OTP_TEMPLATE_ID`, and numeric environment keys matching each transactional notification type; production fails closed unless `SMS_PROVIDER=smsir`.
 - **Reasoning:** the request, authentication header and success contract of the Kavenegar Lookup API differ from sms.ir, so an adapter cannot be shared; keeping the old adapter after the panel decision would be dead configuration. One provider at a time is the smallest change that remains truthful.
-- **Consequences:** `SMS_PROVIDER=kavenegar`, `KAVENEGAR_API_KEY`, `KAVENEGAR_OTP_TEMPLATE` and `KAVENEGAR_RESERVATION_CONFIRMED_TEMPLATE` no longer exist, and the Kavenegar provider plus its contract test were deleted. The OTP template `otp` must keep the `#TOKEN#` placeholder, and the reservation template must use `#CAFE#`, `#DATE#` and `#TIME#` because parameter names are matched by name and sms.ir caps each value at 25 characters (values are clamped in the adapter). Verified against the live sandbox contract: provider-level errors arrive as HTTP 400 with a `status` code (`113` means template not found), so both the transport and the `status` value are checked. Template titles are not accepted, so the numeric panel IDs are a launch prerequisite.
+- **Consequences:** Kavenegar configuration/provider code was deleted. sms.ir parameter names must match approved templates and values are clamped to 25 characters. Provider-level errors may arrive as HTTP 400 with a status code, so transport and provider status are checked. Template titles are not accepted; every numeric panel ID is a launch prerequisite.
 
 ## D-046 - One encrypted outbox for all transactional SMS
 
@@ -366,3 +384,11 @@ The footer location map uses the classic keyless Google Maps embed (`https://map
 - **Decision:** tenant staff create a reservation from the admin reservations screen by entering the customer phone, an optional name, date, time, party size and note. The API resolves the customer by normalized phone inside the tenant; when the phone is not yet a customer it creates one from the admin-supplied name (split on the first space) with `phone_verified_at` left null, then stores the reservation as `CONFIRMED` with the acting admin user in `status_changed_by_user_id` and enqueues `RESERVATION_PLACED_BY_ADMIN` with `customerName`, `cafeName`, `date`, `time` and `guestCount`. Public customer creation was refactored onto the same private `place` path so the availability advisory lock, slot validation and SMS enqueue exist once.
 - **Reasoning:** the cafe is the actor, so an admin booking has nothing to review and must not require a second confirmation SMS; the customer phone is supplied by the guest and cannot be OTP-verified at the counter, so the customer row stays unverified until a real login. Reusing the existing placement, availability and outbox code is smaller and safer than a parallel flow.
 - **Consequences:** the name is required only when the phone is not yet a customer of that tenant, and `contact_name` falls back to the stored customer name otherwise. Admin-created reservations do not enqueue `RESERVATION_PLACED_TO_ADMIN` because the admin is the author. `RESERVATION_PLACED_BY_ADMIN` must carry the numeric sms.ir panel id in production configuration.
+
+## D-049 — Current-state documentation replaces phase documents
+
+- **Status:** accepted and implemented on 2026-09-18
+- **Options:** keep the original MVP/spec/phase plan and append more progress; archive every old file in-tree; replace competing current-state documents while preserving decisions in this log and Git history.
+- **Decision:** `PRD.md` is the single current product source of truth. Focused architecture, security, domain, development, testing, operations, and current-state documents describe implemented behavior. The obsolete `MVP.md`, `PROJECT_SPEC.md`, `PLAN.md`, and giant `PROGRESS.md` are removed; this file remains the historical decision record.
+- **Reasoning:** phase-era documents contradicted implemented ordering, clients, plans, providers, media, Docker, and operations and forced every agent to load duplicate history.
+- **Consequences:** `AGENTS.md` routes changes to only the relevant documents. Git history retains implementation chronology; `CURRENT_STATE.md` carries only active blockers, debt, and next work. Documentation/code disagreement must be investigated rather than resolved by blindly trusting either source.

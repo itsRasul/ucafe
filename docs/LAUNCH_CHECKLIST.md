@@ -1,31 +1,48 @@
-# ucafe MVP launch checklist
+# Production launch checklist
 
-## Automated gates
+Implemented software capability and external acceptance are deliberately separate. A checked implementation item does not waive an unchecked provider/hosting gate.
 
-- [x] strict type checks, unit tests and production builds
-- [x] all migrations applied with synchronization disabled
-- [x] live PostgreSQL/Redis/object-storage readiness endpoint
-- [x] tenant SSR/API/web health smoke test and security-header assertions
-- [x] PostgreSQL backup restored and validated in a disposable database
-- [x] duplicate payment callback does not double-credit
-- [x] development simulators are rejected by production configuration
-- [x] authenticated internal tenant-host forwarding
+## Repository gates
 
-## Performance and accessibility budgets
+- [ ] full `npm test` passes (currently 66/67; stale client-panel test constructor)
+- [ ] `npm run typecheck` passes for all workspaces
+- [ ] `npm run build` passes for API, web, and worker
+- [ ] all migrations applied; `synchronize` remains disabled
+- [ ] `/api/v1/health/ready` verifies PostgreSQL, Redis, and the private object bucket
+- [ ] smoke checks pass for platform and tenant hosts, security headers, and HTML budget
+- [ ] wrong-tenant IDs, forged internal headers, permission boundaries, and client ownership are rechecked
+- [ ] duplicate order checkout/payment callback and reservation-capacity race behavior are verified
+- [ ] backup restores into a disposable database and matching object snapshot/restore procedure is tested
+- [ ] production configuration refuses simulators and non-HTTPS callback
 
-- tenant SSR HTML at most 250 KiB
-- warmed local tenant response at most 1,000 ms; production p95 target 750 ms
-- no horizontal overflow at 390 px or 1440 px
-- page language/direction, unique main heading, labeled controls, keyboard focus and reduced-motion behavior verified
-- hero has stable dimensions; gallery images are lazy and optimized; no original uploads are served
+## Real providers
 
-## Required manual/external gates
+- [ ] every sms.ir template has an approved numeric ID and exact parameter names
+- [ ] real admin/client OTP delivery accepted without secret/OTP logging
+- [ ] real order, reservation, reminder, subscription, payment, and consultation messages accepted
+- [ ] retry/error behavior observed for an sms.ir failure
+- [ ] real low-value Zarinpal request, redirect, callback, verification, duplicate callback, and result redirect accepted
+- [ ] settlement/reconciliation and merchant/legal ownership approved
 
-- [ ] real sms.ir OTP and reservation confirmation acceptance with the panel template IDs
-- [ ] real Zarinpal request, redirect, verified callback and reconciliation acceptance
-- [ ] production hostname, wildcard DNS, TLS and reverse-proxy header stripping verified
-- [ ] managed backup retention, monitoring destinations and on-call contacts assigned
-- [ ] dependency/container vulnerability scan reviewed
-- [ ] privacy terms, operational ownership and incident contacts approved
+## Hosting and security
 
-The MVP is not production-ready while any external gate remains unchecked.
+- [ ] final host/topology and resource limits documented
+- [ ] wildcard/base DNS and valid TLS/HSTS verified
+- [ ] reverse proxy preserves host/trusted forwarding and strips both internal ucafe headers
+- [ ] API/data/Redis/object store are not unintentionally public
+- [ ] production secrets stored and rotation owners assigned
+- [ ] dependency/container vulnerability scans reviewed
+- [ ] centralized logs/metrics/alerts and on-call destinations tested
+- [ ] managed database/object backups, encryption, off-host retention, and restore schedule assigned
+- [ ] privacy terms, data retention/deletion, incident contacts, and operational ownership approved
+
+## UX and performance
+
+- [ ] tenant SSR HTML ≤ 250 KiB and production p95 target approved/measured
+- [ ] no horizontal overflow at 390 px and 1440 px on critical routes
+- [ ] language/direction, unique main heading, labels, keyboard focus, touch targets, and reduced-motion verified
+- [ ] media uses generated variants with stable dimensions; original uploads remain private/discarded
+- [ ] target mobile browsers accept Jalali input and OTP/cart/checkout/panel flows
+
+ucafe is not production-ready while any required item remains unchecked.
+
