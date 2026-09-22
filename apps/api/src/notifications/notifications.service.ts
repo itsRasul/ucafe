@@ -102,7 +102,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       return rows[0]?.eligible === true;
     }
     if ([NotificationType.SubscriptionExpires3Days, NotificationType.SubscriptionExpires2Days, NotificationType.SubscriptionExpires1Day, NotificationType.SubscriptionExpiresToday, NotificationType.SubscriptionExpired, NotificationType.SubscriptionExpiredFollowUp].includes(job.type)) {
-      const rows = await this.db.query<Array<{ currentPeriodEndsAt: Date | null }>>(`SELECT current_period_ends_at AS "currentPeriodEndsAt" FROM subscriptions WHERE id=$1 AND coffee_shop_id=$2 AND status<>'CANCELED'`, [job.relatedEntityId, job.coffeeShopId]);
+      const rows = await this.db.query<Array<{ currentPeriodEndsAt: Date | null }>>(`SELECT paid_through_at AS "currentPeriodEndsAt" FROM subscriptions WHERE id=$1 AND coffee_shop_id=$2 AND status<>'CANCELED'`, [job.relatedEntityId, job.coffeeShopId]);
       const current = rows[0]?.currentPeriodEndsAt;
       return Boolean(current && job.deduplicationKey.includes(current.toISOString()));
     }
@@ -132,9 +132,9 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
 
       const subscriptions = await manager.query<Array<{ id:string; coffeeShopId:string; cafeName:string; timezone:string; planName:string; currentPeriodEndsAt:Date; graceDays:number; graceEndsAt:Date|null }>>(
         `SELECT s.id, s.coffee_shop_id AS "coffeeShopId", c.name AS "cafeName", c.timezone, p.name AS "planName",
-                s.current_period_ends_at AS "currentPeriodEndsAt", p.grace_days AS "graceDays", s.grace_ends_at AS "graceEndsAt"
+                s.paid_through_at AS "currentPeriodEndsAt", p.grace_days AS "graceDays", s.grace_ends_at AS "graceEndsAt"
          FROM subscriptions s JOIN coffee_shops c ON c.id=s.coffee_shop_id JOIN subscription_plans p ON p.id=s.plan_id
-         WHERE s.current_period_ends_at IS NOT NULL AND s.status <> 'CANCELED'`,
+         WHERE s.paid_through_at IS NOT NULL AND s.status <> 'CANCELED'`,
       );
       for (const row of subscriptions) await this.enqueueSubscriptionSchedule(manager, row, now);
     });
@@ -152,7 +152,8 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     if (now >= new Date(expiredAt.getTime() + 3 * 86_400_000)) await this.enqueueOwners(manager, { coffeeShopId: row.coffeeShopId, type: NotificationType.SubscriptionExpiredFollowUp, relatedEntityType: "subscription", relatedEntityId: row.id, deduplicationKey: `${NotificationType.SubscriptionExpiredFollowUp}:${row.id}:${cycle}`, payload: { cafeName: row.cafeName } });
   }
 
-  subscriptionActivatedPayload(cafeName: string, planName: string, expireDate: Date, timezone: string) {
-    return { cafeName, planName, expireDate: jalaliDate(expireDate, timezone) };
+  subscriptionActivatedPayload(cafeName: string, planName: string, expireDate: Date, timezone: string, operation?: string) {
+    const action = operation === "RENEWAL" ? "تمدید" : operation === "UPGRADE" ? "ارتقا" : operation === "REACTIVATION" ? "فعال‌سازی دوباره" : "فعال‌سازی";
+    return { cafeName, planName: `${action} ${planName}`, expireDate: jalaliDate(expireDate, timezone) };
   }
 }

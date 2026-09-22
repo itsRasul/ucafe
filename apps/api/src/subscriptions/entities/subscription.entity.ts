@@ -37,6 +37,9 @@ export class Subscription {
   @Column({ name: "current_period_ends_at", type: "timestamptz", nullable: true })
   currentPeriodEndsAt!: Date | null;
 
+  @Column({ name: "paid_through_at", type: "timestamptz", nullable: true })
+  paidThroughAt!: Date | null;
+
   @Column({ name: "grace_ends_at", type: "timestamptz", nullable: true })
   graceEndsAt!: Date | null;
 
@@ -45,6 +48,15 @@ export class Subscription {
 
   @Column({ name: "canceled_at", type: "timestamptz", nullable: true })
   canceledAt!: Date | null;
+
+  @Column({ name: "pending_plan_id", type: "uuid", nullable: true })
+  pendingPlanId!: string | null;
+
+  @Column({ name: "pending_plan_effective_at", type: "timestamptz", nullable: true })
+  pendingPlanEffectiveAt!: Date | null;
+
+  @Column({ type: "integer", default: 0 })
+  version!: number;
 
   @CreateDateColumn({ name: "created_at", type: "timestamptz" })
   createdAt!: Date;
@@ -59,4 +71,8 @@ export class Subscription {
   @ManyToOne(() => SubscriptionPlan, { onDelete: "RESTRICT" })
   @JoinColumn({ name: "plan_id" })
   plan!: SubscriptionPlan;
+
+  @ManyToOne(() => SubscriptionPlan, { nullable: true, onDelete: "RESTRICT" })
+  @JoinColumn({ name: "pending_plan_id" })
+  pendingPlan!: SubscriptionPlan | null;
 }

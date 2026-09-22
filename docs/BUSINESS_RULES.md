@@ -32,19 +32,21 @@ Critical rules are summarized here. Domain documents contain the corresponding l
 
 ## Plans and subscriptions
 
-- Plan price, status, trial/grace lengths, and module flags are mutable platform-managed data. Payment/subscription records snapshot relevant plan and amount values.
+- Plan description, price, billing length, status, rank, trial/grace lengths, highlights, and registered features are mutable platform-managed data. Rank alone classifies upgrades and downgrades.
 - Feature access requires both an entitled effective subscription status (`TRIALING`, `ACTIVE`, or `GRACE`) and a true plan feature flag.
 - Trial expiry suspends immediately. A paid period moves to grace for the plan's configured duration, then suspends.
-- Prepaid renewal begins after the latest of now, current paid end, or an active trial end and adds the plan's calendar-month duration.
+- Trial conversion and post-grace reactivation begin at verified payment time. Active and grace renewal begin at the previous `paid_through_at`; a grace-created intent keeps that anchor until its 15-minute expiry.
+- An upgrade takes effect at verification, keeps `paid_through_at`, updates remaining entitlement periods, and charges timestamp-prorated target cost less source credit with half-up whole-toman rounding.
+- A downgrade is one replaceable pending change effective at `paid_through_at`; renewal while pending charges and schedules the target plan.
 - Suspension does not delete tenant data. Successful payment/reactivation clears suspension and publishes the cafe when necessary.
 
 ## Renewal invoices and payments
 
 - `payment_intents` are the renewal invoice model; there is no separate invoice ledger.
-- The owner checkout DTO currently accepts only `silver`, even if other plans are active.
-- Intent amount/name/key are immutable snapshots. Gateway amounts are derived server-side and converted from toman to rial.
-- Checkout is idempotent per tenant/key. Callback lookup requires the opaque intent ID and matching authority.
-- Only successful server-side verification records a prepaid period. Duplicate callbacks or provider references cannot double-credit.
+- Preview accepts only a plan key. Checkout accepts the plan key, tenant idempotency key, expected subscription version, and expected plan timestamp; it re-locks and recalculates before creating an invoice.
+- Intent operation, source/target plans, pricing, effective timing, and entitlement anchors are immutable snapshots. Gateway amounts are derived server-side and converted from toman to rial.
+- Only one unexpired pending/verifying intent may exist per tenant. Callback lookup requires the opaque intent ID and matching authority.
+- Only successful server-side verification mutates entitlement. Unique payment-intent and provider references prevent duplicate callbacks from double-crediting.
 
 ## Notifications
 

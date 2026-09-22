@@ -50,9 +50,9 @@ The product is aimed at independent cafes that need a professional storefront, e
 
 ### Plans, subscriptions, invoices, and payments
 
-- Plans store editable name, price, status, trial days, grace days, and feature flags. Seed values are defaults, not permanent commercial constants.
-- Tenant subscriptions support explicit trial, prepaid calendar-month periods, grace, suspension, manual payment recording, and reactivation.
-- Tenant renewal checkout is currently restricted to the `silver` plan contract. A payment intent is the owner/platform-facing invoice; successful verified settlement records an immutable subscription-payment snapshot.
+- Plans store editable name, description, price, billing length, display rank, status, trial/grace days, highlighted features, and typed feature values. Seed values are defaults, not permanent commercial constants.
+- Tenant subscriptions support virtual trial presentation, authoritative prepaid entitlement periods, grace, suspension/reactivation, immediate prorated upgrades, and scheduled downgrades.
+- Tenant plan catalog and preview endpoints decide the allowed action and price. A payment intent is the immutable owner/platform-facing invoice; successful verified settlement records the payment, entitlement, lifecycle projection, cafe state, and notification atomically.
 - Zarinpal request/verify code exists, while real production acceptance still requires external credentials and testing.
 
 ### Notifications

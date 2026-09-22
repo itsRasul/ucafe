@@ -9,7 +9,7 @@ PostgreSQL 17 is the business system of record. TypeORM entities describe the ap
 - clients: `clients`, `client_auth_sessions`, `client_addresses`
 - catalog/commerce: menu categories/items/variants, ordering settings, orders/items
 - reservations: settings and reservations
-- subscriptions/payments: plans, subscriptions, subscription payments, payment intents
+- subscriptions/payments: plans, subscription lifecycle projections, entitlement periods, subscription payments, payment intents
 - operations: notification deliveries, platform audit events, platform consultation requests
 
 The code, entities, and migrations—not this overview—are the column-level schema source of truth.
@@ -25,8 +25,8 @@ Examples include role assignment, menu item/variant/category, reservation branch
 - unique cafe slug and global hostname; one active primary branch/domain per cafe
 - one membership per tenant/user and scope-compatible RBAC assignments
 - normalized phone checks; one client phone per tenant
-- one subscription per cafe and unique provider references
-- tenant/client order idempotency and tenant checkout idempotency
+- one subscription per cafe; paired pending-plan fields; valid entitlement ranges; unique payment-intent/provider references
+- tenant/client order idempotency, tenant checkout idempotency, manual-payment idempotency, and at most one live checkout per tenant
 - positive/nonnegative plan, menu, order, capacity, interval, and image metadata checks
 - one active logo/hero and menu-item image slot; gallery/key/focal/order constraints
 - globally unique notification deduplication key
@@ -42,7 +42,7 @@ Money is integer toman in `bigint`/`numeric` columns and represented as strings 
 - Lifecycle/session/audit timestamps use `timestamptz`.
 - Reservation day uses PostgreSQL `date`; start/end use `time` and are interpreted in branch timezone (default `Asia/Tehran`).
 - UI Jalali dates convert to Gregorian ISO before the API.
-- Prepaid billing adds UTC calendar months and clamps month ends.
+- Entitlement periods use canonical UTC timestamps. Prepaid billing adds UTC calendar months and clamps month ends; proration uses exact timestamp duration and integer half-up toman rounding.
 
 ## Locking and atomicity
 

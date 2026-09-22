@@ -7,6 +7,15 @@ export enum SubscriptionPaymentStatus {
   Refunded = "REFUNDED",
 }
 
+export enum SubscriptionOperation {
+  Legacy = "LEGACY",
+  Purchase = "PURCHASE",
+  Renewal = "RENEWAL",
+  Reactivation = "REACTIVATION",
+  TrialToPaid = "TRIAL_TO_PAID",
+  Upgrade = "UPGRADE",
+}
+
 @Entity({ name: "subscription_payments" })
 @Index("UQ_subscription_payments_provider_reference", ["provider", "providerReference"], { unique: true, where: "provider_reference IS NOT NULL" })
 export class SubscriptionPayment {
@@ -21,6 +30,12 @@ export class SubscriptionPayment {
 
   @Column({ name: "amount_toman", type: "bigint" })
   amountToman!: string;
+
+  @Column({ type: "enum", enum: SubscriptionOperation, enumName: "subscription_operation", default: SubscriptionOperation.Legacy })
+  operation!: SubscriptionOperation;
+
+  @Column({ name: "pricing_snapshot", type: "jsonb", default: () => "'{}'::jsonb" })
+  pricingSnapshot!: Record<string, unknown>;
 
   @Column({ name: "plan_key_snapshot", type: "varchar", length: 40 })
   planKeySnapshot!: string;
@@ -39,6 +54,15 @@ export class SubscriptionPayment {
 
   @Column({ name: "provider_reference", type: "varchar", length: 160, nullable: true })
   providerReference!: string | null;
+
+  @Column({ name: "provider_authority", type: "varchar", length: 160, nullable: true })
+  providerAuthority!: string | null;
+
+  @Column({ name: "payment_intent_id", type: "uuid", nullable: true, unique: true })
+  paymentIntentId!: string | null;
+
+  @Column({ name: "idempotency_key", type: "varchar", length: 80, nullable: true })
+  idempotencyKey!: string | null;
 
   @Column({ name: "recorded_by_user_id", type: "uuid", nullable: true })
   recordedByUserId!: string | null;

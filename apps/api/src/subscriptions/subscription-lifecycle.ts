@@ -16,18 +16,27 @@ export function addUtcMonths(date: Date, months: number): Date {
   return result;
 }
 
+export function prorateToman(amountToman: string, usedMilliseconds: number, totalMilliseconds: number): bigint {
+  if (usedMilliseconds <= 0 || totalMilliseconds <= 0) return 0n;
+  const numerator = BigInt(amountToman) * BigInt(usedMilliseconds);
+  const denominator = BigInt(totalMilliseconds);
+  return (numerator + denominator / 2n) / denominator;
+}
+
 export interface LifecycleDates {
   status: SubscriptionStatus;
   trialEndsAt: Date | null;
   currentPeriodEndsAt: Date | null;
+  paidThroughAt?: Date | null;
   graceEndsAt: Date | null;
 }
 
 export function effectiveSubscriptionStatus(subscription: LifecycleDates, now: Date, graceDays: number): { status: SubscriptionStatus; graceEndsAt: Date | null } {
   if (subscription.status === SubscriptionStatus.Canceled) return { status: SubscriptionStatus.Canceled, graceEndsAt: subscription.graceEndsAt };
-  const entitlementEnd = subscription.currentPeriodEndsAt ?? subscription.trialEndsAt;
-  if (!entitlementEnd || now < entitlementEnd) return { status: subscription.currentPeriodEndsAt ? SubscriptionStatus.Active : SubscriptionStatus.Trialing, graceEndsAt: null };
-  if (!subscription.currentPeriodEndsAt) return { status: SubscriptionStatus.Suspended, graceEndsAt: null };
+  const paidThroughAt = subscription.paidThroughAt ?? subscription.currentPeriodEndsAt;
+  const entitlementEnd = paidThroughAt ?? subscription.trialEndsAt;
+  if (!entitlementEnd || now < entitlementEnd) return { status: paidThroughAt ? SubscriptionStatus.Active : SubscriptionStatus.Trialing, graceEndsAt: null };
+  if (!paidThroughAt) return { status: SubscriptionStatus.Suspended, graceEndsAt: null };
   const graceEndsAt = subscription.graceEndsAt ?? addDays(entitlementEnd, graceDays);
   if (now < graceEndsAt) return { status: SubscriptionStatus.Grace, graceEndsAt };
   return { status: SubscriptionStatus.Suspended, graceEndsAt };

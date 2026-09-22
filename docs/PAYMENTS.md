@@ -7,12 +7,12 @@ This domain handles cafe subscription renewal, not customer order payment.
 - `PaymentGateway`: request, verify, and payment-URL contract.
 - `SimulatedPaymentGateway`: development flow; production rejects it.
 - `ZarinpalPaymentGateway`: v4 request/verify calls with a ten-second timeout.
-- `payment_intents`: owner/platform-visible renewal invoices.
-- `subscription_payments`: successful paid-period ledger/snapshots.
+- `payment_intents`: owner/platform-visible purchase, renewal, reactivation, trial-conversion, and upgrade invoices.
+- `subscription_payments`: successful immutable financial-operation ledger.
 
 ## Checkout
 
-Tenant `subscription.checkout` calls `POST /tenant/payments/checkout` with `planKey: "silver"` and an 8–80 character idempotency key. The service takes an advisory lock, returns an existing tenant/key intent when present, and otherwise snapshots the active plan's ID/key/name/current price.
+Tenant checkout sends `planKey`, an 8–80 character idempotency key, expected subscription version, and expected plan update timestamp. Under the per-cafe lock the server expires stale intents, rejects a competing live intent, recalculates the preview, validates optimistic values, and snapshots operation, source/target plans, pricing, and effective period anchors. The external gateway request happens after the database transaction closes.
 
 Intents expire after 15 minutes. Toman is stored internally; a validated safe-integer amount is multiplied by ten only for the Zarinpal rial request/verification boundary. Payment URLs are returned only for pending, unexpired intents with authority.
 
@@ -23,19 +23,19 @@ Zarinpal returns to the public callback with intent ID, authority, and `OK`/`NOK
 1. Intent ID and authority must match.
 2. Already-paid intent returns its prior result.
 3. `NOK` becomes `CANCELED`; an elapsed intent becomes `EXPIRED`.
-4. An existing unique subscription payment for the authority reconciles the intent to `PAID`.
+4. An existing unique subscription payment for the intent reconciles it to `PAID`.
 5. A pending intent is atomically claimed as `VERIFYING`; claims older than five minutes may reset.
 6. Verification uses the snapshotted amount, never callback/client input.
 7. Verification failure becomes `FAILED` and queues an owner notification.
-8. Success records one prepaid month through the subscription transaction, stores the provider reference/time, activates the tenant, and redirects to the tenant admin result page.
+8. Success atomically settles the intent, payment ledger, entitlement periods, lifecycle projection, cafe status, and success notification, then redirects to the tenant admin result page.
 
 Zarinpal codes 100 and 101 are accepted as verified success by the adapter. HTTP/provider failures map to a gateway error and never extend the subscription.
 
 ## Idempotency and authority
 
-- Tenant/idempotency-key uniqueness prevents duplicate intent creation.
+- Tenant/idempotency-key uniqueness prevents duplicate intent creation; a partial unique index permits only one live intent per tenant.
 - Gateway authority is unique on intents.
-- `(provider, provider_reference)` is unique on subscription payments.
+- `payment_intent_id` and `(provider, provider_reference)` are unique on subscription payments. `provider_reference` stores the verified gateway reference; authority is retained separately.
 - Subscription period mutation is serialized by a tenant advisory lock.
 - The callback is public because the gateway cannot hold tenant admin auth, but it accepts no tenant ID and gains no administrative authority.
 

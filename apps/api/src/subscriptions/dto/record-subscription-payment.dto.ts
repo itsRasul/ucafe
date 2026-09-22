@@ -1,4 +1,4 @@
-import { IsOptional, IsString, MaxLength } from "class-validator";
+import { IsOptional, IsString, Matches, MaxLength, MinLength } from "class-validator";
 
 export class RecordSubscriptionPaymentDto {
   @IsOptional()
@@ -15,4 +15,10 @@ export class RecordSubscriptionPaymentDto {
   @IsString()
   @MaxLength(160)
   providerReference?: string;
+
+  @IsString()
+  @MinLength(8)
+  @MaxLength(80)
+  @Matches(/^[A-Za-z0-9_-]+$/)
+  idempotencyKey!: string;
 }

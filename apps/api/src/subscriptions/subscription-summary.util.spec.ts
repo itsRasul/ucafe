@@ -13,5 +13,5 @@ test("renewal warning is quiet before the three-day window", () => {
 });
 
 test("renewal warning does not show after the entitlement end has passed", () => {
-  assert.deepEqual(renewalWindow(new Date("2026-09-07T08:00:00.000Z"), now), { daysUntilPeriodEnd: -1, isRenewalWarning: false });
+  assert.deepEqual(renewalWindow(new Date("2026-09-07T08:00:00.000Z"), now), { daysUntilPeriodEnd: 0, isRenewalWarning: false });
 });

@@ -47,4 +47,5 @@
 @media(prefers-reduced-motion:reduce){.platform-app *,.platform-entry *{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 
 .plan-action-grid{display:flex;flex-wrap:wrap;gap:.35rem;margin:.45rem 0}.plan-action-grid button{flex:1;min-width:8rem}.plan-modules{display:grid!important;grid-template-columns:1fr 1fr;gap:.45rem;max-height:none!important;overflow:visible!important}.plan-modules label{display:flex!important;align-items:center!important;gap:.45rem!important;padding:.55rem!important;border:1px solid var(--platform-line);border-radius:.5rem;background:#fbfdff}.platform-app .plan-modules input{width:1rem;min-height:1rem;accent-color:#0284c7}
+.plan-feature-setting{display:grid;gap:.25rem}.plan-feature-setting label{margin:0!important}.plan-feature-setting label+label{border-style:dashed;background:#f8fafc;color:#475569}.platform-app .form textarea{min-height:5.5rem;resize:vertical}
 @media(max-width:38rem){.plan-modules{grid-template-columns:1fr}}

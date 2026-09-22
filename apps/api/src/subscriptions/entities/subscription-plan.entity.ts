@@ -17,11 +17,17 @@ export class SubscriptionPlan {
   @Column({ type: "varchar", length: 100 })
   name!: string;
 
+  @Column({ type: "varchar", length: 500, default: "" })
+  description!: string;
+
   @Column({ type: "enum", enum: PlanStatus, enumName: "subscription_plan_status" })
   status!: PlanStatus;
 
   @Column({ name: "price_toman", type: "bigint" })
   priceToman!: string;
+
+  @Column({ name: "sort_order", type: "smallint", unique: true })
+  sortOrder!: number;
 
   @Column({ name: "billing_months", type: "smallint", default: 1 })
   billingMonths!: number;
@@ -33,7 +39,10 @@ export class SubscriptionPlan {
   graceDays!: number;
 
   @Column({ type: "jsonb", default: () => "'{}'::jsonb" })
-  features!: Record<string, boolean>;
+  features!: Record<string, boolean | number | string | null>;
+
+  @Column({ name: "highlighted_feature_keys", type: "text", array: true, default: () => "'{}'::text[]" })
+  highlightedFeatureKeys!: string[];
 
   @CreateDateColumn({ name: "created_at", type: "timestamptz" })
   createdAt!: Date;

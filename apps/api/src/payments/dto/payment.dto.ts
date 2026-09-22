@@ -1,8 +1,8 @@
-import { IsIn, IsString, IsUUID, Matches, MaxLength, MinLength } from "class-validator";
+import { IsDateString, IsIn, IsInt, IsString, IsUUID, Matches, MaxLength, Min, MinLength } from "class-validator";
 
 export class CreateCheckoutDto {
   @IsString()
-  @Matches(/^silver$/)
+  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
   planKey!: string;
 
   @IsString()
@@ -10,6 +10,13 @@ export class CreateCheckoutDto {
   @MaxLength(80)
   @Matches(/^[A-Za-z0-9_-]+$/)
   idempotencyKey!: string;
+
+  @IsInt()
+  @Min(0)
+  expectedSubscriptionVersion!: number;
+
+  @IsDateString()
+  expectedPlanUpdatedAt!: string;
 }
 
 export class PaymentCallbackDto {

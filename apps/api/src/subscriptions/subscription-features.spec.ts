@@ -17,3 +17,12 @@ test("plan module updates keep existing values when a module is omitted", () => 
     [SubscriptionFeatures.OnlineOrdering]: true,
   });
 });
+
+test("plan edits preserve unknown legacy feature keys", () => {
+  assert.deepEqual(mergePlanFeatures({ menu: true, legacyReports: "limited" }, { reservations: true }), {
+    menu: true,
+    legacyReports: "limited",
+    reservations: true,
+    onlineOrdering: false,
+  });
+});

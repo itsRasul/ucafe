@@ -3,7 +3,7 @@ import { DataSource } from "typeorm";
 import { Branch, CoffeeShop, Domain } from "./entities";
 import { AuthSession, OtpChallenge } from "../auth/entities";
 import { CoffeeShopMembership, MembershipRole, Permission, Role, RolePermission, User, UserPlatformRole } from "../identity/entities";
-import { Subscription, SubscriptionPayment, SubscriptionPlan } from "../subscriptions/entities";
+import { Subscription, SubscriptionPayment, SubscriptionPeriod, SubscriptionPlan } from "../subscriptions/entities";
 import { BranchOpeningHour, WebsiteSettings } from "../site/entities";
 import { MenuCategory, MenuItem, MenuItemVariant } from "../menu/entities";
 import { Reservation, ReservationSettings } from "../reservations/entities";
@@ -19,7 +19,7 @@ const localDatabaseUrl = "postgresql://ucafe:ucafe@localhost:5432/ucafe";
 export default new DataSource({
   type: "postgres",
   url: process.env.DATABASE_URL ?? localDatabaseUrl,
-  entities: [CoffeeShop, Branch, Domain, User, CoffeeShopMembership, Role, Permission, MembershipRole, RolePermission, UserPlatformRole, OtpChallenge, AuthSession, Client, ClientAddress, ClientAuthSession, SubscriptionPlan, Subscription, SubscriptionPayment, WebsiteSettings, BranchOpeningHour, MenuCategory, MenuItem, MenuItemVariant, Reservation, ReservationSettings, MediaAsset, NotificationDelivery, PaymentIntent, PlatformOrderRequest, OnlineOrderingSettings, Order, OrderItem],
+  entities: [CoffeeShop, Branch, Domain, User, CoffeeShopMembership, Role, Permission, MembershipRole, RolePermission, UserPlatformRole, OtpChallenge, AuthSession, Client, ClientAddress, ClientAuthSession, SubscriptionPlan, Subscription, SubscriptionPayment, SubscriptionPeriod, WebsiteSettings, BranchOpeningHour, MenuCategory, MenuItem, MenuItemVariant, Reservation, ReservationSettings, MediaAsset, NotificationDelivery, PaymentIntent, PlatformOrderRequest, OnlineOrderingSettings, Order, OrderItem],
   migrations: [__dirname + "/migrations/*{.ts,.js}"],
   synchronize: false,
   migrationsRun: false,

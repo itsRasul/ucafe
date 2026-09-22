@@ -32,10 +32,11 @@ Owner recipients are active users with active memberships carrying the tenant `o
 ## Idempotency and eligibility
 
 - Event keys normally combine type and entity; owner fan-out adds user ID.
-- Edits include the updated timestamp; subscription schedules include the current period-end timestamp.
+- Edits include the updated timestamp; subscription schedules include the authoritative `paid_through_at` timestamp.
 - Duplicate inserts use `ON CONFLICT DO NOTHING`.
 - Reservation reminders recheck confirmed/future state.
-- Subscription scheduled sends recheck the relevant current period before delivery.
+- Subscription scheduled sends recheck the relevant paid-through boundary before delivery, so early renewal invalidates stale reminders.
+- Successful-payment payloads keep the existing template but make its plan label operation-aware for activation, renewal, reactivation, and upgrade.
 - Ineligible scheduled rows are completed with `NO_LONGER_ELIGIBLE` rather than sent.
 
 ## Configuration caveat
