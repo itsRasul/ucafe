@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { JalaliDateInput } from "../../jalali-date-input";
 import { formatJalaliDate } from "../../jalali-date";
 import { useAdminSession } from "../admin-session";
+import { TimeDistribution, TimeView } from "./time-view";
 import "./analytics.css";
 
 type Period = "today" | "yesterday" | "last7Days" | "last30Days" | "currentMonth" | "previousMonth" | "currentYear" | "previousYear" | "custom";
@@ -67,6 +68,8 @@ export default function AnalyticsPage() {
   const [end, setEnd] = useState("");
   const [query, setQuery] = useState("period=last7Days");
   const [data, setData] = useState<Overview | null>(null);
+  const [timeData, setTimeData] = useState<TimeDistribution | null>(null);
+  const [view, setView] = useState<"overview" | "time">("overview");
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
   const [unavailable, setUnavailable] = useState(false);
@@ -77,13 +80,17 @@ export default function AnalyticsPage() {
     if (!permitted) return;
     const controller = new AbortController();
     setBusy(true); setError(""); setUnavailable(false);
-    api<Overview>(`/tenant/analytics/overview?${query}`, { signal: controller.signal }).then(setData).catch((reason: Error & { code?: string }) => {
+    const path = view === "overview" ? "overview" : "time-distribution";
+    api<Overview | TimeDistribution>(`/tenant/analytics/${path}?${query}`, { signal: controller.signal }).then((result) => {
+      if (view === "overview") setData(result as Overview);
+      else setTimeData(result as TimeDistribution);
+    }).catch((reason: Error & { code?: string }) => {
       if (controller.signal.aborted) return;
       if (reason.code === "FEATURE_UNAVAILABLE") setUnavailable(true);
       else setError(reason.message);
     }).finally(() => { if (!controller.signal.aborted) setBusy(false); });
     return () => controller.abort();
-  }, [api, permitted, query, retry]);
+  }, [api, permitted, query, retry, view]);
 
   function selectPeriod(next: Period) { setPeriod(next); if (next !== "custom") setQuery(`period=${next}`); }
   function applyCustom(event: FormEvent) {
@@ -97,7 +104,8 @@ export default function AnalyticsPage() {
   return <section className="analytics-page">
     <header className="analytics-heading"><div><h1>آمار و تحلیل</h1><p>فروش تحویل‌شده و روند سفارش‌های کافه، بر اساس زمان محلی آن.</p></div><span>گزارش سفارش‌ها</span></header>
     <form className="analytics-filter" onSubmit={applyCustom}><label htmlFor="analytics-period">بازه گزارش</label><select id="analytics-period" value={period} onChange={(event) => selectPeriod(event.target.value as Period)}>{periods.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>{period === "custom" && <><label>از تاریخ<JalaliDateInput value={start} onChange={setStart} required /></label><label>تا تاریخ<JalaliDateInput value={end} onChange={setEnd} required /></label><button type="submit">نمایش گزارش</button></>}</form>
-    {unavailable ? <div className="analytics-state"><h2>آمار و تحلیل در اشتراک فعلی فعال نیست</h2><p>برای بررسی پلن‌های دارای این امکان، صفحه اشتراک را ببینید.</p><Link href="/admin/subscription">مشاهده پلن‌ها</Link></div> : error ? <div className="analytics-state" role="alert"><h2>گزارش دریافت نشد</h2><p>{error}</p><button type="button" onClick={() => setRetry((value) => value + 1)}>تلاش دوباره</button></div> : busy && !data ? <div className="analytics-loading" role="status"><span className="admin-spinner" />در حال آماده‌سازی گزارش…</div> : data && <div className={busy ? "analytics-results updating" : "analytics-results"} aria-busy={busy}>
+    <nav className="analytics-tabs" aria-label="بخش‌های آمار"><button type="button" aria-current={view === "overview" ? "page" : undefined} onClick={() => setView("overview")}>نمای کلی</button><button type="button" aria-current={view === "time" ? "page" : undefined} onClick={() => setView("time")}>تحلیل زمانی</button></nav>
+    {unavailable ? <div className="analytics-state"><h2>آمار و تحلیل در اشتراک فعلی فعال نیست</h2><p>برای بررسی پلن‌های دارای این امکان، صفحه اشتراک را ببینید.</p><Link href="/admin/subscription">مشاهده پلن‌ها</Link></div> : error ? <div className="analytics-state" role="alert"><h2>گزارش دریافت نشد</h2><p>{error}</p><button type="button" onClick={() => setRetry((value) => value + 1)}>تلاش دوباره</button></div> : busy ? <div className="analytics-loading" role="status"><span className="admin-spinner" />در حال آماده‌سازی گزارش…</div> : view === "time" && timeData ? <TimeView data={timeData} /> : view === "overview" && data && <div className="analytics-results" aria-busy={busy}>
       <div className="analytics-kpis"><article className="analytics-kpi main"><span>فروش تحویل‌شده</span><strong>{toman(data.metrics.revenueToman.value)}</strong><div><Comparison metric={data.metrics.revenueToman} /><small>دوره قبل: {toman(data.metrics.revenueToman.previousValue)}</small></div></article><article className="analytics-kpi"><span>سفارش‌های تکمیل‌شده</span><strong>{number(data.metrics.completedOrders.value)}</strong><div><Comparison metric={data.metrics.completedOrders} /><small>دوره قبل: {number(data.metrics.completedOrders.previousValue)}</small></div></article><article className="analytics-kpi"><span>میانگین هر سفارش</span><strong>{toman(data.metrics.averageOrderValueToman.value)}</strong><div><Comparison metric={data.metrics.averageOrderValueToman} /><small>دوره قبل: {toman(data.metrics.averageOrderValueToman.previousValue)}</small></div></article><article className="analytics-kpi"><span>مشتریان یکتا</span><strong>{number(data.metrics.uniqueCustomers.value)}</strong><div><Comparison metric={data.metrics.uniqueCustomers} /><small>دوره قبل: {number(data.metrics.uniqueCustomers.previousValue)}</small></div></article></div>
       {data.metrics.completedOrders.value === "0" && <div className="analytics-empty"><strong>هنوز فروش تحویل‌شده‌ای برای این بازه ثبت نشده است.</strong><p>پس از تکمیل سفارش‌ها، روند فروش و تعداد سفارش‌ها اینجا دیده می‌شود.</p></div>}
       <Trend title="روند فروش" description="ارزش سفارش‌های تحویل‌شده در هر بازه" series={data.series.revenueToman} granularity={data.granularity} timezone={data.timezone} money />

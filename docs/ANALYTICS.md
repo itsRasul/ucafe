@@ -39,6 +39,16 @@ Analytics is the configurable subscription feature key `analytics`, labeled “�
 
 One PostgreSQL query aggregates both periods using conditional `SUM`, `COUNT`, and `COUNT(DISTINCT client_id)`; a second groups current-period outcomes and joins generated buckets. Neither loads order entities or item rows. Existing `(coffee_shop_id, created_at)` and `(coffee_shop_id, status, created_at)` indexes serve order administration, not outcome-time reporting. Phase 0 added `IDX_orders_tenant_status_changed` on `(coffee_shop_id, status, status_changed_at)`; Phase 1 needs no additional index. Check query plans under production volume before adding more indexes or caching. No Redis cache is used.
 
+## Phase 2: time and peak analytics
+
+`GET /api/v1/tenant/analytics/time-distribution` accepts the same period DTO as Overview and returns `period`, `timezone`, `current`, `hours`, `weekdays`, `heatmap`, `dates`, and `peaks`. It uses the same administrative token, tenant context, `analytics.read` permission, and effective subscription `analytics` feature check. No tenant identifier or feature key is accepted from the caller. The frontend adds a **تحلیل زمانی** tab under `/admin/analytics` and shares its period selector with Overview.
+
+The canonical event remains the current `DELIVERED` order's `status_changed_at`; `revenue` is delivered order value in integer toman, represented as decimal strings. PostgreSQL filters by cafe, status, and the half-open local period bounds, then groups by local Gregorian date and local hour with `AT TIME ZONE coffee_shops.timezone`. It returns one row per active date/hour combination, never raw orders. The service sums this bounded result into four complete projections: 24 hour-of-day buckets, seven weekdays in Saturday–Friday order (stable English keys), a 7 × 24 day/hour grid, and every local date in the selected period, including zero dates. An hour bucket combines that hour across all selected dates; it is distinct from Overview's chronological series. The calendar uses the existing 366-day custom-range limit. No new index or migration is needed: the Phase 0 `(coffee_shop_id, status, status_changed_at)` index supports the filter. Query plans should be revisited under production data volume before adding expression indexes or caching.
+
+`peaks` contains arrays `revenueHours`, `orderHours`, `revenueWeekdays`, `orderWeekdays`, `revenueDates`, `orderDates`, and `lowestActiveRevenueDates`. Every bucket tied for the positive maximum is returned in chronological or Saturday-first order. An empty dataset returns empty peak arrays; zero days are never called weakest. The lowest active date considers only dates with completed orders and returns all minimum-revenue ties. Peak labels describe only the selected period, including one-day selections. The UI renders separate bar charts for revenue and orders, a metric-switching weekly heatmap, and daily calendar cells with exact values available by focus, hover, and tap. Persian labels and Jalali date display are presentation only; API dates remain Gregorian ISO. The heatmap and calendar colors are selected by the UI; the API returns business values only.
+
+No payment settlement, refund ledger, historical order events, or recurring-pattern confidence measure exists. Phase 3 should begin with the order-item snapshots and category ownership rules, while preserving this phase's tenant scope and delivered-order outcome semantics.
+
 ## Limits and extension
 
 Delivered value is not verified payment. There is no historical status event table, so prior outcomes can be restated by direct data repair. Custom ranges are bounded to 366 days. There is no reservation report, refund accounting, guest identity, or multi-branch breakdown. Add a payment/refund ledger before paid-revenue or financial settlement reporting. Phase 2 should add focused peak-time views using the established local-time bucketing rule, without changing the Overview definitions.
@@ -51,7 +61,7 @@ At the end of each analytics phase, update this file with implemented metrics/en
 | --- | --- | --- |
 | 0 | Analytics Foundation | Completed |
 | 1 | Overview Dashboard | Completed |
-| 2 | Time & Peak Analytics | Not Started |
+| 2 | Time & Peak Analytics | Completed |
 | 3 | Product & Category Analytics | Not Started |
 | 4 | Customer Analytics | Not Started |
 | 5 | Order & Channel Analytics | Not Started |

@@ -19,4 +19,11 @@ export class AnalyticsController {
     const tenant = req[TENANT_CONTEXT]!;
     return this.analytics.overview(tenant.coffeeShopId, tenant.timezone, query);
   }
+
+  @Get("time-distribution")
+  @RequireTenantPermissions(TenantPermissions.AnalyticsRead)
+  timeDistribution(@Req() req: TenantContextRequest, @Query() query: AnalyticsQueryDto) {
+    const tenant = req[TENANT_CONTEXT]!;
+    return this.analytics.timeDistribution(tenant.coffeeShopId, tenant.timezone, query);
+  }
 }

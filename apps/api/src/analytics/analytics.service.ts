@@ -14,6 +14,18 @@ interface AggregateRow {
   uniqueCustomers: string;
 }
 interface SeriesRow { bucket: string; revenue: string; orders: string }
+interface TimeRow { date: string; hour: number; revenue: string; orders: string }
+type TimeBucket = { revenue: string; completedOrders: string };
+const WEEKDAYS = ["saturday", "sunday", "monday", "tuesday", "wednesday", "thursday", "friday"] as const;
+const emptyBucket = (): TimeBucket => ({ revenue: "0", completedOrders: "0" });
+const add = (bucket: TimeBucket, row: TimeRow) => {
+  bucket.revenue = (BigInt(bucket.revenue) + BigInt(row.revenue)).toString();
+  bucket.completedOrders = (BigInt(bucket.completedOrders) + BigInt(row.orders)).toString();
+};
+const peak = <T extends TimeBucket>(buckets: T[], metric: keyof TimeBucket): T[] => {
+  const max = buckets.reduce((value, bucket) => BigInt(bucket[metric]) > value ? BigInt(bucket[metric]) : value, 0n);
+  return max === 0n ? [] : buckets.filter((bucket) => BigInt(bucket[metric]) === max);
+};
 
 const EMPTY: Omit<AggregateRow, "period"> = { revenue: "0", completedOrders: "0", cancelledOrders: "0", uniqueCustomers: "0" };
 
@@ -21,12 +33,16 @@ const EMPTY: Omit<AggregateRow, "period"> = { revenue: "0", completedOrders: "0"
 export class AnalyticsService {
   constructor(private readonly dataSource: DataSource, private readonly subscriptions: SubscriptionsService) {}
 
-  async overview(coffeeShopId: string, timezone: string, query: AnalyticsQueryDto) {
-    await this.subscriptions.requireFeature(coffeeShopId, SubscriptionFeatures.Analytics);
+  private ranges(timezone: string, query: AnalyticsQueryDto) {
     if (query.period === "custom" ? !query.start || !query.end : query.start !== undefined || query.end !== undefined) {
       throw new BadRequestException("Start and end are allowed only together for a custom period");
     }
-    const ranges = analyticsRanges(query.period, timezone, query.start, query.end);
+    return analyticsRanges(query.period, timezone, query.start, query.end);
+  }
+
+  async overview(coffeeShopId: string, timezone: string, query: AnalyticsQueryDto) {
+    await this.subscriptions.requireFeature(coffeeShopId, SubscriptionFeatures.Analytics);
+    const ranges = this.ranges(timezone, query);
     const granularity = analyticsGranularity(ranges.current);
     const [rows, points] = await Promise.all([this.dataSource.query<AggregateRow[]>(`
       WITH bounds AS (
@@ -67,6 +83,53 @@ export class AnalyticsService {
         revenueToman: { key: "revenueToman", label: "فروش", points: points.map((point) => ({ bucket: point.bucket, label: point.bucket, value: point.revenue })) },
         completedOrders: { key: "completedOrders", label: "سفارش‌های تکمیل‌شده", points: points.map((point) => ({ bucket: point.bucket, label: point.bucket, value: point.orders })) },
         averageOrderValueToman: { key: "averageOrderValueToman", label: "میانگین هر سفارش", points: points.map((point) => ({ bucket: point.bucket, label: point.bucket, value: average({ ...EMPTY, revenue: point.revenue, completedOrders: point.orders }).toString() })) },
+      },
+    };
+  }
+
+  async timeDistribution(coffeeShopId: string, timezone: string, query: AnalyticsQueryDto) {
+    await this.subscriptions.requireFeature(coffeeShopId, SubscriptionFeatures.Analytics);
+    const { current } = this.ranges(timezone, query);
+    const rows = await this.dataSource.query<TimeRow[]>(`
+      WITH bounds AS (
+        SELECT $2::timestamp AT TIME ZONE $5 AS start_at,
+               $3::timestamp AT TIME ZONE $5 AS end_at
+      )
+      SELECT to_char(o.status_changed_at AT TIME ZONE $5, 'YYYY-MM-DD') AS date,
+             EXTRACT(HOUR FROM o.status_changed_at AT TIME ZONE $5)::int AS hour,
+             SUM(o.total_amount_toman)::text AS revenue, COUNT(*)::text AS orders
+      FROM orders o CROSS JOIN bounds b
+      WHERE o.coffee_shop_id = $1 AND o.status = $4::order_status
+        AND o.status_changed_at >= b.start_at AND o.status_changed_at < b.end_at
+      GROUP BY 1, 2 ORDER BY 1, 2
+    `, [coffeeShopId, current.start, current.endExclusive, COMPLETED_ORDER_STATUS, timezone]);
+    const hours = Array.from({ length: 24 }, (_, hour) => ({ hour, ...emptyBucket() }));
+    const weekdays = WEEKDAYS.map((weekday) => ({ weekday, ...emptyBucket() }));
+    const heatmap = WEEKDAYS.flatMap((weekday) => hours.map(({ hour }) => ({ weekday, hour, ...emptyBucket() })));
+    const dates: Array<{ date: string } & TimeBucket> = [];
+    const daily = new Map<string, (typeof dates)[number]>();
+    for (let timestamp = Date.parse(`${current.start}T00:00:00Z`); timestamp < Date.parse(`${current.endExclusive}T00:00:00Z`); timestamp += 86400000) {
+      const date = new Date(timestamp).toISOString().slice(0, 10);
+      const bucket = { date, ...emptyBucket() };
+      dates.push(bucket);
+      daily.set(date, bucket);
+    }
+    for (const row of rows) {
+      const weekdayIndex = (new Date(`${row.date}T00:00:00Z`).getUTCDay() + 1) % 7;
+      add(hours[row.hour]!, row);
+      add(weekdays[weekdayIndex]!, row);
+      add(heatmap[weekdayIndex * 24 + row.hour]!, row);
+      add(daily.get(row.date)!, row);
+    }
+    const activeDates = dates.filter((date) => BigInt(date.completedOrders) > 0n);
+    const lowestRevenue = activeDates.reduce<bigint | null>((lowest, date) => lowest === null || BigInt(date.revenue) < lowest ? BigInt(date.revenue) : lowest, null);
+    return {
+      period: query.period, timezone, current, hours, weekdays, heatmap, dates,
+      peaks: {
+        revenueHours: peak(hours, "revenue"), orderHours: peak(hours, "completedOrders"),
+        revenueWeekdays: peak(weekdays, "revenue"), orderWeekdays: peak(weekdays, "completedOrders"),
+        revenueDates: peak(dates, "revenue"), orderDates: peak(dates, "completedOrders"),
+        lowestActiveRevenueDates: lowestRevenue === null ? [] : activeDates.filter((date) => BigInt(date.revenue) === lowestRevenue),
       },
     };
   }

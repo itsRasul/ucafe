@@ -405,3 +405,10 @@ The footer location map uses the classic keyless Google Maps embed (`https://map
 - **Decision:** `analytics` joins the existing plan feature registry; Golden is seeded `true` only when the key is absent. All tenant Analytics reads call the common entitlement resolver after administrative authorization. One Overview response includes zero-filled, local-time revenue/order/AOV series.
 - **Reasoning:** plan names and a separate Analytics entitlement system would drift from platform-admin edits and subscription transitions. One grouped series query reuses the Phase 0 outcome timestamp and index.
 - **Consequences:** plan admins can remove Analytics from Golden or grant it to another plan without code changes. [ANALYTICS.md](ANALYTICS.md) records the API and the Phase 2 starting point.
+
+## D-052 — Time distributions reuse delivered outcome time
+
+- **Status:** implemented on 2026-09-23
+- **Decision:** group delivered orders by their `status_changed_at` converted to the cafe's IANA timezone. Return one period-specific distribution response with complete 24-hour, Saturday-first weekday, 7 × 24, and daily projections. Return all positive peak ties and exclude inactive dates from the weakest-date result.
+- **Reasoning:** this preserves the Phase 0 revenue event and local date semantics while one tenant-filtered grouped query supplies all Phase 2 views.
+- **Consequences:** a one-day range describes only that day; it is not evidence of a recurring weekly pattern. Calendar dates remain Gregorian in the API and display in Jalali in the owner UI. No migration or feature key was added.

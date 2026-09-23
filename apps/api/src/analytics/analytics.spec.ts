@@ -47,6 +47,25 @@ test("direct overview access stops before SQL when analytics is not entitled", a
   assert.equal(queried, false);
 });
 
+test("direct time access stops before SQL when analytics is not entitled", async () => {
+  let queried = false;
+  const service = new AnalyticsService({ query: async () => { queried = true; return []; } } as unknown as DataSource, { requireFeature: async () => { throw new ForbiddenException({ code: "FEATURE_UNAVAILABLE", feature: "analytics" }); } } as never);
+  await assert.rejects(service.timeDistribution("tenant-a", "Asia/Tehran", { period: "today" }), ForbiddenException);
+  assert.equal(queried, false);
+});
+
+test("time peaks return every tie and never promote empty buckets", async () => {
+  const rows = [
+    { date: "2026-01-02", hour: 3, revenue: "20", orders: "1" },
+    { date: "2026-01-02", hour: 5, revenue: "20", orders: "1" },
+  ];
+  const service = new AnalyticsService({ query: async () => rows } as unknown as DataSource, { requireFeature: async () => undefined } as never);
+  const result = await service.timeDistribution("tenant-a", "UTC", { period: "custom", start: "2026-01-02", end: "2026-01-02" });
+  assert.deepEqual(result.peaks.revenueHours.map((hour) => hour.hour), [3, 5]);
+  assert.deepEqual(result.peaks.orderHours.map((hour) => hour.hour), [3, 5]);
+  assert.equal(result.peaks.revenueWeekdays[0]?.weekday, "friday");
+});
+
 test("comparisons retain exact integers and null zero-base growth", () => {
   assert.equal(compareMetric(150n, 100n).changePercent, "50.00");
   assert.equal(compareMetric(50n, 100n).changePercent, "-50.00");
@@ -96,6 +115,36 @@ test("SQL overview excludes pending/cancelled revenue and isolates cafes", { ski
       assert.equal(a.series.completedOrders.points.reduce((sum, point) => sum + BigInt(point.value), 0n), 3n);
       assert.equal(a.series.revenueToman.points.filter((point) => point.value === "0").length, 22);
       assert.equal(a.series.revenueToman.points[0]?.value, "1");
+      const time = await service.timeDistribution(tenantA, "Asia/Tehran", query);
+      assert.equal(time.hours.length, 24);
+      assert.equal(time.weekdays.length, 7);
+      assert.equal(time.heatmap.length, 168);
+      assert.equal(time.dates.length, 1);
+      assert.equal(time.hours[0]?.revenue, "1");
+      assert.equal(time.hours[4]?.revenue, "301");
+      assert.equal(time.hours[1]?.completedOrders, "0");
+      assert.equal(time.weekdays[6]?.weekday, "friday");
+      assert.equal(time.weekdays[6]?.revenue, "302");
+      assert.equal(time.heatmap[6 * 24 + 4]?.completedOrders, "2");
+      assert.equal(time.peaks.revenueHours[0]?.hour, 4);
+      assert.equal(time.peaks.orderHours[0]?.hour, 4);
+      assert.equal(time.peaks.revenueDates[0]?.date, "2026-01-02");
+      assert.equal(time.peaks.lowestActiveRevenueDates[0]?.date, "2026-01-02");
+      const utcTime = await service.timeDistribution(tenantA, "UTC", query);
+      assert.equal(utcTime.hours[1]?.revenue, "301");
+      assert.equal(utcTime.dates[0]?.revenue, "301");
+      const otherTime = await service.timeDistribution(tenantB, "Asia/Tehran", query);
+      assert.equal(otherTime.dates[0]?.revenue, "9999");
+      assert.equal(otherTime.hours[4]?.revenue, "9999");
+      const spanning = await service.timeDistribution(tenantA, "Asia/Tehran", { period: "custom", start: "2026-01-01", end: "2026-01-03" });
+      assert.deepEqual(spanning.dates.map((day) => day.revenue), ["50", "302", "0"]);
+      assert.equal(spanning.weekdays[5]?.revenue, "50");
+      assert.equal(spanning.weekdays[6]?.revenue, "302");
+      assert.equal(spanning.peaks.lowestActiveRevenueDates[0]?.date, "2026-01-01");
+      const emptyTime = await service.timeDistribution(tenantA, "Asia/Tehran", { period: "custom", start: "2026-01-03", end: "2026-01-03" });
+      assert.equal(emptyTime.dates[0]?.revenue, "0");
+      assert.equal(emptyTime.peaks.revenueHours.length, 0);
+      assert.equal(emptyTime.heatmap.every((cell) => cell.completedOrders === "0"), true);
       const b = await service.overview(tenantB, "Asia/Tehran", query);
       assert.equal(b.metrics.revenueToman.value, "9999");
       assert.ok(entitled.includes(tenantA) && entitled.includes(tenantB));
