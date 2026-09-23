@@ -29,6 +29,12 @@ export class OrderItem {
   @Column({ name: "variant_name", type: "varchar", length: 80, nullable: true })
   variantName!: string | null;
 
+  @Column({ name: "category_id_snapshot", type: "uuid", nullable: true })
+  categoryIdSnapshot!: string | null;
+
+  @Column({ name: "category_name_snapshot", type: "varchar", length: 100, nullable: true })
+  categoryNameSnapshot!: string | null;
+
   @Column({ name: "unit_price_toman", type: "bigint" })
   unitPriceToman!: string;
 

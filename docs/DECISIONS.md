@@ -412,3 +412,10 @@ The footer location map uses the classic keyless Google Maps embed (`https://map
 - **Decision:** group delivered orders by their `status_changed_at` converted to the cafe's IANA timezone. Return one period-specific distribution response with complete 24-hour, Saturday-first weekday, 7 × 24, and daily projections. Return all positive peak ties and exclude inactive dates from the weakest-date result.
 - **Reasoning:** this preserves the Phase 0 revenue event and local date semantics while one tenant-filtered grouped query supplies all Phase 2 views.
 - **Consequences:** a one-day range describes only that day; it is not evidence of a recurring weekly pattern. Calendar dates remain Gregorian in the API and display in Jalali in the owner UI. No migration or feature key was added.
+
+## D-053 — Product analytics uses immutable sale lines and category snapshots
+
+- **Status:** implemented on 2026-09-23
+- **Decision:** aggregate Phase 3 product revenue, quantity, and containing-order counts from delivered `order_items`, keyed by stable menu item ID and falling back to the item-name snapshot only when the source no longer exists. Snapshot category ID/name on every new order item and report category-at-sale. Rank growth and decline by absolute revenue change while retaining the shared percentage comparison.
+- **Reasoning:** current menu prices and current category relationships can change after a sale. Existing item price/name/variant snapshots already preserve product economics, while two category snapshot columns are the minimum schema change that prevents future category reclassification. Absolute change avoids promoting tiny percentage bases.
+- **Consequences:** migration `1787828400000` best-effort backfills old categories from current menu relationships but cannot reconstruct category moves that predate the migration. Product/category revenue currently reconciles with Overview because orders contain no discounts or fees and totals equal line sums. Variant rows remain grouped under the parent product; variant/modifier reporting is deferred.

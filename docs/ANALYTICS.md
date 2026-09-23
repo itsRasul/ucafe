@@ -47,7 +47,23 @@ The canonical event remains the current `DELIVERED` order's `status_changed_at`;
 
 `peaks` contains arrays `revenueHours`, `orderHours`, `revenueWeekdays`, `orderWeekdays`, `revenueDates`, `orderDates`, and `lowestActiveRevenueDates`. Every bucket tied for the positive maximum is returned in chronological or Saturday-first order. An empty dataset returns empty peak arrays; zero days are never called weakest. The lowest active date considers only dates with completed orders and returns all minimum-revenue ties. Peak labels describe only the selected period, including one-day selections. The UI renders separate bar charts for revenue and orders, a metric-switching weekly heatmap, and daily calendar cells with exact values available by focus, hover, and tap. Persian labels and Jalali date display are presentation only; API dates remain Gregorian ISO. The heatmap and calendar colors are selected by the UI; the API returns business values only.
 
-No payment settlement, refund ledger, historical order events, or recurring-pattern confidence measure exists. Phase 3 should begin with the order-item snapshots and category ownership rules, while preserving this phase's tenant scope and delivered-order outcome semantics.
+No payment settlement, refund ledger, historical order events, or recurring-pattern confidence measure exists.
+
+## Phase 3: product and category analytics
+
+`GET /api/v1/tenant/analytics/products` accepts the shared period fields plus `limit` (default 10, maximum 20). It returns a bounded product summary, revenue/quantity/low-performing rankings, absolute-revenue growth and decline rankings, Top 5 plus Others contribution, active products without sales, category rankings, and zero-filled trends for the five highest-revenue categories. `GET /api/v1/tenant/analytics/products/:productId` validates the UUID against the resolved tenant and returns product revenue, quantity, distinct containing-order count, realized average selling price, product revenue share, previous-period comparisons, and zero-filled revenue/quantity trends. Both routes reuse the existing administrative guards, `analytics.read` permission, effective `analytics` feature entitlement, cafe timezone, period ranges, granularity, delivered status, and `status_changed_at` semantics.
+
+Product identity is the stable `order_items.menu_item_id`. Rows whose source item is no longer addressable fall back to a snapshot key derived from `item_name`; these historical rows remain in rankings but do not expose a product-detail link. Active and soft-deleted products display the current product name so renames do not split one product into multiple identities. The response marks unavailable, archived, and no-longer-addressable products. The immutable order-item `item_name` remains the fallback display value.
+
+Product revenue is gross realized item revenue: the sum of immutable `order_items.line_total_toman` for delivered orders. Quantity is `SUM(order_items.quantity)`, not order-item row count. Orders containing a product/category use distinct order IDs. Average selling price is item revenue divided by quantity with half-up whole-toman rounding. UCafe currently has no order discount, fee, tax, tip, refund, or customer-payment ledger, and order totals are created as the exact sum of item line totals, so product/category revenue reconciles with Overview delivered value. If order-level adjustments are introduced, Analytics must define allocation before retaining this reconciliation claim.
+
+Migration `1787828400000` adds `category_id_snapshot` and `category_name_snapshot` to order items. New checkout lines copy the owned category at sale time; category aggregation therefore does not reclassify later sales when a product moves or a category is renamed/deleted. The migration backfills existing rows from each product's category at migration time. That is the best recoverable value, but it cannot reconstruct earlier category moves; rows whose product was already unlinked remain `بدون دسته‌بندی`. This pre-migration limitation is explicit and is not presented as exact historical category truth.
+
+Ranking responses never include unlimited rows. Revenue and quantity rankings are separate; the low-performing list includes only products with positive current-period sales, while active available products with zero sales are returned separately. Contribution computes Others from raw revenue (`total - Top N`) before percentage formatting. Percentages are display values truncated to two decimals and never feed financial sums. Growth and decline are sorted by absolute revenue change and also expose the centralized percentage comparison; a zero previous value produces `null`, never infinity. This avoids ranking tiny bases by percentage alone.
+
+The web adds a `محصولات و منو` Analytics tab with summary KPIs, ranking modes, exact-value tables, contribution bars, category performance/trend, tenant-validated product drill-down, growth/decline lists, and a separate zero-sale view. Tables scroll within their panels on narrow screens, selectors remain labeled, charts are keyboard-focusable, and empty/loading/error/entitlement states reuse the existing Persian RTL Analytics surface.
+
+No additional query index was added. Product queries first constrain delivered orders through `IDX_orders_tenant_status_changed` and reach their items through `IDX_order_items_order`; query plans should be checked with production-scale data before adding a product/category expression index. Variant rows remain aggregated under their parent product because the product ID is the stable sale identity. Variant and modifier analytics are deferred; modifiers are not represented as standalone saleable order items.
 
 ## Limits and extension
 
@@ -62,7 +78,7 @@ At the end of each analytics phase, update this file with implemented metrics/en
 | 0 | Analytics Foundation | Completed |
 | 1 | Overview Dashboard | Completed |
 | 2 | Time & Peak Analytics | Completed |
-| 3 | Product & Category Analytics | Not Started |
+| 3 | Product & Category Analytics | Completed |
 | 4 | Customer Analytics | Not Started |
 | 5 | Order & Channel Analytics | Not Started |
 | 6 | Reservation Analytics | Not Started |

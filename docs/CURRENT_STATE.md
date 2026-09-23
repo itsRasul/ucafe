@@ -12,6 +12,7 @@
 - Phase 0 tenant analytics foundation: delivered-order overview, timezone-aware periods, previous-period comparison, tenant `analytics.read` permission, and an outcome-time order index. See [ANALYTICS.md](ANALYTICS.md).
 - Phase 1 adds configurable Analytics plan entitlement (Golden default), zero-filled revenue/order/AOV trends, and a responsive tenant-admin overview. See [ANALYTICS.md](ANALYTICS.md).
 - Phase 2 adds tenant-local hourly and weekday distributions, a weekly and calendar heatmap, and period-specific peaks. See [ANALYTICS.md](ANALYTICS.md).
+- Phase 3 adds historical line-based product/category rankings, contribution, growth/decline, zero-sale products, category-at-sale snapshots, and product/category trends. See [ANALYTICS.md](ANALYTICS.md).
 - PostgreSQL/Redis/MinIO readiness, security headers, request IDs, backup/restore scripts, Docker development/production targets.
 
 ## Production blockers
@@ -37,6 +38,6 @@ The software is not production-ready until [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIS
 
 ## Immediate next work
 
-1. Begin Phase 3 product and category analytics from delivered order-item snapshots; keep [ANALYTICS.md](ANALYTICS.md) authoritative.
+1. Begin Phase 4 customer analytics from cafe-scoped client identity and delivered orders; keep [ANALYTICS.md](ANALYTICS.md) authoritative.
 2. Complete provider and hosting acceptance without adding unrelated product scope.
 3. Move the dispatcher to a coordinated worker before horizontal API scaling.

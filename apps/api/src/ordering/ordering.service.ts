@@ -185,7 +185,7 @@ export class OrderingService {
     const items = await manager.find(MenuItem, { where: { id: In(lines.map((line) => line.menuItemId)), coffeeShopId, deletedAt: IsNull() }, relations: { variants: true, category: true } });
     const itemById = new Map(items.map((item) => [item.id, item]));
     const unavailable: UnavailableLine[] = [];
-    const priced: Array<Pick<OrderItem, "menuItemId" | "menuItemVariantId" | "itemName" | "variantName" | "unitPriceToman" | "quantity" | "lineTotalToman">> = [];
+    const priced: Array<Pick<OrderItem, "menuItemId" | "menuItemVariantId" | "itemName" | "variantName" | "categoryIdSnapshot" | "categoryNameSnapshot" | "unitPriceToman" | "quantity" | "lineTotalToman">> = [];
 
     for (const line of lines) {
       const item = itemById.get(line.menuItemId);
@@ -206,7 +206,7 @@ export class OrderingService {
       }
       if (unitPrice === null) { unavailable.push({ menuItemId: item.id, variantId: line.variantId ?? null, reason: "PRICE_UNAVAILABLE", name: item.name }); continue; }
       const lineTotal = BigInt(unitPrice) * BigInt(line.quantity);
-      priced.push({ menuItemId: item.id, menuItemVariantId: variant?.id ?? null, itemName: item.name, variantName: variant?.name ?? null, unitPriceToman: unitPrice, quantity: line.quantity, lineTotalToman: lineTotal.toString() });
+      priced.push({ menuItemId: item.id, menuItemVariantId: variant?.id ?? null, itemName: item.name, variantName: variant?.name ?? null, categoryIdSnapshot: item.category.id, categoryNameSnapshot: item.category.name, unitPriceToman: unitPrice, quantity: line.quantity, lineTotalToman: lineTotal.toString() });
     }
 
     if (unavailable.length) throw new ConflictException({ code: "ORDER_ITEM_UNAVAILABLE", message: "Some cart items are no longer available", items: unavailable });

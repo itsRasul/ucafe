@@ -1,11 +1,11 @@
-import { Controller, Get, Query, Req, UseGuards } from "@nestjs/common";
+import { Controller, Get, Param, ParseUUIDPipe, Query, Req, UseGuards } from "@nestjs/common";
 import { AccessTokenGuard } from "../auth/access-token.guard";
 import { RequireTenantPermissions } from "../authorization/authorization.decorators";
 import { TenantPermissions } from "../authorization/permission.constants";
 import { TenantPermissionGuard } from "../authorization/tenant-permission.guard";
 import { TENANT_CONTEXT, TenantContextRequest } from "../tenants/tenant-context";
 import { TenantContextGuard } from "../tenants/tenant-context.guard";
-import { AnalyticsQueryDto } from "./analytics.dto";
+import { AnalyticsQueryDto, ProductAnalyticsQueryDto } from "./analytics.dto";
 import { AnalyticsService } from "./analytics.service";
 
 @Controller("tenant/analytics")
@@ -25,5 +25,19 @@ export class AnalyticsController {
   timeDistribution(@Req() req: TenantContextRequest, @Query() query: AnalyticsQueryDto) {
     const tenant = req[TENANT_CONTEXT]!;
     return this.analytics.timeDistribution(tenant.coffeeShopId, tenant.timezone, query);
+  }
+
+  @Get("products")
+  @RequireTenantPermissions(TenantPermissions.AnalyticsRead)
+  products(@Req() req: TenantContextRequest, @Query() query: ProductAnalyticsQueryDto) {
+    const tenant = req[TENANT_CONTEXT]!;
+    return this.analytics.products(tenant.coffeeShopId, tenant.timezone, query);
+  }
+
+  @Get("products/:productId")
+  @RequireTenantPermissions(TenantPermissions.AnalyticsRead)
+  product(@Req() req: TenantContextRequest, @Param("productId", ParseUUIDPipe) productId: string, @Query() query: AnalyticsQueryDto) {
+    const tenant = req[TENANT_CONTEXT]!;
+    return this.analytics.product(tenant.coffeeShopId, tenant.timezone, productId, query);
   }
 }

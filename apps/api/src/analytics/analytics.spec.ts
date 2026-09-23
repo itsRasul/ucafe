@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 import { DataSource } from "typeorm";
-import { ForbiddenException } from "@nestjs/common";
+import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
-import { AnalyticsQueryDto, compareMetric } from "./analytics.dto";
+import { AnalyticsQueryDto, compareMetric, percentOf, ProductAnalyticsQueryDto } from "./analytics.dto";
 import { analyticsGranularity, analyticsRanges } from "./analytics-period";
 import { AnalyticsService } from "./analytics.service";
 
@@ -71,11 +71,22 @@ test("comparisons retain exact integers and null zero-base growth", () => {
   assert.equal(compareMetric(50n, 100n).changePercent, "-50.00");
   assert.equal(compareMetric(100n, 100n).changePercent, "0.00");
   assert.equal(compareMetric(100n, 0n).changePercent, null);
+  assert.equal(percentOf(1n, 3n), "33.33");
+  assert.equal(percentOf(0n, 0n), "0.00");
 });
 
 test("analytics query rejects unknown periods and malformed dates", async () => {
   assert.ok((await validate(plainToInstance(AnalyticsQueryDto, { period: "tomorrow" }))).length > 0);
   assert.ok((await validate(plainToInstance(AnalyticsQueryDto, { period: "custom", start: "2026/01/01" }))).length > 0);
+  assert.ok((await validate(plainToInstance(ProductAnalyticsQueryDto, { limit: 21 }))).length > 0);
+});
+
+test("direct product analytics stops before SQL when analytics is not entitled", async () => {
+  let queried = false;
+  const service = new AnalyticsService({ query: async () => { queried = true; return []; } } as unknown as DataSource, { requireFeature: async () => { throw new ForbiddenException({ code: "FEATURE_UNAVAILABLE" }); } } as never);
+  await assert.rejects(service.products("tenant-a", "UTC", { period: "today", limit: 10 }), ForbiddenException);
+  await assert.rejects(service.product("tenant-a", "UTC", randomUUID(), { period: "today" }), ForbiddenException);
+  assert.equal(queried, false);
 });
 
 test("SQL overview excludes pending/cancelled revenue and isolates cafes", { skip: !process.env.ANALYTICS_INTEGRATION_DATABASE_URL }, async () => {
@@ -164,6 +175,70 @@ test("SQL overview excludes pending/cancelled revenue and isolates cafes", { ski
       const year = await service.overview(tenantA, "Asia/Tehran", { period: "custom", start: "2025-02-01", end: "2026-01-02" });
       assert.equal(year.granularity, "month");
       assert.equal(year.series.revenueToman.points.length, 12);
+      throw rollback;
+    }), (error: unknown) => error === rollback);
+  } finally { await db.destroy(); }
+});
+
+test("SQL product analytics uses item/category snapshots, quantities, comparison periods, and tenant scope", { skip: !process.env.ANALYTICS_INTEGRATION_DATABASE_URL }, async () => {
+  const db = new DataSource({ type: "postgres", url: process.env.ANALYTICS_INTEGRATION_DATABASE_URL });
+  await db.initialize();
+  const rollback = new Error("rollback product analytics fixture");
+  try {
+    await assert.rejects(db.transaction(async (manager) => {
+      const tenantA = randomUUID(), tenantB = randomUUID(), clientA = randomUUID(), clientB = randomUUID();
+      for (const id of [tenantA, tenantB]) await manager.query(`INSERT INTO coffee_shops(id,name,slug,status) VALUES($1,'Product Analytics Test',$2,'ACTIVE')`, [id, `product-analytics-${id}`]);
+      await manager.query(`INSERT INTO clients(id,coffee_shop_id,first_name,last_name,phone) VALUES($1,$2,'Test','Client',$3),($4,$5,'Test','Client',$6)`, [clientA, tenantA, "+989110000001", clientB, tenantB, "+989110000002"]);
+      const coffeeA = randomUUID(), foodA = randomUUID(), coffeeB = randomUUID();
+      await manager.query(`INSERT INTO menu_categories(id,coffee_shop_id,name,is_active) VALUES($1,$2,'قهوه',true),($3,$2,'غذا',true),($4,$5,'قهوه دیگر',true)`, [coffeeA, tenantA, foodA, coffeeB, tenantB]);
+      const latte = randomUUID(), sandwich = randomUUID(), zeroSale = randomUUID(), foreign = randomUUID();
+      await manager.query(`INSERT INTO menu_items(id,coffee_shop_id,category_id,name,base_price_toman,is_available) VALUES($1,$2,$3,'لاته',100,true),($4,$2,$5,'ساندویچ',200,true),($6,$2,$5,'بدون فروش',50,true),($7,$8,$9,'محصول خارجی',999,true)`, [latte, tenantA, coffeeA, sandwich, foodA, zeroSale, foreign, tenantB, coffeeB]);
+      const order = async (tenant: string, client: string, status: string, total: string, changed: string) => (await manager.query(
+        `INSERT INTO orders(coffee_shop_id,client_id,status,payment_method,delivery_method,total_amount_toman,idempotency_key,status_changed_at) VALUES($1,$2,$3::order_status,'OFFLINE','PICKUP',$4,$5,$6) RETURNING id`,
+        [tenant, client, status, total, randomUUID(), changed],
+      ))[0].id as string;
+      const item = (tenant: string, orderId: string, productId: string, name: string, categoryId: string, categoryName: string, price: string, quantity: number) => manager.query(
+        `INSERT INTO order_items(coffee_shop_id,order_id,menu_item_id,item_name,category_id_snapshot,category_name_snapshot,unit_price_toman,quantity,line_total_toman) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [tenant, orderId, productId, name, categoryId, categoryName, price, quantity, (BigInt(price) * BigInt(quantity)).toString()],
+      );
+      await item(tenantA, await order(tenantA, clientA, "DELIVERED", "300", "2026-01-02T01:00:00Z"), latte, "لاته", coffeeA, "قهوه", "100", 3);
+      await item(tenantA, await order(tenantA, clientA, "DELIVERED", "200", "2026-01-02T02:00:00Z"), sandwich, "ساندویچ", foodA, "غذا", "200", 1);
+      await item(tenantA, await order(tenantA, clientA, "DELIVERED", "80", "2026-01-01T01:00:00Z"), latte, "لاته قدیم", coffeeA, "قهوه", "80", 1);
+      await item(tenantA, await order(tenantA, clientA, "CANCELED", "900", "2026-01-02T03:00:00Z"), latte, "لاته", coffeeA, "قهوه", "300", 3);
+      await item(tenantB, await order(tenantB, clientB, "DELIVERED", "999", "2026-01-02T01:00:00Z"), foreign, "محصول خارجی", coffeeB, "قهوه دیگر", "999", 1);
+      await manager.query(`UPDATE menu_items SET name='لاته جدید', category_id=$2, deleted_at=now() WHERE id=$1`, [latte, foodA]);
+
+      const service = new AnalyticsService({ query: (sql: string, parameters: unknown[]) => manager.query(sql, parameters) } as DataSource, { requireFeature: async () => undefined } as never);
+      const query = { period: "custom" as const, start: "2026-01-02", end: "2026-01-02", limit: 1 };
+      const report = await service.products(tenantA, "Asia/Tehran", query);
+      assert.equal(report.totals.productRevenueToman, "500");
+      assert.equal(report.totals.quantitySold, "4");
+      assert.equal(report.rankings.byRevenue[0]?.name, "لاته جدید");
+      assert.equal(report.rankings.byRevenue[0]?.status, "archived");
+      assert.equal(report.rankings.byRevenue[0]?.quantitySold.value, "3");
+      assert.equal(report.rankings.byRevenue[0]?.ordersContainingProduct.value, "1");
+      assert.equal(report.rankings.byRevenue[0]?.revenueToman.previousValue, "80");
+      assert.equal(report.contribution[0]?.revenueToman.value, "300");
+      assert.equal(report.contribution[1]?.name, "سایر محصولات");
+      assert.equal(report.contribution[1]?.revenueToman.value, "200");
+      assert.equal(report.categories.find((category) => category.name === "قهوه")?.revenueToman.value, "300");
+      assert.equal(report.categories.find((category) => category.name === "غذا")?.revenueToman.value, "200");
+      assert.equal(report.summary.activeProductsWithoutSales, "1");
+      assert.equal(report.zeroSaleProducts[0]?.productId, zeroSale);
+      assert.ok(report.categoryTrends.every((point) => point.name !== "قهوه دیگر"));
+
+      const detail = await service.product(tenantA, "Asia/Tehran", latte, query);
+      assert.equal(detail.product.status, "archived");
+      assert.equal(detail.metrics.revenueToman.value, "300");
+      assert.equal(detail.metrics.quantitySold.value, "3");
+      assert.equal(detail.metrics.ordersContainingProduct.value, "1");
+      assert.equal(detail.metrics.averageSellingPriceToman, "100");
+      assert.equal(detail.metrics.revenueSharePercent, "60.00");
+      assert.equal(detail.series.quantitySold.points.reduce((sum, point) => sum + BigInt(point.value), 0n), 3n);
+      await assert.rejects(service.product(tenantA, "Asia/Tehran", foreign, query), NotFoundException);
+      const other = await service.products(tenantB, "Asia/Tehran", query);
+      assert.equal(other.rankings.byRevenue[0]?.name, "محصول خارجی");
+      assert.equal(other.totals.productRevenueToman, "999");
       throw rollback;
     }), (error: unknown) => error === rollback);
   } finally { await db.destroy(); }
