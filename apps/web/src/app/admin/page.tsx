@@ -8,6 +8,7 @@ const modules: Array<{ title: string; detail: string; href: string; permissions:
   { title: "منو", detail: "دسته‌بندی‌ها، آیتم‌ها و قیمت‌ها", href: "/admin/menu", permissions: ["menu.read", "menu.manage"] },
   { title: "رزروها", detail: "صف درخواست‌ها و تنظیمات پذیرش", href: "/admin/reservations", permissions: ["reservations.read", "reservations.manage"] },
   { title: "سفارش آنلاین", detail: "سفارش‌ها، وضعیت آماده‌سازی و تنظیمات تحویل", href: "/admin/orders", permissions: ["orders.read", "orders.manage"] },
+  { title: "آمار و تحلیل", detail: "فروش، سفارش‌ها و روند عملکرد", href: "/admin/analytics", permissions: ["analytics.read"] },
   { title: "اشتراک", detail: "وضعیت طرح و دوره فعال", href: "/admin/subscription", permissions: ["subscription.read"] },
   { title: "فاکتورها", detail: "سوابق تمدید و پرداخت‌ها", href: "/admin/invoices", permissions: ["subscription.read"] },
 ];

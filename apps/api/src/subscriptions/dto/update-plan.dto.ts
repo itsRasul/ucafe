@@ -6,6 +6,7 @@ export class UpdatePlanFeaturesDto {
   @IsOptional() @IsBoolean() menu?: boolean;
   @IsOptional() @IsBoolean() reservations?: boolean;
   @IsOptional() @IsBoolean() onlineOrdering?: boolean;
+  @IsOptional() @IsBoolean() analytics?: boolean;
 }
 
 export class UpdatePlanDto {
@@ -18,5 +19,5 @@ export class UpdatePlanDto {
   @IsOptional() @IsInt() @Min(0) @Max(90) trialDays?: number;
   @IsOptional() @IsInt() @Min(0) @Max(90) graceDays?: number;
   @IsOptional() @ValidateNested() @Type(() => UpdatePlanFeaturesDto) features?: UpdatePlanFeaturesDto;
-  @IsOptional() @IsArray() @ArrayUnique() @IsIn(["menu", "reservations", "onlineOrdering"], { each: true }) highlightedFeatureKeys?: string[];
+  @IsOptional() @IsArray() @ArrayUnique() @IsIn(["menu", "reservations", "onlineOrdering", "analytics"], { each: true }) highlightedFeatureKeys?: string[];
 }

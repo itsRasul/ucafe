@@ -12,7 +12,7 @@ Migration defaults are Silver 1,900,000 toman and Golden 2,900,000 toman, both w
 
 ## Feature gates
 
-Known plan features are `menu`, `reservations`, and `onlineOrdering`. Their Persian labels, types, order, and enforcement semantics live in one registry. Platform edits preserve unknown legacy JSON keys. A module is enabled only when:
+Known plan features are `menu`, `reservations`, `onlineOrdering`, and `analytics`. Their Persian labels, types, order, and enforcement semantics live in one registry. Golden has Analytics on by default, but administrators can edit the flag on any plan. Platform edits preserve unknown legacy JSON keys. A module is enabled only when:
 
 1. the subscription effective status is `TRIALING`, `ACTIVE`, or `GRACE`; and
 2. the current plan feature value is `true`.

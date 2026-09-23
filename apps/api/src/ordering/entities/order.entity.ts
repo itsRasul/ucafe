@@ -26,6 +26,7 @@ export enum OrderDeliveryMethod {
 @Unique("UQ_orders_client_idempotency", ["coffeeShopId", "clientId", "idempotencyKey"])
 @Index("IDX_orders_tenant_created", ["coffeeShopId", "createdAt"])
 @Index("IDX_orders_tenant_status_created", ["coffeeShopId", "status", "createdAt"])
+@Index("IDX_orders_tenant_status_changed", ["coffeeShopId", "status", "statusChangedAt"])
 export class Order {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

@@ -392,3 +392,16 @@ The footer location map uses the classic keyless Google Maps embed (`https://map
 - **Decision:** `PRD.md` is the single current product source of truth. Focused architecture, security, domain, development, testing, operations, and current-state documents describe implemented behavior. The obsolete `MVP.md`, `PROJECT_SPEC.md`, `PLAN.md`, and giant `PROGRESS.md` are removed; this file remains the historical decision record.
 - **Reasoning:** phase-era documents contradicted implemented ordering, clients, plans, providers, media, Docker, and operations and forced every agent to load duplicate history.
 - **Consequences:** `AGENTS.md` routes changes to only the relevant documents. Git history retains implementation chronology; `CURRENT_STATE.md` carries only active blockers, debt, and next work. Documentation/code disagreement must be investigated rather than resolved by blindly trusting either source.
+## D-050 — Delivered order value anchors Phase 0 analytics
+
+- **Status:** implemented on 2026-09-23
+- **Decision:** report delivered order value at the terminal status timestamp as `revenueToman`, with an explicit caveat that offline payment has no settlement proof. Use the existing cafe timezone and client identity, one tenant-filtered PostgreSQL aggregate, and a dedicated `analytics.read` permission. Keep all integer values as decimal strings.
+- **Reasoning:** order totals and terminal states are the only trustworthy cafe-sales facts currently stored. Subscription payment records belong to platform billing and must not be mixed into cafe sales.
+- **Consequences:** payment collection, refunds, historical status events, and trend charts require later schema and endpoints. [ANALYTICS.md](ANALYTICS.md) is the canonical technical reference and roadmap.
+
+## D-051 — Analytics access follows configurable plan features
+
+- **Status:** implemented on 2026-09-23
+- **Decision:** `analytics` joins the existing plan feature registry; Golden is seeded `true` only when the key is absent. All tenant Analytics reads call the common entitlement resolver after administrative authorization. One Overview response includes zero-filled, local-time revenue/order/AOV series.
+- **Reasoning:** plan names and a separate Analytics entitlement system would drift from platform-admin edits and subscription transitions. One grouped series query reuses the Phase 0 outcome timestamp and index.
+- **Consequences:** plan admins can remove Analytics from Golden or grant it to another plan without code changes. [ANALYTICS.md](ANALYTICS.md) records the API and the Phase 2 starting point.

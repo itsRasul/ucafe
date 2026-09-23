@@ -34,6 +34,7 @@ The product is aimed at independent cafes that need a professional storefront, e
 - Plan-gated online ordering supports a cart and checkout, pickup or courier delivery, saved/new addresses, customer notes, offline payment, customer order history, and tenant-admin order processing.
 - The server re-resolves every item/variant and calculates current prices. Customer-submitted totals are never trusted.
 - Customer order payment is not implemented; the current order payment method is offline only.
+- Tenant owners can read a Phase 0 analytics overview of delivered order value, completed/cancelled orders, unique purchasing clients, and average order value with local-period comparisons. Delivered value is not verified cash collection; see [ANALYTICS.md](ANALYTICS.md).
 
 ### Reservations
 

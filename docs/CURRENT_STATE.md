@@ -1,6 +1,6 @@
 # Current state
 
-**Reviewed:** 2026-09-18 (Asia/Tehran)
+**Reviewed:** 2026-09-23 (Asia/Tehran)
 
 ## Implemented
 
@@ -9,6 +9,8 @@
 - Owner admin and platform operations panels, including plan controls, renewal invoices/payment intents, consultation requests, and audit history.
 - Trial/prepaid/grace/suspension lifecycle, plan feature gates, simulated and Zarinpal payment adapters.
 - Development and sms.ir providers plus an encrypted, deduplicated transactional notification outbox.
+- Phase 0 tenant analytics foundation: delivered-order overview, timezone-aware periods, previous-period comparison, tenant `analytics.read` permission, and an outcome-time order index. See [ANALYTICS.md](ANALYTICS.md).
+- Phase 1 adds configurable Analytics plan entitlement (Golden default), zero-filled revenue/order/AOV trends, and a responsive tenant-admin overview. See [ANALYTICS.md](ANALYTICS.md).
 - PostgreSQL/Redis/MinIO readiness, security headers, request IDs, backup/restore scripts, Docker development/production targets.
 
 ## Production blockers
@@ -21,7 +23,6 @@ The software is not production-ready until [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIS
 
 ## Known technical debt
 
-- `npm test` currently passes 66 of 67 tests; `apps/api/src/clients/client-panel.service.spec.ts` constructs `OrderingService` with two arguments after the service gained a third dependency.
 - Notifications are dispatched by an in-process five-second API timer. Conditional row claims prevent duplicate sends, but multiple API replicas duplicate scans/scheduled sweeps and have no dedicated worker coordination.
 - The worker workspace is only a bootstrap scaffold; media processing and notification scheduling still run in the API.
 - Redis is required and probed by readiness but is not currently used for OTP throttling or application caching.
@@ -35,6 +36,6 @@ The software is not production-ready until [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIS
 
 ## Immediate next work
 
-1. Repair the stale test constructor and restore a green full suite.
+1. Build Phase 2 peak-time analytics using [ANALYTICS.md](ANALYTICS.md).
 2. Complete provider and hosting acceptance without adding unrelated product scope.
 3. Move the dispatcher to a coordinated worker before horizontal API scaling.

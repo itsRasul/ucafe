@@ -2,7 +2,7 @@
 
 ## Current automated checks
 
-The API uses Node's built-in test runner with `ts-node/register`; no Jest setup exists. The explicit package script covers environment fail-closed behavior, sms.ir contracts, host/proxy trust, authorization guards, auth crypto/tokens/phone, client authentication/panel logic, subscription lifecycle/features, site/menu rules, reservation time rules, order transitions, notification formatting, media validation/storage behavior, payment gateways, consultation requests, and platform access.
+The API uses Node's built-in test runner with `ts-node/register`; no Jest setup exists. The explicit package script covers environment fail-closed behavior, sms.ir contracts, host/proxy trust, authorization guards, auth crypto/tokens/phone, client authentication/panel logic, subscription lifecycle/features, site/menu rules, reservation time rules, order transitions, analytics periods/comparisons, notification formatting, media validation/storage behavior, payment gateways, consultation requests, and platform access. Analytics SQL isolation and aggregation run against PostgreSQL when `ANALYTICS_INTEGRATION_DATABASE_URL` is set; the fixture rolls back.
 
 The web and worker have typecheck/build scripts but no automated component/browser test suite. The root scripts run workspace checks where present:
 
@@ -16,9 +16,7 @@ There is no lint script and no durable Playwright/Cypress-style E2E suite.
 
 ## Current result
 
-On 2026-09-18, `npm test` reported 67 tests: 66 passed and one test file failed to compile. `apps/api/src/clients/client-panel.service.spec.ts` constructs `OrderingService` with two arguments while the implementation requires three. This is pre-existing application/test debt and was not modified during the documentation-only audit.
-
-Do not describe the full suite as passing until that mismatch is fixed and rerun.
+On 2026-09-23, the stale `OrderingService` test fixture was repaired. The API suite passed with the analytics PostgreSQL integration test enabled; root workspace typechecks and API build also passed.
 
 ## Migration and live checks
 

@@ -30,6 +30,7 @@ Examples include role assignment, menu item/variant/category, reservation branch
 - positive/nonnegative plan, menu, order, capacity, interval, and image metadata checks
 - one active logo/hero and menu-item image slot; gallery/key/focal/order constraints
 - globally unique notification deduplication key
+- `(coffee_shop_id, status, status_changed_at)` index for tenant outcome-time analytics
 
 Soft deletion is used for cafes/domains/branches/users/menu/category/items/client addresses/media where defined. Historical orders, order items, reservations, subscription payments, intents, and audit events are retained rather than soft-deleted through current product APIs.
 

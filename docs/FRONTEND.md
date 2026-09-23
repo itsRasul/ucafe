@@ -7,7 +7,7 @@
 - `/`: platform marketing page on the base host; resolved tenant storefront on tenant hosts; controlled unavailable state for suspended tenants.
 - `/menu`, `/cart`, `/checkout`, `/checkout/result`, `/reserve`, `/login`: tenant customer journeys.
 - `/panel`: authenticated client overview, profile, orders/detail, and reservations/detail.
-- `/admin`: tenant owner/staff overview, site/media, menu, orders, reservations, subscription, invoices, and payment result.
+- `/admin`: tenant owner/staff overview, site/media, menu, orders, reservations, analytics, subscription, invoices, and payment result.
 - `/platform`: separate platform operations surface.
 - `/api/backend/[...path]`: same-origin API proxy.
 - `/health`: web liveness.

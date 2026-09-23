@@ -53,7 +53,7 @@ test("order and reservation histories keep tenant and client scope in list and d
     [Reservation, { findAndCount: async (options: unknown) => { calls.push({ entity: Reservation, operation: "list", options }); return [[reservation], 1]; }, findOne: async (options: unknown) => { calls.push({ entity: Reservation, operation: "detail", options }); return reservation; } }],
   ]);
   const dataSource = { getRepository: (entity: unknown) => repositories.get(entity) };
-  const ordering = new OrderingService(dataSource as never, {} as never);
+  const ordering = new OrderingService(dataSource as never, {} as never, {} as never);
   const reservations = new ReservationsService(dataSource as never, {} as never, {} as never);
   const orderList = await ordering.clientList("tenant-a", "client-a", Object.assign(new ClientOrdersQueryDto(), { page: 2, pageSize: 10 }));
   const orderDetail = await ordering.clientDetail("tenant-a", "client-a", "order-a");

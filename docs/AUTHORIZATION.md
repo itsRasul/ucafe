@@ -26,7 +26,7 @@ Platform permissions:
 
 Tenant permissions:
 
-`site.manage`, `menu.read`, `menu.manage`, `reservations.read`, `reservations.manage`, `orders.read`, `orders.manage`, `staff.manage`, `subscription.read`, `subscription.checkout`.
+`site.manage`, `menu.read`, `menu.manage`, `reservations.read`, `reservations.manage`, `orders.read`, `orders.manage`, `analytics.read`, `staff.manage`, `subscription.read`, `subscription.checkout`.
 
 Controllers may require more than one permission; platform invoice detail/list requires both subscription management and user-read authority because the detail includes full admin contact data.
 
