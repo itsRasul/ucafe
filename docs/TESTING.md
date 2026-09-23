@@ -16,7 +16,7 @@ There is no lint script and no durable Playwright/Cypress-style E2E suite.
 
 ## Current result
 
-On 2026-09-23, the stale `OrderingService` test fixture was repaired. The API suite passed with the analytics PostgreSQL integration test enabled; root workspace typechecks and API build also passed.
+On 2026-09-23, the API suite passed all 81 tests with the Analytics PostgreSQL integration tests enabled; root workspace typechecks and API/web builds passed. Phase 1 Analytics was also checked in the local authenticated owner UI at desktop and 375 px mobile widths, including seven-day and hourly trends, empty data, and a custom Jalali range. The existing Silver tenant showed the locked Analytics state through a server 403. The Compose database has migration `1787824800000` applied, Golden has `analytics=true`, and Silver has no Analytics entitlement.
 
 ## Migration and live checks
 
