@@ -5,6 +5,7 @@ import { SubscriptionFeatures } from "../subscriptions/subscription-features";
 import { InventoryDimension, PurchaseOrderStatus } from "./entities";
 import { InventoryService } from "./inventory.service";
 import { addQuantities, quantityFromBase, quantityToBase } from "./quantity.util";
+import { compareQuantities } from "./stock.util";
 import { CreateGoodsReceiptDto, CreatePurchaseOrderDto, CreateSupplierDto, GoodsReceiptLineDto, PurchaseOrderLineDto, PurchasingListQueryDto, UpdateGoodsReceiptDto, UpdatePurchaseOrderDto, UpdateSupplierDto } from "./purchasing.dto";
 
 const uniqueConflict = (error: unknown): never => {
@@ -219,7 +220,7 @@ export class PurchasingService {
     const items = await this.db.query(`SELECT l.id,l.purchase_order_item_id AS "purchaseOrderItemId",l.inventory_item_id AS "inventoryItemId",
       l.item_name_snapshot AS "itemName",i.base_unit AS "baseUnit",l.location_id AS "locationId",loc.name AS "locationName",
       l.quantity_display::text AS quantity,l.unit,l.quantity_base::text AS "quantityBase",l.unit_price_toman AS "unitPriceToman",
-      l.total_cost_toman AS "totalCostToman",l.note,l.movement_id AS "movementId"
+      l.total_cost_toman AS "totalCostToman",l.note,l.movement_id AS "movementId",l.batch_details AS batches
       FROM inventory_goods_receipt_lines l JOIN inventory_items i ON i.coffee_shop_id=l.coffee_shop_id AND i.id=l.inventory_item_id
       JOIN inventory_locations loc ON loc.coffee_shop_id=l.coffee_shop_id AND loc.id=l.location_id
       WHERE l.coffee_shop_id=$1 AND l.goods_receipt_id=$2 ORDER BY l.created_at,l.id`, [tenantId, id]);
@@ -274,17 +275,39 @@ export class PurchasingService {
         if (!lines.length) throw new ConflictException("A goods receipt must contain at least one line");
         const overReceiveConfirmed = order ? await this.assertRemainingOrderQuantities(m, tenantId, order.id, lines, allowOverReceive) : false;
         for (const line of lines) {
-          const [item] = await m.query(`SELECT id,is_active FROM inventory_items WHERE coffee_shop_id=$1 AND id=$2 FOR SHARE`, [tenantId, line.inventory_item_id]);
+          const [item] = await m.query(`SELECT id,is_active,batch_tracking_enabled AS "batchTrackingEnabled",expiry_tracking_enabled AS "expiryTrackingEnabled",dimension,base_unit AS "baseUnit" FROM inventory_items WHERE coffee_shop_id=$1 AND id=$2 FOR SHARE`, [tenantId, line.inventory_item_id]);
           if (!item) throw new NotFoundException("Inventory item not found");
           if (!item.is_active) throw new ConflictException("Inactive inventory items cannot receive stock");
           const [location] = await m.query(`SELECT id FROM inventory_locations WHERE coffee_shop_id=$1 AND id=$2 AND is_active FOR SHARE`, [tenantId, line.location_id]);
           if (!location) throw new ConflictException("Receiving location is no longer active");
-          const movement = await this.inventory.postPurchaseReceipt(m, tenantId, actorId, {
-            itemId: line.inventory_item_id, locationId: line.location_id,
-            quantity: line.quantity_base, totalCostToman: line.total_cost_toman, receiptId: id, lineId: line.id,
-            reason: `Purchase receipt ${receipt.number}`,
-          });
-          await m.query(`UPDATE inventory_goods_receipt_lines SET movement_id=$3 WHERE coffee_shop_id=$1 AND id=$2`, [tenantId, line.id, movement.id]);
+          const batches = this.normalizeReceiptBatches(line.batch_details, item, line.quantity_base, line.unit);
+          if (item.batchTrackingEnabled) {
+            let allocatedCost = "0";
+            for (const [index, batchInput] of batches.entries()) {
+              const [cost] = index === batches.length - 1
+                ? [{ value: addQuantities(line.total_cost_toman, `-${allocatedCost}`) }]
+                : await m.query(`SELECT ROUND($1::numeric*$2::numeric/$3::numeric)::bigint::text AS value`, [line.total_cost_toman,batchInput.quantityBase,line.quantity_base]);
+              allocatedCost = addQuantities(allocatedCost, cost.value);
+              const [unitCost] = await m.query(`SELECT ROUND($1::numeric/$2::numeric,6)::text AS value`, [cost.value,batchInput.quantityBase]);
+              const batchId = await this.inventory.createReceiptBatch(m,tenantId,actorId,{
+                itemId:line.inventory_item_id,locationId:line.location_id,quantity:batchInput.quantityBase,
+                supplierLotNumber:batchInput.supplierLotNumber??null,manufacturedDate:batchInput.manufacturedDate??null,expiryDate:batchInput.expiryDate??null,
+                receiptId:id,lineId:line.id,unitCostToman:unitCost.value,totalCostToman:cost.value,
+              });
+              await this.inventory.postPurchaseReceipt(m, tenantId, actorId, {
+                itemId: line.inventory_item_id, locationId: line.location_id, batchId,
+                quantity: batchInput.quantityBase, totalCostToman: cost.value, receiptId: id, lineId: line.id,
+                reason: `Purchase receipt ${receipt.number}`,
+              });
+            }
+          } else {
+            const movement = await this.inventory.postPurchaseReceipt(m, tenantId, actorId, {
+              itemId: line.inventory_item_id, locationId: line.location_id,
+              quantity: line.quantity_base, totalCostToman: line.total_cost_toman, receiptId: id, lineId: line.id,
+              reason: `Purchase receipt ${receipt.number}`,
+            });
+            await m.query(`UPDATE inventory_goods_receipt_lines SET movement_id=$3 WHERE coffee_shop_id=$1 AND id=$2`, [tenantId, line.id, movement.id]);
+          }
         }
         await m.query(`UPDATE inventory_goods_receipts SET status='POSTED',over_receive_confirmed=$4,posted_by_user_id=$3,posted_at=clock_timestamp(),received_at=clock_timestamp(),updated_at=clock_timestamp() WHERE coffee_shop_id=$1 AND id=$2`, [tenantId, id, actorId, overReceiveConfirmed]);
         if (order) await this.updateOrderReceivingStatus(m, tenantId, order.id);
@@ -322,6 +345,7 @@ export class PurchasingService {
       const item = await this.inventoryLine(m, tenantId, line.inventoryItemId, line.quantity, line.unit);
       const locationId = line.locationId ?? defaultLocation.id;
       await this.inventory.activeLocation(m, tenantId, locationId);
+      const batchDetails = await this.validateReceiptBatchDetails(m,tenantId,line,item);
       let orderItemId = line.purchaseOrderItemId ?? null;
       if (orderId) {
         const [orderItem] = orderItemId
@@ -330,19 +354,63 @@ export class PurchasingService {
         if (!orderItem || orderItem.inventory_item_id !== item.id) throw new BadRequestException("Receipt item must match a line on its purchase order");
         orderItemId = orderItem.id;
       } else if (orderItemId) throw new BadRequestException("Direct receipts cannot reference purchase order lines");
-      await m.query(`INSERT INTO inventory_goods_receipt_lines(coffee_shop_id,goods_receipt_id,purchase_order_item_id,inventory_item_id,item_name_snapshot,location_id,quantity_display,unit,quantity_base,unit_price_toman,total_cost_toman,note)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,ROUND($7::numeric*$10::bigint)::bigint,$11)`,
-      [tenantId, receiptId, orderItemId, item.id, item.name, locationId, line.quantity, line.unit, item.quantityBase, line.unitPriceToman, clean(line.note)]);
+      await m.query(`INSERT INTO inventory_goods_receipt_lines(coffee_shop_id,goods_receipt_id,purchase_order_item_id,inventory_item_id,item_name_snapshot,location_id,quantity_display,unit,quantity_base,unit_price_toman,total_cost_toman,note,batch_details)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,ROUND($7::numeric*$10::bigint)::bigint,$11,$12::jsonb)`,
+      [tenantId, receiptId, orderItemId, item.id, item.name, locationId, line.quantity, line.unit, item.quantityBase, line.unitPriceToman, clean(line.note),JSON.stringify(batchDetails)]);
     }
   }
 
   private async inventoryLine(m: EntityManager, tenantId: string, itemId: string, quantity: string, unit: string) {
-    const [item] = await m.query(`SELECT id,name,dimension,base_unit,is_active FROM inventory_items WHERE coffee_shop_id=$1 AND id=$2 FOR SHARE`, [tenantId, itemId]);
+    const [item] = await m.query(`SELECT id,name,dimension,base_unit,is_active,batch_tracking_enabled AS "batchTrackingEnabled",expiry_tracking_enabled AS "expiryTrackingEnabled" FROM inventory_items WHERE coffee_shop_id=$1 AND id=$2 FOR SHARE`, [tenantId, itemId]);
     if (!item) throw new NotFoundException("Inventory item not found");
     if (!item.is_active) throw new ConflictException("Inactive inventory items cannot be ordered or received");
     const quantityBase = quantityToBase(quantity, item.dimension as InventoryDimension, unit, item.base_unit);
     if (!positive(quantityBase)) throw new BadRequestException("Quantity must be greater than zero");
     return { ...item, quantityBase };
+  }
+
+  private async validateReceiptBatchDetails(m: EntityManager, tenantId: string, line: GoodsReceiptLineDto, item: { batchTrackingEnabled: boolean; expiryTrackingEnabled: boolean; dimension: InventoryDimension; base_unit: string; quantityBase: string }) {
+    const batches = line.batches ?? [];
+    if (!item.batchTrackingEnabled) {
+      if (batches.length) throw new BadRequestException("Batch details are only accepted for batch-tracked items");
+      return [];
+    }
+    if (!batches.length) throw new BadRequestException("Add batch details before receiving this batch-tracked item");
+    let total = "0";
+    const normalized = batches.map((batch) => {
+      this.assertBatchDates(batch.manufacturedDate, batch.expiryDate);
+      if (!item.expiryTrackingEnabled && batch.expiryDate) throw new BadRequestException("Enable expiry tracking on the item before entering batch expiry dates");
+      if (item.expiryTrackingEnabled && !batch.expiryDate) throw new BadRequestException("Expiry tracking requires an expiry date on every received batch");
+      const quantityBase = quantityToBase(batch.quantity,item.dimension,line.unit,item.base_unit);
+      if (!positive(quantityBase)) throw new BadRequestException("Batch quantities must be greater than zero");
+      total = addQuantities(total,quantityBase);
+      return { quantity:batch.quantity,supplierLotNumber:clean(batch.supplierLotNumber),manufacturedDate:batch.manufacturedDate??null,expiryDate:batch.expiryDate??null };
+    });
+    if (compareQuantities(total,item.quantityBase)!==0) throw new BadRequestException("Batch quantities must equal the goods receipt line quantity");
+    return normalized;
+  }
+
+  private normalizeReceiptBatches(details: Array<Record<string,string|null>> | null, item: { batchTrackingEnabled:boolean; expiryTrackingEnabled:boolean; dimension:InventoryDimension; baseUnit:string }, lineQuantityBase:string, unit:string) {
+    const batches=details??[];
+    if(!item.batchTrackingEnabled){if(batches.length)throw new ConflictException("Batch tracking changed after this receipt was drafted");return [];}
+    if(!batches.length)throw new ConflictException("Batch details are required before posting this receipt");
+    let total="0";
+    const normalized=batches.map((batch)=>{
+      this.assertBatchDates(batch.manufacturedDate,batch.expiryDate);
+      if(!item.expiryTrackingEnabled&&batch.expiryDate)throw new ConflictException("Expiry tracking changed after this receipt was drafted");
+      if(item.expiryTrackingEnabled&&!batch.expiryDate)throw new ConflictException("Expiry tracking requires an expiry date on every received batch");
+      const quantityBase=quantityToBase(batch.quantity!,item.dimension,unit,item.baseUnit);
+      if(!positive(quantityBase))throw new ConflictException("Batch quantity must be greater than zero");
+      total=addQuantities(total,quantityBase);
+      return {quantityBase,supplierLotNumber:clean(batch.supplierLotNumber),manufacturedDate:batch.manufacturedDate,expiryDate:batch.expiryDate};
+    });
+    if(compareQuantities(total,lineQuantityBase)!==0)throw new ConflictException("Batch quantities no longer match the receipt line quantity");
+    return normalized;
+  }
+
+  private assertBatchDates(manufacturedDate?:string|null,expiryDate?:string|null) {
+    for(const value of [manufacturedDate,expiryDate])if(value){const date=new Date(`${value}T00:00:00Z`);if(!/^\d{4}-\d{2}-\d{2}$/.test(value)||!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==value)throw new BadRequestException("Batch dates must be valid ISO calendar dates");}
+    if(manufacturedDate&&expiryDate&&expiryDate<manufacturedDate)throw new BadRequestException("Expiry date cannot be before manufacture date");
   }
 
   private async receiptSource(m: EntityManager, tenantId: string, orderId?: string | null, supplierId?: string | null) {

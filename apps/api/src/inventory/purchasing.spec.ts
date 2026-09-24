@@ -122,6 +122,16 @@ test("purchase receipts post stock once, preserve actual cost, allow explicit ov
       const prices = await purchasing.supplierPrices(tenantId, supplier.id, { page: 1, limit: 100 });
       assert.equal(prices.items.find((price: { inventoryItemId: string }) => price.inventoryItemId === coffee.id).unitPriceToman, "1300000");
 
+      const trackedMilk = await inventory.createItem(tenantId,actor.id,{name:"Lot-tracked milk",dimension:InventoryDimension.Volume,baseUnit:"ml",locationId:location.id,batchTrackingEnabled:true,expiryTrackingEnabled:true});
+      await assert.rejects(purchasing.createGoodsReceipt(tenantId,actor.id,{supplierId:supplier.id,items:[{inventoryItemId:trackedMilk.id,quantity:"2",unit:"l",unitPriceToman:"100",batches:[{quantity:"0.5",supplierLotNumber:"SHORT-A",expiryDate:"2099-10-01"},{quantity:"0.5",supplierLotNumber:"SHORT-B",expiryDate:"2099-10-02"}]}]}),BadRequestException);
+      const batchReceipt = await purchasing.createGoodsReceipt(tenantId,actor.id,{supplierId:supplier.id,items:[{inventoryItemId:trackedMilk.id,quantity:"2",unit:"l",unitPriceToman:"100",batches:[{quantity:"0.5",supplierLotNumber:"LOT-A",manufacturedDate:"2099-09-01",expiryDate:"2099-10-01"},{quantity:"1.5",supplierLotNumber:"LOT-B",manufacturedDate:"2099-09-02",expiryDate:"2099-10-02"}]}]});
+      const postedBatchReceipt = await purchasing.postGoodsReceipt(tenantId,actor.id,batchReceipt.id,false);
+      assert.equal(postedBatchReceipt.items[0].batches.length,2);
+      const receiptBatches = await manager.query(`SELECT supplier_lot_number AS lot,original_quantity_base::text AS original,remaining_quantity_base::text AS remaining,unit_cost_toman::text AS cost,total_cost_toman::text AS total FROM inventory_batches WHERE coffee_shop_id=$1 AND item_id=$2 ORDER BY supplier_lot_number`,[tenantId,trackedMilk.id]);
+      assert.deepEqual(receiptBatches.map((row: {lot:string;original:string;remaining:string;cost:string;total:string})=>[row.lot,row.original,row.remaining,row.cost,row.total]),[["LOT-A","500.000000","500.000000","0.100000","50"],["LOT-B","1500.000000","1500.000000","0.100000","150"]]);
+      const receiptMovements = await manager.query(`SELECT count(*)::int AS count,sum(quantity_base)::text AS quantity,sum(total_cost_toman)::text AS total FROM inventory_stock_movements WHERE coffee_shop_id=$1 AND source_id=$2 AND type='PURCHASE_RECEIPT' AND batch_id IS NOT NULL`,[tenantId,batchReceipt.id]);
+      assert.deepEqual(receiptMovements[0],{count:2,quantity:"2000.000000",total:"200"});
+
       const secondary = await inventory.createLocation(tenantId, { name: "Cold room" });
       const [firstItem, secondItem] = [coffee, milk].sort((a: { id: string }, b: { id: string }) => a.id.localeCompare(b.id));
       const failed = await purchasing.createGoodsReceipt(tenantId, actor.id, { supplierId: supplier.id, items: [
@@ -140,7 +150,7 @@ test("purchase receipts post stock once, preserve actual cost, allow explicit ov
       await assert.rejects(purchasing.createPurchaseOrder(tenantId, actor.id, { supplierId: supplier.id, items: [{ inventoryItemId: coffee.id, quantity: "1", unit: "kg", unitPriceToman: "100" }] }), /Active supplier not found/);
       assert.equal((await purchasing.goodsReceipt(tenantId, direct.id)).supplierName, "Roaster", "supplier deactivation keeps historical receipt readable");
       const [movementCount] = await manager.query(`SELECT count(*)::int AS count FROM inventory_stock_movements WHERE coffee_shop_id=$1 AND source_type='GOODS_RECEIPT'`, [tenantId]);
-      assert.equal(movementCount.count, 5);
+      assert.equal(movementCount.count, 7);
       throw rollback;
     }), (error) => error === rollback);
   } finally { await db.destroy(); }

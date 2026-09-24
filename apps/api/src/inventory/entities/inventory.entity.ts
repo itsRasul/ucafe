@@ -6,7 +6,7 @@ export enum InventoryCountStatus { Draft = "DRAFT", Completed = "COMPLETED" }
 export enum InventoryWasteReason { Expired = "EXPIRED", Damaged = "DAMAGED", Spilled = "SPILLED", PreparationError = "PREPARATION_ERROR", CustomerReturn = "CUSTOMER_RETURN", QualityIssue = "QUALITY_ISSUE", Overproduction = "OVERPRODUCTION", StaffUse = "STAFF_USE", Training = "TRAINING", Other = "OTHER" }
 export enum InventoryWasteStatus { Draft = "DRAFT", Posted = "POSTED", Reversed = "REVERSED" }
 export enum InventoryStockStatus { Negative = "NEGATIVE", OutOfStock = "OUT_OF_STOCK", LowStock = "LOW_STOCK", BelowPar = "BELOW_PAR", Ok = "OK" }
-export enum InventoryStockAlertType { Negative = "NEGATIVE", OutOfStock = "OUT_OF_STOCK", LowStock = "LOW_STOCK" }
+export enum InventoryStockAlertType { Negative = "NEGATIVE", OutOfStock = "OUT_OF_STOCK", LowStock = "LOW_STOCK", BatchExpiringSoon = "BATCH_EXPIRING_SOON", BatchExpired = "BATCH_EXPIRED" }
 export enum InventoryStockAlertStatus { Open = "OPEN", Resolved = "RESOLVED" }
 
 @Entity("inventory_categories")
@@ -30,6 +30,9 @@ export class InventoryItem {
   @Column({ name: "category_id", type: "uuid", nullable: true }) categoryId!: string | null;
   @Column({ type: "enum", enum: InventoryDimension, enumName: "inventory_dimension" }) dimension!: InventoryDimension;
   @Column({ name: "base_unit", type: "varchar", length: 16 }) baseUnit!: string;
+  @Column({ name: "batch_tracking_enabled", type: "boolean", default: false }) batchTrackingEnabled!: boolean;
+  @Column({ name: "expiry_tracking_enabled", type: "boolean", default: false }) expiryTrackingEnabled!: boolean;
+  @Column({ name: "expiry_warning_days", type: "smallint", default: 3 }) expiryWarningDays!: number;
   @Column({ name: "is_active", type: "boolean", default: true }) isActive!: boolean;
   @CreateDateColumn({ name: "created_at", type: "timestamptz" }) createdAt!: Date;
   @UpdateDateColumn({ name: "updated_at", type: "timestamptz" }) updatedAt!: Date;
@@ -50,12 +53,13 @@ export class InventoryStockCount {
 }
 
 @Entity("inventory_stock_count_lines")
-@Index("UQ_inventory_stock_count_line_item", ["coffeeShopId", "countId", "itemId"], { unique: true })
 export class InventoryStockCountLine {
   @PrimaryGeneratedColumn("uuid") id!: string;
   @Column({ name: "coffee_shop_id", type: "uuid" }) coffeeShopId!: string;
   @Column({ name: "count_id", type: "uuid" }) countId!: string;
   @Column({ name: "item_id", type: "uuid" }) itemId!: string;
+  @Column({ name: "batch_id", type: "uuid", nullable: true }) batchId!: string | null;
+  @Column({ name: "allocation_type", type: "varchar", length: 16, default: "AGGREGATE" }) allocationType!: string;
   @Column({ name: "expected_quantity", type: "numeric", precision: 20, scale: 6 }) expectedQuantity!: string;
   @Column({ name: "counted_quantity", type: "numeric", precision: 20, scale: 6 }) countedQuantity!: string;
   @Column({ name: "counted_at", type: "timestamptz" }) countedAt!: Date;
@@ -85,6 +89,7 @@ export class InventoryStockMovement {
   @Column({ name: "coffee_shop_id", type: "uuid" }) coffeeShopId!: string;
   @Column({ name: "item_id", type: "uuid" }) itemId!: string;
   @Column({ name: "location_id", type: "uuid" }) locationId!: string;
+  @Column({ name: "batch_id", type: "uuid", nullable: true }) batchId!: string | null;
   @Column({ type: "enum", enum: InventoryMovementType, enumName: "inventory_movement_type" }) type!: InventoryMovementType;
   @Column({ name: "quantity_base", type: "numeric", precision: 20, scale: 6 }) quantityBase!: string;
   @Column({ name: "unit_cost_toman", type: "numeric", precision: 20, scale: 6, nullable: true }) unitCostToman!: string | null;
@@ -136,7 +141,8 @@ export class InventoryStockAlert {
   @Column({ name: "coffee_shop_id", type: "uuid" }) coffeeShopId!: string;
   @Column({ name: "item_id", type: "uuid" }) itemId!: string;
   @Column({ name: "location_id", type: "uuid" }) locationId!: string;
-  @Column({ name: "alert_type", type: "enum", enum: InventoryStockAlertType, enumName: "inventory_stock_alert_type" }) type!: InventoryStockAlertType;
+  @Column({ name: "batch_id", type: "uuid", nullable: true }) batchId!: string | null;
+  @Column({ name: "alert_type", type: "varchar", length: 32 }) type!: InventoryStockAlertType;
   @Column({ type: "enum", enum: InventoryStockAlertStatus, enumName: "inventory_stock_alert_status", default: InventoryStockAlertStatus.Open }) status!: InventoryStockAlertStatus;
   @Column({ name: "opened_at", type: "timestamptz" }) openedAt!: Date;
   @Column({ name: "last_observed_at", type: "timestamptz" }) lastObservedAt!: Date;
@@ -164,15 +170,55 @@ export class InventoryWasteRecord {
 }
 
 @Entity("inventory_waste_items")
-@Index("UQ_inventory_waste_items_item", ["coffeeShopId", "wasteRecordId", "itemId"], { unique: true })
 export class InventoryWasteItem {
   @PrimaryGeneratedColumn("uuid") id!: string;
   @Column({ name: "coffee_shop_id", type: "uuid" }) coffeeShopId!: string;
   @Column({ name: "waste_record_id", type: "uuid" }) wasteRecordId!: string;
   @Column({ name: "item_id", type: "uuid" }) itemId!: string;
+  @Column({ name: "batch_id", type: "uuid", nullable: true }) batchId!: string | null;
   @Column({ name: "item_name_snapshot", type: "varchar", length: 140 }) itemNameSnapshot!: string;
   @Column({ name: "quantity_display", type: "numeric", precision: 20, scale: 6 }) quantityDisplay!: string;
   @Column({ type: "varchar", length: 16 }) unit!: string;
   @Column({ name: "quantity_base", type: "numeric", precision: 20, scale: 6 }) quantityBase!: string;
   @Column({ name: "movement_id", type: "uuid", nullable: true }) movementId!: string | null;
+}
+
+@Entity("inventory_batches")
+@Index("IDX_inventory_batches_allocation", ["coffeeShopId", "itemId", "locationId", "expiryDate", "receivedAt"])
+@Index("UQ_inventory_batches_tenant_id", ["coffeeShopId", "id"], { unique: true })
+export class InventoryBatch {
+  @PrimaryGeneratedColumn("uuid") id!: string;
+  @Column({ name: "coffee_shop_id", type: "uuid" }) coffeeShopId!: string;
+  @Column({ name: "item_id", type: "uuid" }) itemId!: string;
+  @Column({ name: "location_id", type: "uuid" }) locationId!: string;
+  @Column({ name: "supplier_lot_number", type: "varchar", length: 100, nullable: true }) supplierLotNumber!: string | null;
+  @Column({ name: "manufactured_date", type: "date", nullable: true }) manufacturedDate!: string | null;
+  @Column({ name: "expiry_date", type: "date", nullable: true }) expiryDate!: string | null;
+  @Column({ name: "received_at", type: "timestamptz" }) receivedAt!: Date;
+  @Column({ name: "original_quantity_base", type: "numeric", precision: 20, scale: 6 }) originalQuantityBase!: string;
+  @Column({ name: "remaining_quantity_base", type: "numeric", precision: 20, scale: 6, default: "0" }) remainingQuantityBase!: string;
+  @Column({ name: "unit_cost_toman", type: "numeric", precision: 20, scale: 6, nullable: true }) unitCostToman!: string | null;
+  @Column({ name: "total_cost_toman", type: "bigint", nullable: true }) totalCostToman!: string | null;
+  @Column({ name: "origin_type", type: "varchar", length: 24 }) originType!: string;
+  @Column({ name: "goods_receipt_id", type: "uuid", nullable: true }) goodsReceiptId!: string | null;
+  @Column({ name: "goods_receipt_line_id", type: "uuid", nullable: true }) goodsReceiptLineId!: string | null;
+  @Column({ name: "created_by_user_id", type: "uuid", nullable: true }) createdByUserId!: string | null;
+  @CreateDateColumn({ name: "created_at", type: "timestamptz" }) createdAt!: Date;
+  @UpdateDateColumn({ name: "updated_at", type: "timestamptz" }) updatedAt!: Date;
+}
+
+@Entity("inventory_batch_changes")
+export class InventoryBatchChange {
+  @PrimaryGeneratedColumn("uuid") id!: string;
+  @Column({ name: "coffee_shop_id", type: "uuid" }) coffeeShopId!: string;
+  @Column({ name: "batch_id", type: "uuid" }) batchId!: string;
+  @Column({ name: "actor_user_id", type: "uuid", nullable: true }) actorUserId!: string | null;
+  @Column({ type: "varchar", length: 240 }) reason!: string;
+  @Column({ name: "old_supplier_lot_number", type: "varchar", length: 100, nullable: true }) oldSupplierLotNumber!: string | null;
+  @Column({ name: "new_supplier_lot_number", type: "varchar", length: 100, nullable: true }) newSupplierLotNumber!: string | null;
+  @Column({ name: "old_manufactured_date", type: "date", nullable: true }) oldManufacturedDate!: string | null;
+  @Column({ name: "new_manufactured_date", type: "date", nullable: true }) newManufacturedDate!: string | null;
+  @Column({ name: "old_expiry_date", type: "date", nullable: true }) oldExpiryDate!: string | null;
+  @Column({ name: "new_expiry_date", type: "date", nullable: true }) newExpiryDate!: string | null;
+  @CreateDateColumn({ name: "created_at", type: "timestamptz" }) createdAt!: Date;
 }

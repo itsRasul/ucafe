@@ -10,7 +10,7 @@ import { MenuCategory, MenuItem, MenuItemVariant } from "../menu/entities";
 import { Order, OrderDeliveryMethod, OrderStatus } from "../ordering/entities";
 import { OrderItem } from "../ordering/entities/order-item.entity";
 import { OrderingService } from "../ordering/ordering.service";
-import { InventoryDimension } from "./entities";
+import { InventoryDimension, InventoryWasteReason } from "./entities";
 import { InventoryService } from "./inventory.service";
 import { RecipesService } from "./recipes.service";
 import { multiplyQuantity } from "./quantity.util";
@@ -163,6 +163,63 @@ test("accepted orders consume the applied recipe once and cancellation reverses 
       const balances = await manager.query(`SELECT item_id AS id,quantity_base::text AS quantity FROM inventory_stock_balances WHERE coffee_shop_id=$1 AND location_id=$2 ORDER BY item_id`, [tenantId, location.id]);
       assert.equal(balances.find((row: { id: string }) => row.id === coffee.id).quantity, "916.000000");
       assert.equal(balances.find((row: { id: string }) => row.id === milk.id).quantity, "270.000000");
+
+      const [{ today }] = await manager.query(`SELECT to_char((clock_timestamp() AT TIME ZONE 'Asia/Tehran')::date,'YYYY-MM-DD') AS today`);
+      const localDay = (offset: number) => { const date = new Date(`${today}T12:00:00.000Z`); date.setUTCDate(date.getUTCDate()+offset); return date.toISOString().slice(0,10); };
+      const tracked = await inventory.createItem(tenantId, actor.id, {
+        name: "Batch Milk", dimension: InventoryDimension.Volume, baseUnit: "ml", locationId: location.id,
+        openingQuantity: "400", batchTrackingEnabled: true, expiryTrackingEnabled: true,
+        openingBatches: [
+          { supplierLotNumber: "EXPIRED", quantity: "100", expiryDate: localDay(-1) },
+          { supplierLotNumber: "EARLY", quantity: "100", expiryDate: localDay(1) },
+          { supplierLotNumber: "LATE", quantity: "200", expiryDate: localDay(2) },
+        ],
+      });
+      const trackedBatches = await manager.query(`SELECT id,supplier_lot_number AS lot FROM inventory_batches WHERE coffee_shop_id=$1 AND item_id=$2`, [tenantId, tracked.id]);
+      const batchIds = Object.fromEntries(trackedBatches.map((batch: { id: string; lot: string }) => [batch.lot,batch.id])) as Record<string,string>;
+      const [lotAlert] = await manager.query(`SELECT id,alert_type AS type FROM inventory_stock_alerts WHERE coffee_shop_id=$1 AND batch_id=$2 AND status='OPEN'`,[tenantId,batchIds.LATE]);
+      assert.equal(lotAlert.type,"BATCH_EXPIRING_SOON");
+      const [batchDrink] = await manager.query(`INSERT INTO menu_items(coffee_shop_id,category_id,name,base_price_toman) VALUES($1,$2,'Batch Drink',1000) RETURNING id`, [tenantId, category.id]);
+      const trackedRecipe = await recipes.create(tenantId, actor.id, { menuItemId: batchDrink.id });
+      await recipes.replaceComponents(tenantId, trackedRecipe.id, trackedRecipe.versions[0].id, { expectedRevision: 0, components: [{ inventoryItemId: tracked.id, quantity: "250", unit: "ml" }] });
+      await recipes.publish(tenantId, actor.id, trackedRecipe.id, trackedRecipe.versions[0].id);
+      const trackedOrder = await createOrder(`order-batches-${randomUUID()}`, [{ item: batchDrink.id, name: "Batch Drink", quantity: 1 }]);
+      await ordering.updateStatus(tenantId, trackedOrder, actor.id, OrderStatus.Preparing);
+      const batchConsumption = await manager.query(`SELECT b.supplier_lot_number AS lot,m.quantity_base::text AS quantity,m.batch_id AS "batchId" FROM inventory_stock_movements m JOIN inventory_batches b ON b.coffee_shop_id=m.coffee_shop_id AND b.id=m.batch_id WHERE m.coffee_shop_id=$1 AND m.source_id=$2 AND m.type='SALE_CONSUMPTION' AND m.item_id=$3 ORDER BY b.expiry_date`, [tenantId, trackedOrder, tracked.id]);
+      assert.deepEqual(batchConsumption.map((row: { lot: string; quantity: string }) => [row.lot,row.quantity]), [["EARLY","-100.000000"],["LATE","-150.000000"]]);
+      assert.equal((await manager.query(`SELECT remaining_quantity_base::text AS quantity FROM inventory_batches WHERE coffee_shop_id=$1 AND id=$2`, [tenantId,batchIds.EXPIRED]))[0].quantity, "100.000000");
+      assert.equal((await inventory.consumeOrder(manager,tenantId,trackedOrder,actor.id)).duplicate, true);
+      await assert.rejects(inventory.batch(otherTenantId,batchIds.EARLY!));
+      await ordering.updateStatus(tenantId, trackedOrder, actor.id, OrderStatus.Canceled);
+      const batchReversals = await manager.query(`SELECT b.supplier_lot_number AS lot,m.quantity_base::text AS quantity,m.batch_id AS "batchId" FROM inventory_stock_movements m JOIN inventory_batches b ON b.coffee_shop_id=m.coffee_shop_id AND b.id=m.batch_id WHERE m.coffee_shop_id=$1 AND m.source_id=$2 AND m.type='SALE_REVERSAL' AND m.item_id=$3 ORDER BY b.expiry_date`, [tenantId, trackedOrder, tracked.id]);
+      assert.deepEqual(batchReversals.map((row: { lot: string; quantity: string }) => [row.lot,row.quantity]), [["EARLY","100.000000"],["LATE","150.000000"]]);
+      await inventory.updateBatch(tenantId,actor.id,batchIds.LATE!,{expiryDate:localDay(-1),reason:"Correct supplier date"});
+      const [transitionedAlert] = await manager.query(`SELECT id,alert_type AS type FROM inventory_stock_alerts WHERE coffee_shop_id=$1 AND batch_id=$2 AND status='OPEN'`,[tenantId,batchIds.LATE]);
+      assert.deepEqual(transitionedAlert,{id:lotAlert.id,type:"BATCH_EXPIRED"});
+
+      const excessAdjustment = { itemId: tracked.id, locationId: location.id, batchId: batchIds.EARLY, quantity: "-101", reason: "Overdraw guard", idempotencyKey: `batch-overdraw:${randomUUID()}` };
+      await assert.rejects(inventory.adjust(tenantId,actor.id,excessAdjustment), error => error instanceof ConflictException);
+      const excessWaste = await inventory.createWasteRecord(tenantId,actor.id,{ locationId: location.id, reason: InventoryWasteReason.Expired, items: [{ inventoryItemId: tracked.id, batchId: batchIds.EXPIRED, quantity: "101", unit: "ml" }] });
+      await assert.rejects(inventory.postWasteRecord(tenantId,actor.id,excessWaste.id), error => error instanceof ConflictException);
+      const waste = await inventory.createWasteRecord(tenantId,actor.id,{ locationId: location.id, reason: InventoryWasteReason.Expired, items: [{ inventoryItemId: tracked.id, batchId: batchIds.EXPIRED, quantity: "10", unit: "ml" }] });
+      const postedWaste = await inventory.postWasteRecord(tenantId,actor.id,waste.id);
+      assert.equal(postedWaste.items[0].batchId,batchIds.EXPIRED);
+
+      const count = await inventory.createCount(tenantId,actor.id,{locationId:location.id});
+      await inventory.saveCountLines(tenantId,count.id,{lines:[
+        {itemId:tracked.id,batchId:batchIds.EXPIRED,allocationType:"BATCH",countedQuantity:"88"},
+        {itemId:tracked.id,batchId:batchIds.EARLY,allocationType:"BATCH",countedQuantity:"100"},
+        {itemId:tracked.id,batchId:batchIds.LATE,allocationType:"BATCH",countedQuantity:"200"},
+        {itemId:tracked.id,allocationType:"UNALLOCATED",countedQuantity:"0"},
+      ]});
+      await inventory.adjust(tenantId,actor.id,{itemId:tracked.id,locationId:location.id,batchId:batchIds.EXPIRED,quantity:"-2",reason:"Post-count movement",idempotencyKey:`batch-count:${randomUUID()}`});
+      const completed = await inventory.completeCount(tenantId,actor.id,count.id);
+      assert.equal(completed.lines.find((line: { batchId: string|null })=>line.batchId===batchIds.EXPIRED).varianceQuantity,"-2.000000");
+      assert.equal((await manager.query(`SELECT remaining_quantity_base::text AS quantity FROM inventory_batches WHERE coffee_shop_id=$1 AND id=$2`,[tenantId,batchIds.EXPIRED]))[0].quantity,"86.000000");
+      await inventory.adjust(tenantId,actor.id,{itemId:tracked.id,locationId:location.id,batchId:batchIds.EARLY,quantity:"-100",reason:"Deplete corrected lot",idempotencyKey:`batch-deplete:${randomUUID()}`});
+      await inventory.adjust(tenantId,actor.id,{itemId:tracked.id,locationId:location.id,batchId:batchIds.EXPIRED,quantity:"-86",reason:"Deplete expired lot",idempotencyKey:`batch-deplete:${randomUUID()}`});
+      const resolvedAlerts = await manager.query(`SELECT batch_id AS "batchId",status FROM inventory_stock_alerts WHERE coffee_shop_id=$1 AND batch_id=ANY($2::uuid[])`,[tenantId,[batchIds.EARLY,batchIds.EXPIRED]]);
+      assert.ok(resolvedAlerts.every((row:{status:string})=>row.status==="RESOLVED"));
 
       await manager.query(`SAVEPOINT bad_reversal_guard`);
       await assert.rejects(manager.query(`INSERT INTO inventory_stock_movements(coffee_shop_id,item_id,location_id,type,quantity_base,source_type,source_id,order_item_id,recipe_version_id,recipe_component_id,reversal_of_movement_id,idempotency_key) SELECT coffee_shop_id,item_id,location_id,'SALE_REVERSAL',1,'ORDER_REVERSAL',source_id,order_item_id,recipe_version_id,recipe_component_id,id,'bad-reversal:'||id FROM inventory_stock_movements WHERE coffee_shop_id=$1 AND source_id=$2 AND type='SALE_CONSUMPTION' LIMIT 1`, [tenantId, orderA]));

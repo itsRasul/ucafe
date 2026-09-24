@@ -6,7 +6,7 @@ import { TenantPermissions } from "../authorization/permission.constants";
 import { TenantPermissionGuard } from "../authorization/tenant-permission.guard";
 import { TENANT_CONTEXT, TenantContextRequest } from "../tenants/tenant-context";
 import { TenantContextGuard } from "../tenants/tenant-context.guard";
-import { CreateInventoryCategoryDto, CreateInventoryItemDto, CreateInventoryLocationDto, CreateStockCountDto, CreateWasteRecordDto, InventoryListQueryDto, InventoryStockSettingsDto, MovementListQueryDto, StockAdjustmentDto, StockAlertListQueryDto, UpdateInventoryCategoryDto, UpdateInventoryItemDto, UpdateInventoryLocationDto, UpdateStockCountLinesDto, UpdateWasteRecordDto, WasteListQueryDto } from "./inventory.dto";
+import { CreateInventoryCategoryDto, CreateInventoryItemDto, CreateInventoryLocationDto, CreateStockCountDto, CreateWasteRecordDto, InventoryBatchListQueryDto, InventoryItemBatchQueryDto, InventoryListQueryDto, InventoryStockSettingsDto, MovementListQueryDto, StockAdjustmentDto, StockAlertListQueryDto, UpdateInventoryBatchDto, UpdateInventoryCategoryDto, UpdateInventoryItemDto, UpdateInventoryLocationDto, UpdateStockCountLinesDto, UpdateWasteRecordDto, WasteListQueryDto } from "./inventory.dto";
 import { InventoryService } from "./inventory.service";
 
 @Controller("tenant/inventory")
@@ -22,6 +22,10 @@ export class InventoryController {
   @Post("locations") @RequireTenantPermissions(TenantPermissions.InventoryManage) createLocation(@Req() req:TenantContextRequest,@Body() input:CreateInventoryLocationDto){return this.inventory.createLocation(this.tenant(req),input);}
   @Patch("locations/:id") @RequireTenantPermissions(TenantPermissions.InventoryManage) updateLocation(@Req() req:TenantContextRequest,@Param("id",ParseUUIDPipe) id:string,@Body() input:UpdateInventoryLocationDto){return this.inventory.updateLocation(this.tenant(req),id,input);}
   @Get("items") @RequireTenantPermissions(TenantPermissions.InventoryRead) items(@Req() req:TenantContextRequest,@Query() query:InventoryListQueryDto){return this.inventory.items(this.tenant(req),query);}
+  @Get("batches") @RequireTenantPermissions(TenantPermissions.InventoryRead) batches(@Req() req:TenantContextRequest,@Query() query:InventoryBatchListQueryDto){return this.inventory.batches(this.tenant(req),query);}
+  @Get("batches/:id") @RequireTenantPermissions(TenantPermissions.InventoryRead) batch(@Req() req:TenantContextRequest,@Param("id",ParseUUIDPipe) id:string){return this.inventory.batch(this.tenant(req),id);}
+  @Patch("batches/:id") @RequireTenantPermissions(TenantPermissions.InventoryManage) updateBatch(@Req() req:TenantContextRequest & AuthorizedRequest,@Param("id",ParseUUIDPipe) id:string,@Body() input:UpdateInventoryBatchDto){return this.inventory.updateBatch(this.tenant(req),req[AUTH_PRINCIPAL]!.userId,id,input);}
+  @Get("items/:id/batches") @RequireTenantPermissions(TenantPermissions.InventoryRead) itemBatches(@Req() req:TenantContextRequest,@Param("id",ParseUUIDPipe) id:string,@Query() query:InventoryItemBatchQueryDto){return this.inventory.itemBatches(this.tenant(req),id,query.locationId);}
   @Post("items") @RequireTenantPermissions(TenantPermissions.InventoryManage) createItem(@Req() req:TenantContextRequest & AuthorizedRequest,@Body() input:CreateInventoryItemDto){return this.inventory.createItem(this.tenant(req),req[AUTH_PRINCIPAL]!.userId,input);}
   @Patch("items/:id") @RequireTenantPermissions(TenantPermissions.InventoryManage) updateItem(@Req() req:TenantContextRequest,@Param("id",ParseUUIDPipe) id:string,@Body() input:UpdateInventoryItemDto){return this.inventory.updateItem(this.tenant(req),id,input);}
   @Get("stock") @RequireTenantPermissions(TenantPermissions.InventoryRead) stock(@Req() req:TenantContextRequest,@Query() query:InventoryListQueryDto){return this.inventory.stock(this.tenant(req),query);}

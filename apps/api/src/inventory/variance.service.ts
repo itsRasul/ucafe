@@ -42,11 +42,13 @@ const EFFECTIVE_AT = `CASE
   ELSE m.created_at END`;
 const SOURCE_JOINS = `
   LEFT JOIN inventory_goods_receipts gr ON m.source_type='GOODS_RECEIPT' AND gr.coffee_shop_id=m.coffee_shop_id AND gr.id::text=m.source_id
-  LEFT JOIN inventory_goods_receipt_lines grl ON grl.coffee_shop_id=m.coffee_shop_id AND grl.goods_receipt_id=gr.id AND grl.id::text=m.source_line_id
-    AND grl.inventory_item_id=m.item_id AND grl.location_id=m.location_id AND grl.movement_id=m.id AND grl.quantity_base=m.quantity_base
+  LEFT JOIN inventory_batches movement_batch ON movement_batch.coffee_shop_id=m.coffee_shop_id AND movement_batch.id=m.batch_id
+  LEFT JOIN inventory_goods_receipt_lines grl ON grl.coffee_shop_id=m.coffee_shop_id AND grl.goods_receipt_id=gr.id
+    AND grl.inventory_item_id=m.item_id AND grl.location_id=m.location_id AND ((m.batch_id IS NULL AND grl.movement_id=m.id AND grl.quantity_base=m.quantity_base) OR
+      (m.batch_id IS NOT NULL AND movement_batch.goods_receipt_id=gr.id AND movement_batch.goods_receipt_line_id=grl.id AND movement_batch.original_quantity_base=m.quantity_base AND m.source_line_id=grl.id::text||':'||movement_batch.id::text))
   LEFT JOIN inventory_waste_records w ON m.source_type IN ('WASTE_RECORD','WASTE_REVERSAL') AND w.coffee_shop_id=m.coffee_shop_id AND w.id::text=m.source_id
   LEFT JOIN inventory_waste_items wi ON wi.coffee_shop_id=m.coffee_shop_id AND wi.waste_record_id=w.id AND wi.id::text=m.source_line_id AND wi.item_id=m.item_id
-    AND ((m.type='WASTE' AND wi.movement_id=m.id AND wi.quantity_base=-m.quantity_base) OR (m.source_type='WASTE_REVERSAL' AND wi.quantity_base=m.quantity_base))
+    AND ((m.type='WASTE' AND wi.movement_id=m.id AND wi.quantity_base=-m.quantity_base AND wi.batch_id IS NOT DISTINCT FROM m.batch_id) OR (m.source_type='WASTE_REVERSAL' AND wi.quantity_base=m.quantity_base AND wi.batch_id IS NOT DISTINCT FROM m.batch_id))
   LEFT JOIN order_items sale_item ON m.type IN ('SALE_CONSUMPTION','SALE_REVERSAL') AND sale_item.coffee_shop_id=m.coffee_shop_id AND sale_item.id=m.order_item_id
   LEFT JOIN orders sale_order ON sale_order.coffee_shop_id=sale_item.coffee_shop_id AND sale_order.id=sale_item.order_id AND sale_order.id::text=m.source_id
   LEFT JOIN inventory_stock_movements original ON m.type='SALE_REVERSAL' AND original.coffee_shop_id=m.coffee_shop_id AND original.id=m.reversal_of_movement_id
@@ -59,7 +61,7 @@ const SOURCE_VALID = `CASE
     AND m.recipe_component_id IS NOT NULL AND sale_item.id IS NOT NULL AND sale_order.id IS NOT NULL AND sale_component.id IS NOT NULL
   WHEN m.type='SALE_REVERSAL' THEN m.source_type='ORDER_REVERSAL' AND original.type='SALE_CONSUMPTION'
     AND original.source_type='ORDER_CONSUMPTION' AND original.source_id=m.source_id AND original.order_item_id=m.order_item_id
-    AND original.recipe_version_id=m.recipe_version_id AND original.recipe_component_id=m.recipe_component_id
+    AND original.recipe_version_id=m.recipe_version_id AND original.recipe_component_id=m.recipe_component_id AND original.batch_id IS NOT DISTINCT FROM m.batch_id
     AND sale_item.id IS NOT NULL AND sale_order.id IS NOT NULL AND sale_component.id IS NOT NULL
   WHEN m.type='WASTE' THEN m.source_type='WASTE_RECORD' AND w.status IN ('POSTED','REVERSED') AND wi.id IS NOT NULL
   WHEN m.source_type='WASTE_REVERSAL' THEN m.type='MANUAL_ADJUSTMENT' AND w.status='REVERSED' AND wi.id IS NOT NULL
@@ -120,15 +122,15 @@ export class InventoryVarianceService {
         CASE WHEN gr.id IS NOT NULL THEN 'Goods Receipt' WHEN sale_order.id IS NOT NULL THEN 'Order'
           WHEN w.id IS NOT NULL THEN 'Waste' WHEN m.type='STOCK_COUNT_ADJUSTMENT' THEN 'Stock Count' ELSE m.source_type END AS "sourceLabel"
       FROM inventory_stock_movements m
-      JOIN inventory_stock_count_lines opening_line ON opening_line.coffee_shop_id=m.coffee_shop_id AND opening_line.count_id=$3 AND opening_line.item_id=m.item_id
-      JOIN inventory_stock_count_lines closing_line ON closing_line.coffee_shop_id=m.coffee_shop_id AND closing_line.count_id=$4 AND closing_line.item_id=m.item_id
+      JOIN LATERAL (SELECT max(counted_at) AS counted_at FROM inventory_stock_count_lines WHERE coffee_shop_id=m.coffee_shop_id AND count_id=$3 AND item_id=m.item_id) opening_line ON opening_line.counted_at IS NOT NULL
+      JOIN LATERAL (SELECT max(counted_at) AS counted_at FROM inventory_stock_count_lines WHERE coffee_shop_id=m.coffee_shop_id AND count_id=$4 AND item_id=m.item_id) closing_line ON closing_line.counted_at IS NOT NULL
       ${SOURCE_JOINS}
       WHERE m.coffee_shop_id=$1 AND m.location_id=$2 AND m.item_id=$5
         AND ${EFFECTIVE_AT}>opening_line.counted_at AND ${EFFECTIVE_AT}<=closing_line.counted_at
       ORDER BY ${EFFECTIVE_AT},m.id`, [tenantId, query.locationId, query.openingCountId, query.closingCountId, itemId]);
-    const [closingAdjustment] = await this.db.query(`SELECT m.type,m.quantity_base::text AS "quantityBase",m.created_at AS "recordedAt"
+    const [closingAdjustment] = await this.db.query(`SELECT 'STOCK_COUNT_ADJUSTMENT' AS type,sum(m.quantity_base)::text AS "quantityBase",max(m.created_at) AS "recordedAt"
       FROM inventory_stock_count_lines cl JOIN inventory_stock_movements m ON m.coffee_shop_id=cl.coffee_shop_id AND m.id=cl.movement_id
-      WHERE cl.coffee_shop_id=$1 AND cl.count_id=$2 AND cl.item_id=$3 AND m.type='STOCK_COUNT_ADJUSTMENT'`, [tenantId, query.closingCountId, itemId]);
+      WHERE cl.coffee_shop_id=$1 AND cl.count_id=$2 AND cl.item_id=$3 AND m.type='STOCK_COUNT_ADJUSTMENT' HAVING count(*)>0`, [tenantId, query.closingCountId, itemId]);
     return { ...row, movements: movements.map((movement: { type: string; sourceType: string | null }) => ({
       ...movement, classification: classifyInventoryVarianceMovement(movement.type, movement.sourceType),
     })), closingCountAdjustment: closingAdjustment ?? null };
@@ -155,8 +157,8 @@ export class InventoryVarianceService {
         SELECT i.id,i.name AS item_name,i.base_unit,ol.counted_quantity AS opening_quantity,ol.counted_at AS opening_counted_at,
           cl.counted_quantity AS closing_quantity,cl.counted_at AS closing_counted_at
         FROM inventory_items i
-        LEFT JOIN inventory_stock_count_lines ol ON ol.coffee_shop_id=i.coffee_shop_id AND ol.item_id=i.id AND ol.count_id=$3
-        LEFT JOIN inventory_stock_count_lines cl ON cl.coffee_shop_id=i.coffee_shop_id AND cl.item_id=i.id AND cl.count_id=$4
+        LEFT JOIN LATERAL (SELECT sum(counted_quantity) AS counted_quantity,max(counted_at) AS counted_at FROM inventory_stock_count_lines WHERE coffee_shop_id=i.coffee_shop_id AND item_id=i.id AND count_id=$3) ol ON true
+        LEFT JOIN LATERAL (SELECT sum(counted_quantity) AS counted_quantity,max(counted_at) AS counted_at FROM inventory_stock_count_lines WHERE coffee_shop_id=i.coffee_shop_id AND item_id=i.id AND count_id=$4) cl ON true
         WHERE i.coffee_shop_id=$1 AND ($8::uuid IS NULL OR i.id=$8::uuid)
       ), movement_rows AS (
         SELECT m.item_id,m.type::text AS movement_type,m.quantity_base,m.source_type,m.source_id,m.source_line_id,m.order_item_id,${SOURCE_VALID} AS source_valid,
@@ -190,9 +192,10 @@ export class InventoryVarianceService {
         SELECT count(oi.id)::int AS total_order_items,
           count(oi.id) FILTER(WHERE EXISTS(SELECT 1 FROM inventory_stock_movements sm
             JOIN inventory_recipe_components rc ON rc.coffee_shop_id=sm.coffee_shop_id AND rc.id=sm.recipe_component_id
-              AND rc.recipe_version_id=sm.recipe_version_id AND rc.inventory_item_id=sm.item_id AND rc.quantity_base*oi.quantity=-sm.quantity_base
+              AND rc.recipe_version_id=sm.recipe_version_id AND rc.inventory_item_id=sm.item_id
             WHERE sm.coffee_shop_id=oi.coffee_shop_id AND sm.order_item_id=oi.id AND sm.source_type='ORDER_CONSUMPTION'
-              AND sm.source_id=o.id::text AND sm.type='SALE_CONSUMPTION' AND sm.quantity_base<0))::int AS consumed_order_items
+              AND sm.source_id=o.id::text AND sm.type='SALE_CONSUMPTION' AND sm.quantity_base<0
+            GROUP BY rc.id,rc.quantity_base HAVING rc.quantity_base*oi.quantity=-sum(sm.quantity_base)))::int AS consumed_order_items
         FROM order_items oi JOIN orders o ON o.coffee_shop_id=oi.coffee_shop_id AND o.id=oi.order_id
         CROSS JOIN period p
         WHERE oi.coffee_shop_id=$1 AND o.created_at>p.opening_completed_at AND o.created_at<=p.closing_completed_at

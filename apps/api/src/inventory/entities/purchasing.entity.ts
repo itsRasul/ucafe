@@ -96,6 +96,7 @@ export class InventoryGoodsReceiptLine {
   @Column({ name: "unit_price_toman", type: "bigint" }) unitPriceToman!: string;
   @Column({ name: "total_cost_toman", type: "bigint" }) totalCostToman!: string;
   @Column({ type: "varchar", length: 500, nullable: true }) note!: string | null;
+  @Column({ name: "batch_details", type: "jsonb", default: () => "'[]'::jsonb" }) batchDetails!: Array<Record<string, string | null>>;
   @Column({ name: "movement_id", type: "uuid", nullable: true }) movementId!: string | null;
   @CreateDateColumn({ name: "created_at", type: "timestamptz" }) createdAt!: Date;
 }

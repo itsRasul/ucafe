@@ -56,6 +56,13 @@ export class UpdatePurchaseOrderDto {
   @IsOptional() @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100) @ValidateNested({ each: true }) @Type(() => PurchaseOrderLineDto) items?: PurchaseOrderLineDto[];
 }
 
+export class ReceiptBatchDto {
+  @Matches(quantity) quantity!: string;
+  @IsOptional() @IsString() @MaxLength(100) supplierLotNumber?: string;
+  @IsOptional() @Matches(date) manufacturedDate?: string;
+  @IsOptional() @Matches(date) expiryDate?: string;
+}
+
 export class GoodsReceiptLineDto {
   @IsUUID() inventoryItemId!: string;
   @IsOptional() @IsUUID() purchaseOrderItemId?: string;
@@ -64,6 +71,7 @@ export class GoodsReceiptLineDto {
   @IsString() @MaxLength(16) unit!: string;
   @Matches(money) unitPriceToman!: string;
   @IsOptional() @IsString() @MaxLength(500) note?: string;
+  @IsOptional() @IsArray() @ArrayMinSize(1) @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => ReceiptBatchDto) batches?: ReceiptBatchDto[];
 }
 
 export class CreateGoodsReceiptDto {
