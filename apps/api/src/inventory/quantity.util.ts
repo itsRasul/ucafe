@@ -24,6 +24,14 @@ export function addQuantities(...values: string[]): string {
   return format(total);
 }
 
+export function multiplyQuantity(value: string, multiplier: number): string {
+  if (!Number.isSafeInteger(multiplier) || multiplier < 0) throw new BadRequestException("Quantity multiplier must be a nonnegative integer");
+  const negative = value.startsWith("-");
+  const [whole, decimal = ""] = (negative ? value.slice(1) : value).split(".");
+  const micros = (BigInt(whole!) * scale + BigInt(decimal.padEnd(6, "0"))) * BigInt(multiplier) * (negative ? -1n : 1n);
+  return format(micros);
+}
+
 function format(total: bigint) {
   const abs = total < 0 ? -total : total;
   const fraction = (abs % scale).toString().padStart(6, "0").replace(/0+$/, "");

@@ -1,5 +1,21 @@
 # Inventory
 
+## Phase 3 status
+
+Phase 3 is implemented. `OrderingService.updateStatus` applies stock effects in the same PostgreSQL transaction as the order status write and notification outbox. `UNDER_REVIEW → PREPARING` is the acceptance point: café staff have accepted the sale for preparation. Any valid transition to `CANCELED` asks Inventory to reverse existing consumption; canceling before preparation is a no-op, and the existing state machine does not allow cancellation after courier dispatch or delivery. A completed/refunded sale is not reversed; customer refunds are not implemented.
+
+Orders remains the lifecycle owner and depends on the exported `InventoryService`; Inventory does not change order status. The order row is pessimistically locked by the existing transition service. Consumption/reversal also take a tenant-and-order advisory transaction lock, and movements, balance changes, order status, and notification enqueue commit or roll back together. A transient failure leaves the previous order state intact so the same status action can be retried. The transition itself prevents a second acceptance; stable movement idempotency keys and database unique indexes are the final duplicate boundary.
+
+Consumption uses the exact active variant recipe when configured, then falls back to the base menu-item recipe. It snapshots the published recipe version and component IDs on each component-level `SALE_CONSUMPTION` movement, records the acting tenant admin, multiplies normalized base quantity with exact decimal arithmetic, and posts to the active default Inventory Location. Movement/balance locks are acquired in item-ID order. Negative stock follows the Phase 1 policy and is allowed.
+
+Menu items without any recipe are skipped with a tenant/order/line warning; other valid lines in that order still consume. A configured recipe with no active version, or an invalid empty active version, is logged and fails the whole order transition before stock writes, leaving the order in its prior state. Consumption is skipped when the shared `inventory` entitlement is off, so Ordering remains independent of plan name and Inventory access. Reversal is not entitlement-gated: once stock was consumed, disabling Inventory must not prevent restoring it on operational cancellation.
+
+Reversals append positive `SALE_REVERSAL` rows linked to their original movements; the immutable consumption rows are never changed or deleted. PostgreSQL enforces one consumption per source order line/component, one reversal per original movement, tenant-scoped references to order lines and recipe history, and exact reversal quantity/item/location/recipe matching. Order item deletion is restricted once referenced by inventory history. Existing stock history shows localized sale movement labels and a shortened order reference; its API also returns order-item, recipe-version/component, and original-movement references.
+
+No historical backfill runs. Only an `UNDER_REVIEW → PREPARING` transition after deployment consumes stock; orders already in `PREPARING`, `READY`, `OUT_FOR_DELIVERY`, or `DELIVERED` remain untouched. Existing `UNDER_REVIEW` orders consume only if accepted after deployment. Checkout currently has no modifiers/add-ons, so free-text notes do not affect recipe quantities. Costs are not fabricated, and unit cost remains null. The data preserves order line, recipe version/component, item, normalized quantity, and timestamp for future Actual vs Theoretical reporting.
+
+Migration `1787851200000-IntegrateOrderInventory` adds structured source references, tenant-safe foreign keys, database duplicate guards, and reversal validation. `apps/api/src/inventory/order-inventory.spec.ts` covers the canonical order transition, exact/variant recipe resolution, idempotency, reversal, missing/invalid recipe behavior, feature gating, tenant isolation, and database reversal checks. Phase 4 can begin with Suppliers, Purchasing, and Goods Receiving; keep new purchase-source movements generic and reuse `InventoryService`'s ledger posting path.
+
 ## Phase 2 status
 
 Phase 2 is implemented. Recipes are optional per menu item or variant, versioned, Inventory-feature-gated, and tenant-scoped. Draft edits replace that draft's components with an optimistic revision check; publishing atomically activates the draft and supersedes the prior active version. Published components are immutable in the API and protected by a database trigger. Recipe operations do not post stock movements.
@@ -59,7 +75,7 @@ Tenant RBAC uses `inventory.read` and `inventory.manage`, granted to the protect
 | 0 | Feature, schema and architecture foundation | Implemented |
 | 1 | Items, categories, locations, balances, adjustments, counts and history | Implemented |
 | 2 | Menu/variant recipes and recipe versioning | Implemented |
-| 3 | Order consumption and reversal | Planned |
+| 3 | Order consumption and reversal | Implemented |
 | 4 | Suppliers, purchasing, receipts and purchase costs | Planned |
 | 5 | Waste, minimum stock and PAR alerts | Planned |
 | 6 | Recipe costing and menu profitability | Planned |
@@ -128,8 +144,8 @@ Routes are under `/api/v1/tenant/inventory/recipes`:
 
 Migrations `1787844000000` and `1787847600000` add recipe tables, composite tenant foreign keys, target/version/component uniqueness and positive quantity constraints, plus published-version/component immutability. `apps/api/src/inventory/recipes.spec.ts` covers entitlement denial, DTO constraints and a rollback-only PostgreSQL lifecycle scenario including tenant isolation, units, inactive ingredients, stale drafts, publication, history, copy, resolution and no stock movements.
 
-### Phase 3 integration guidance
+### Future recipe extensions
 
-Phase 2 does not change orders, balances, or movements. Phase 3 should snapshot `recipeVersionId` on each order line when the order operation applies the recipe, or on each related stock movement; retaining both the source order-item ID and recipe-version ID on consumption movements gives the clearest audit trail. Historical order analysis must use that version ID rather than looking up the current active recipe. `effective_from` supports reports where no consumption snapshot exists, but does not replace a version snapshot.
+Phase 3 stores the source order-item and recipe-version/component references on each consumption movement. Historical order analysis must use those snapshots rather than looking up the currently active recipe; `effective_from` does not replace a version snapshot.
 
-Modifiers/add-ons can later add optional modifier-level recipe components alongside the base recipe. Prep recipes can add a production-output item component once that workflow is explicitly scoped; Phase 2 has no recursive recipe graph. Recipe costing, order consumption/reversal, and actual-vs-theoretical reporting remain deferred.
+Modifiers/add-ons can later add optional modifier-level recipe components alongside the base recipe. Prep recipes can add a production-output item component once that workflow is explicitly scoped; Phase 2 has no recursive recipe graph. Recipe costing and Actual vs Theoretical reporting remain deferred.

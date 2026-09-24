@@ -16,7 +16,7 @@ type Overview={activeItems:number;negativeBalances:number;draftCounts:number;rec
 type Tab="overview"|"items"|"counts"|"history"|"locations";
 const fa=(value:string|number)=>new Intl.NumberFormat("fa-IR").format(Number(value));
 const decimal=(v:string)=>v.replace(/\B(?=(\d{3})+(?!\d))/g,"٬").replace(/\./g,"٫").replace(/\d/g,d=>"۰۱۲۳۴۵۶۷۸۹"[Number(d)]!);
-const movementNames:Record<string,string>={OPENING_BALANCE:"موجودی اولیه",MANUAL_ADJUSTMENT:"اصلاح موجودی",STOCK_COUNT_ADJUSTMENT:"اصلاح انبارگردانی"};
+const movementNames:Record<string,string>={OPENING_BALANCE:"موجودی اولیه",MANUAL_ADJUSTMENT:"اصلاح موجودی",STOCK_COUNT_ADJUSTMENT:"اصلاح انبارگردانی",SALE_CONSUMPTION:"مصرف سفارش",SALE_REVERSAL:"بازگشت موجودی سفارش"};
 const unitNames:Record<string,string>={g:"گرم",kg:"کیلوگرم",ml:"میلی‌لیتر",l:"لیتر",piece:"عدد",pack:"بسته",box:"جعبه",bottle:"بطری"};
 
 export default function InventoryPage(){

@@ -72,6 +72,9 @@ export class InventoryLocation {
 
 @Entity("inventory_stock_movements")
 @Index("IDX_inventory_movements_item_created", ["coffeeShopId", "itemId", "createdAt"])
+@Index("UQ_inventory_movements_tenant_id", ["coffeeShopId", "id"], { unique: true })
+@Index("UQ_inventory_movements_order_consumption", ["coffeeShopId", "sourceId", "orderItemId", "recipeComponentId"], { unique: true, where: "type = 'SALE_CONSUMPTION' AND source_type = 'ORDER_CONSUMPTION'" })
+@Index("UQ_inventory_movements_reversal", ["coffeeShopId", "reversalOfMovementId"], { unique: true, where: '"reversal_of_movement_id" IS NOT NULL' })
 export class InventoryStockMovement {
   @PrimaryGeneratedColumn("uuid") id!: string;
   @Column({ name: "coffee_shop_id", type: "uuid" }) coffeeShopId!: string;
@@ -82,6 +85,10 @@ export class InventoryStockMovement {
   @Column({ name: "unit_cost_toman", type: "numeric", precision: 20, scale: 6, nullable: true }) unitCostToman!: string | null;
   @Column({ name: "source_type", type: "varchar", length: 40, nullable: true }) sourceType!: string | null;
   @Column({ name: "source_id", type: "varchar", length: 100, nullable: true }) sourceId!: string | null;
+  @Column({ name: "order_item_id", type: "uuid", nullable: true }) orderItemId!: string | null;
+  @Column({ name: "recipe_version_id", type: "uuid", nullable: true }) recipeVersionId!: string | null;
+  @Column({ name: "recipe_component_id", type: "uuid", nullable: true }) recipeComponentId!: string | null;
+  @Column({ name: "reversal_of_movement_id", type: "uuid", nullable: true }) reversalOfMovementId!: string | null;
   @Column({ name: "idempotency_key", type: "varchar", length: 100, nullable: true }) idempotencyKey!: string | null;
   @Column({ name: "actor_user_id", type: "uuid", nullable: true }) actorUserId!: string | null;
   @Column({ type: "varchar", length: 500, nullable: true }) reason!: string | null;

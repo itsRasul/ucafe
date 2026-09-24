@@ -23,13 +23,13 @@ test("quantity conversion rejects cross-dimension, custom-count and excess-preci
 });
 
 test("item creation rejects a base unit from another measurement dimension before persistence",async()=>{
-  const service=new InventoryService({} as never,{requireFeature:async()=>undefined} as never);
+  const service=new InventoryService({} as never,{requireFeature:async()=>undefined} as never,{} as never);
   await assert.rejects(service.createItem("tenant","actor",{name:"Milk",dimension:InventoryDimension.Weight,baseUnit:"l"} as CreateInventoryItemDto),error=>error instanceof BadRequestException);
 });
 
 test("every inventory operation rejects an unavailable subscription before querying data", async () => {
   let queried=false;
-  const service=new InventoryService({query:async()=>{queried=true;return[];}} as never,{requireFeature:async()=>{throw new ForbiddenException({code:"FEATURE_UNAVAILABLE",feature:"inventory"});}} as never);
+  const service=new InventoryService({query:async()=>{queried=true;return[];}} as never,{requireFeature:async()=>{throw new ForbiddenException({code:"FEATURE_UNAVAILABLE",feature:"inventory"});}} as never,{} as never);
   await assert.rejects(service.overview("tenant-a"),(error:unknown)=>error instanceof ForbiddenException);
   assert.equal(queried,false);
 });
@@ -57,7 +57,7 @@ test("inventory posts are tenant-scoped, idempotent, and stock counts rebase lat
       const tenantId=randomUUID(),otherTenantId=randomUUID();
       await manager.query(`INSERT INTO coffee_shops(id,name,slug,status) VALUES($1,'Inventory Test',$2,'ACTIVE'),($3,'Inventory Test Other',$4,'ACTIVE')`,[tenantId,`inventory-${tenantId}`,otherTenantId,`inventory-${otherTenantId}`]);
       const adapter={manager,query:(sql:string,params?:unknown[])=>manager.query(sql,params),transaction:<T>(work:(m:EntityManager)=>Promise<T>)=>work(manager)} as unknown as DataSource;
-      const service=new InventoryService(adapter,{requireFeature:async()=>undefined} as never);
+      const service=new InventoryService(adapter,{requireFeature:async()=>undefined} as never,{} as never);
       const rejectUnique=async(work:()=>Promise<unknown>)=>{await manager.query(`SAVEPOINT inventory_unique_test`);await assert.rejects(work,error=>error instanceof ConflictException);await manager.query(`ROLLBACK TO SAVEPOINT inventory_unique_test`);};
       const category=await service.createCategory(tenantId,{name:"Ingredients"});
       await rejectUnique(()=>service.createCategory(tenantId,{name:" ingredients "}));

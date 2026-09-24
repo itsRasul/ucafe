@@ -1,10 +1,11 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { DataSource, EntityManager } from "typeorm";
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { SubscriptionFeatures } from "../subscriptions/subscription-features";
 import { CreateInventoryCategoryDto, CreateInventoryItemDto, CreateInventoryLocationDto, CreateStockCountDto, InventoryListQueryDto, MovementListQueryDto, StockAdjustmentDto, UpdateInventoryCategoryDto, UpdateInventoryItemDto, UpdateInventoryLocationDto, UpdateStockCountLinesDto } from "./inventory.dto";
 import { InventoryCountStatus, InventoryDimension, InventoryMovementType } from "./entities";
-import { addQuantities, quantityToBase } from "./quantity.util";
+import { addQuantities, multiplyQuantity, quantityToBase } from "./quantity.util";
+import { RecipesService } from "./recipes.service";
 
 type Row = { id: string; is_active: boolean; dimension: InventoryDimension; base_unit: string };
 const uniqueConflict = (error: unknown): never => {
@@ -15,7 +16,8 @@ const firstRow = <T>(rows: T[]) => { const row=rows[0]; return (Array.isArray(ro
 
 @Injectable()
 export class InventoryService {
-  constructor(private readonly db: DataSource, private readonly subscriptions: SubscriptionsService) {}
+  private readonly logger = new Logger(InventoryService.name);
+  constructor(private readonly db: DataSource, private readonly subscriptions: SubscriptionsService, private readonly recipes: RecipesService) {}
   private async gate(tenantId: string) { await this.subscriptions.requireFeature(tenantId, SubscriptionFeatures.Inventory); }
   private async tenantRow(manager: EntityManager, table: string, id: string, tenantId: string) {
     const rows = await manager.query(`SELECT * FROM ${table} WHERE id=$1 AND coffee_shop_id=$2 FOR SHARE`, [id, tenantId]) as Row[];
@@ -155,9 +157,92 @@ export class InventoryService {
     if (query.to) add("m.created_at<?::date+interval '1 day'",query.to);
     if (query.search?.trim()) add("i.name ILIKE '%'||?||'%'",query.search.trim());
     const totals=[...values];values.push(limit,(page-1)*limit);
-    const rows=await this.db.query(`SELECT m.id,m.item_id AS "itemId",i.name AS "itemName",m.location_id AS "locationId",l.name AS "locationName",m.type,m.quantity_base::text AS "quantityBase",m.reason,m.source_type AS "sourceType",m.source_id AS "sourceId",m.actor_user_id AS "actorUserId",m.created_at AS "createdAt" FROM inventory_stock_movements m JOIN inventory_items i ON i.id=m.item_id AND i.coffee_shop_id=m.coffee_shop_id JOIN inventory_locations l ON l.id=m.location_id AND l.coffee_shop_id=m.coffee_shop_id WHERE ${where.join(" AND ")} ORDER BY m.created_at DESC,m.id DESC LIMIT $${values.length-1} OFFSET $${values.length}`,values);
+    const rows=await this.db.query(`SELECT m.id,m.item_id AS "itemId",i.name AS "itemName",m.location_id AS "locationId",l.name AS "locationName",m.type,m.quantity_base::text AS "quantityBase",m.reason,m.source_type AS "sourceType",m.source_id AS "sourceId",m.order_item_id AS "orderItemId",m.recipe_version_id AS "recipeVersionId",m.recipe_component_id AS "recipeComponentId",m.reversal_of_movement_id AS "reversalOfMovementId",m.actor_user_id AS "actorUserId",m.created_at AS "createdAt" FROM inventory_stock_movements m JOIN inventory_items i ON i.id=m.item_id AND i.coffee_shop_id=m.coffee_shop_id JOIN inventory_locations l ON l.id=m.location_id AND l.coffee_shop_id=m.coffee_shop_id WHERE ${where.join(" AND ")} ORDER BY m.created_at DESC,m.id DESC LIMIT $${values.length-1} OFFSET $${values.length}`,values);
     const [{count}]=await this.db.query(`SELECT count(*)::int AS count FROM inventory_stock_movements m JOIN inventory_items i ON i.id=m.item_id AND i.coffee_shop_id=m.coffee_shop_id WHERE ${where.join(" AND ")}`,totals);
     return {items:rows,page,limit,total:count};
+  }
+
+  async consumeOrder(manager: EntityManager, tenantId: string, orderId: string, actorId: string) {
+    await this.lockOrder(manager, tenantId, orderId);
+    const [alreadyApplied] = await manager.query(`SELECT id FROM inventory_stock_movements WHERE coffee_shop_id=$1 AND source_type='ORDER_CONSUMPTION' AND source_id=$2 AND type='SALE_CONSUMPTION' LIMIT 1`, [tenantId, orderId]);
+    if (alreadyApplied) return { applied: false, duplicate: true };
+    if (!(await this.subscriptions.featureState(tenantId, SubscriptionFeatures.Inventory, new Date(), manager)).enabled) return { applied: false, featureDisabled: true };
+
+    const lines = await manager.query(`SELECT id,menu_item_id AS "menuItemId",menu_item_variant_id AS "variantId",quantity
+      FROM order_items WHERE coffee_shop_id=$1 AND order_id=$2 ORDER BY id`, [tenantId, orderId]);
+    if (!lines.length) throw new ConflictException("An order cannot be consumed without order items");
+    const operations: Array<{ itemId: string; orderItemId: string; recipeVersionId: string; recipeComponentId: string; quantity: string }> = [];
+    let skippedItems = 0;
+    for (const line of lines) {
+      if (!line.menuItemId) {
+        skippedItems++;
+        this.logger.warn(JSON.stringify({ event: "order_inventory_missing_menu_item", tenantId, orderId, orderItemId: line.id }));
+        continue;
+      }
+      let recipe: Awaited<ReturnType<RecipesService["resolveActiveRecipe"]>>;
+      try {
+        recipe = await this.recipes.resolveActiveRecipe(tenantId, line.menuItemId, line.variantId, manager, false);
+      } catch (error) {
+        this.logger.error(JSON.stringify({ event: "order_inventory_recipe_resolution_failed", tenantId, orderId, orderItemId: line.id }), error instanceof Error ? error.stack : undefined);
+        throw error;
+      }
+      if (!recipe) {
+        skippedItems++;
+        this.logger.warn(JSON.stringify({ event: "order_inventory_recipe_missing", tenantId, orderId, orderItemId: line.id }));
+        continue;
+      }
+      for (const component of recipe.components) operations.push({
+        itemId: component.inventoryItemId,
+        orderItemId: line.id,
+        recipeVersionId: recipe.recipeVersionId,
+        recipeComponentId: component.recipeComponentId,
+        quantity: multiplyQuantity(component.quantityBase, line.quantity),
+      });
+    }
+
+    operations.sort((a, b) => a.itemId.localeCompare(b.itemId) || a.orderItemId.localeCompare(b.orderItemId) || a.recipeComponentId.localeCompare(b.recipeComponentId));
+    if (!operations.length) return { applied: false, duplicate: false, skippedItems };
+    const location = await this.defaultLocation(manager, tenantId);
+    await this.activeLocation(manager, tenantId, location.id);
+    const reason = `سفارش #${orderId.slice(0, 8).toUpperCase()}`;
+    for (const operation of operations) await this.postMovement(manager, tenantId, actorId, {
+      ...operation,
+      locationId: location.id,
+      type: InventoryMovementType.SaleConsumption,
+      quantity: `-${operation.quantity}`,
+      reason,
+      idempotencyKey: `order-consumption:${operation.orderItemId}:${operation.recipeComponentId}`,
+      sourceType: "ORDER_CONSUMPTION",
+      sourceId: orderId,
+    });
+    return { applied: true, duplicate: false, skippedItems };
+  }
+
+  async reverseOrder(manager: EntityManager, tenantId: string, orderId: string, actorId: string) {
+    await this.lockOrder(manager, tenantId, orderId);
+    const consumed = await manager.query(`SELECT id,item_id AS "itemId",location_id AS "locationId",quantity_base::text AS quantity,
+      order_item_id AS "orderItemId",recipe_version_id AS "recipeVersionId",recipe_component_id AS "recipeComponentId"
+      FROM inventory_stock_movements WHERE coffee_shop_id=$1 AND source_type='ORDER_CONSUMPTION' AND source_id=$2 AND type='SALE_CONSUMPTION'
+      ORDER BY item_id,id FOR UPDATE`, [tenantId, orderId]);
+    const reason = `بازگشت سفارش #${orderId.slice(0, 8).toUpperCase()}`;
+    for (const movement of consumed) {
+      if (!movement.quantity.startsWith("-")) throw new ConflictException("An order consumption movement has an invalid quantity");
+      await this.postMovement(manager, tenantId, actorId, {
+        itemId: movement.itemId,
+        orderItemId: movement.orderItemId,
+        recipeVersionId: movement.recipeVersionId,
+        recipeComponentId: movement.recipeComponentId,
+        reversalOfMovementId: movement.id,
+        locationId: movement.locationId,
+        type: InventoryMovementType.SaleReversal,
+        quantity: movement.quantity.slice(1),
+        reason,
+        idempotencyKey: `order-reversal:${movement.id}`,
+        sourceType: "ORDER_REVERSAL",
+        sourceId: orderId,
+      });
+    }
+    return { reversed: consumed.length > 0, movements: consumed.length };
   }
 
   async counts(tenantId:string,query:InventoryListQueryDto) {
@@ -227,23 +312,27 @@ export class InventoryService {
   }
   private async activeCategory(m:EntityManager,tenantId:string,id:string){const [row]=await m.query(`SELECT id FROM inventory_categories WHERE coffee_shop_id=$1 AND id=$2 AND is_active`,[tenantId,id]);if(!row)throw new NotFoundException("Active inventory category not found");}
   private async activeLocation(m:EntityManager,tenantId:string,id:string){const [row]=await m.query(`SELECT id FROM inventory_locations WHERE coffee_shop_id=$1 AND id=$2 AND is_active FOR SHARE`,[tenantId,id]);if(!row)throw new NotFoundException("Active inventory location not found");return row;}
+  private async lockOrder(m:EntityManager,tenantId:string,orderId:string){
+    // ponytail: hashtext collisions only serialize unrelated orders; use hashtextextended if contention appears.
+    await m.query(`SELECT pg_advisory_xact_lock(hashtext($1))`,[`inventory-order:${tenantId}:${orderId}`]);
+  }
   private async defaultLocation(m:EntityManager,tenantId:string){
     const [existing]=await m.query(`SELECT * FROM inventory_locations WHERE coffee_shop_id=$1 AND is_default`,[tenantId]);if(existing)return existing;
     await m.query(`INSERT INTO inventory_locations(coffee_shop_id,name,is_default) VALUES($1,'Main Inventory',true) ON CONFLICT(coffee_shop_id) WHERE is_default DO NOTHING`,[tenantId]);
     const [created]=await m.query(`SELECT * FROM inventory_locations WHERE coffee_shop_id=$1 AND is_default`,[tenantId]);if(!created)throw new ConflictException("Could not create a default inventory location");return created;
   }
-  private async postMovement(m:EntityManager,tenantId:string,actorId:string,op:{itemId:string;locationId:string;type:InventoryMovementType;quantity:string;reason:string;idempotencyKey:string;sourceType:string;sourceId:string}){
+  private async postMovement(m:EntityManager,tenantId:string,actorId:string|null,op:{itemId:string;locationId:string;type:InventoryMovementType;quantity:string;reason:string;idempotencyKey:string;sourceType:string;sourceId:string;orderItemId?:string|null;recipeVersionId?:string|null;recipeComponentId?:string|null;reversalOfMovementId?:string|null}){
     const checkPrior=async()=>{
-      const [prior]=await m.query(`SELECT id,item_id,location_id,type,quantity_base::text,reason FROM inventory_stock_movements WHERE coffee_shop_id=$1 AND idempotency_key=$2`,[tenantId,op.idempotencyKey]);
+      const [prior]=await m.query(`SELECT id,item_id,location_id,type,quantity_base::text,reason,source_type,source_id,order_item_id,recipe_version_id,recipe_component_id,reversal_of_movement_id FROM inventory_stock_movements WHERE coffee_shop_id=$1 AND idempotency_key=$2`,[tenantId,op.idempotencyKey]);
       if(!prior)return null;
-      if(prior.item_id!==op.itemId||prior.location_id!==op.locationId||prior.type!==op.type||addQuantities(prior.quantity_base)!==addQuantities(op.quantity)||prior.reason!==op.reason)throw new ConflictException("Idempotency key was already used for a different stock operation");
+      if(prior.item_id!==op.itemId||prior.location_id!==op.locationId||prior.type!==op.type||addQuantities(prior.quantity_base)!==addQuantities(op.quantity)||prior.reason!==op.reason||prior.source_type!==op.sourceType||prior.source_id!==op.sourceId||prior.order_item_id!==(op.orderItemId??null)||prior.recipe_version_id!==(op.recipeVersionId??null)||prior.recipe_component_id!==(op.recipeComponentId??null)||prior.reversal_of_movement_id!==(op.reversalOfMovementId??null))throw new ConflictException("Idempotency key was already used for a different stock operation");
       const [balance]=await m.query(`SELECT quantity_base::text AS quantity_base FROM inventory_stock_balances WHERE coffee_shop_id=$1 AND item_id=$2 AND location_id=$3`,[tenantId,op.itemId,op.locationId]);return {id:prior.id,balance:balance?.quantity_base??"0",duplicate:true};
     };
     const prior=await checkPrior();if(prior)return prior;
     await m.query(`INSERT INTO inventory_stock_balances(coffee_shop_id,item_id,location_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING`,[tenantId,op.itemId,op.locationId]);
     await m.query(`SELECT id FROM inventory_stock_balances WHERE coffee_shop_id=$1 AND item_id=$2 AND location_id=$3 FOR UPDATE`,[tenantId,op.itemId,op.locationId]);
     const afterLock=await checkPrior();if(afterLock)return afterLock;
-    const [movement]=await m.query(`INSERT INTO inventory_stock_movements(coffee_shop_id,item_id,location_id,type,quantity_base,source_type,source_id,idempotency_key,actor_user_id,reason,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,clock_timestamp()) ON CONFLICT(coffee_shop_id,idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING RETURNING id`,[tenantId,op.itemId,op.locationId,op.type,op.quantity,op.sourceType,op.sourceId,op.idempotencyKey,actorId,op.reason]);
+    const [movement]=await m.query(`INSERT INTO inventory_stock_movements(coffee_shop_id,item_id,location_id,type,quantity_base,source_type,source_id,order_item_id,recipe_version_id,recipe_component_id,reversal_of_movement_id,idempotency_key,actor_user_id,reason,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,clock_timestamp()) ON CONFLICT(coffee_shop_id,idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING RETURNING id`,[tenantId,op.itemId,op.locationId,op.type,op.quantity,op.sourceType,op.sourceId,op.orderItemId??null,op.recipeVersionId??null,op.recipeComponentId??null,op.reversalOfMovementId??null,op.idempotencyKey,actorId,op.reason]);
     if(!movement){const duplicate=await checkPrior();if(duplicate)return duplicate;throw new ConflictException("Stock movement could not be recorded");}
     await m.query(`UPDATE inventory_stock_balances SET quantity_base=quantity_base+$4,updated_at=clock_timestamp() WHERE coffee_shop_id=$1 AND item_id=$2 AND location_id=$3`,[tenantId,op.itemId,op.locationId,op.quantity]);
     const [balance]=await m.query(`SELECT quantity_base::text AS quantity_base FROM inventory_stock_balances WHERE coffee_shop_id=$1 AND item_id=$2 AND location_id=$3`,[tenantId,op.itemId,op.locationId]);

@@ -196,20 +196,25 @@ export class RecipesService {
     } catch (error) { return uniqueConflict(error); }
   }
 
-  async resolveActiveRecipe(tenantId: string, menuItemId: string, menuItemVariantId?: string | null) {
-    await this.gate(tenantId);
+  async resolveActiveRecipe(tenantId: string, menuItemId: string, menuItemVariantId?: string | null, manager?: EntityManager, checkFeature = true) {
+    if (checkFeature) await this.gate(tenantId);
+    const query = manager?.query.bind(manager) ?? this.db.query.bind(this.db);
+    const lock = manager ? " FOR SHARE" : "";
     if (menuItemVariantId) {
-      const [variant] = await this.db.query(`SELECT id FROM menu_item_variants WHERE coffee_shop_id=$1 AND item_id=$2 AND id=$3`, [tenantId, menuItemId, menuItemVariantId]);
+      const [variant] = await query(`SELECT id FROM menu_item_variants WHERE coffee_shop_id=$1 AND item_id=$2 AND id=$3`, [tenantId, menuItemId, menuItemVariantId]);
       if (!variant) throw new NotFoundException("Menu variant not found");
     }
-    const [active] = await this.db.query(`SELECT r.id AS "recipeId",v.id AS "recipeVersionId",v.version_number AS "versionNumber",v.effective_from AS "effectiveFrom"
-      FROM inventory_recipes r JOIN inventory_recipe_versions v ON v.coffee_shop_id=r.coffee_shop_id AND v.recipe_id=r.id AND v.status='ACTIVE'
-      WHERE r.coffee_shop_id=$1 AND r.menu_item_id=$2 AND (r.menu_item_variant_id=$3 OR r.menu_item_variant_id IS NULL)
-      ORDER BY CASE WHEN r.menu_item_variant_id=$3 THEN 0 ELSE 1 END LIMIT 1`, [tenantId, menuItemId, menuItemVariantId ?? null]);
-    if (!active) return null;
-    const components = await this.db.query(`SELECT inventory_item_id AS "inventoryItemId",inventory_item_name_snapshot AS "inventoryItemName",
+    const [recipe] = await query(`SELECT id FROM inventory_recipes WHERE coffee_shop_id=$1 AND menu_item_id=$2
+      AND (menu_item_variant_id=$3 OR menu_item_variant_id IS NULL)
+      ORDER BY CASE WHEN menu_item_variant_id=$3 THEN 0 ELSE 1 END LIMIT 1${lock}`, [tenantId, menuItemId, menuItemVariantId ?? null]);
+    if (!recipe) return null;
+    const [active] = await query(`SELECT id AS "recipeVersionId",version_number AS "versionNumber",effective_from AS "effectiveFrom"
+      FROM inventory_recipe_versions WHERE coffee_shop_id=$1 AND recipe_id=$2 AND status='ACTIVE'${lock}`, [tenantId, recipe.id]);
+    if (!active) throw new ConflictException({ code: "INVENTORY_RECIPE_INVALID", message: "A configured order recipe has no active version" });
+    const components = await query(`SELECT id AS "recipeComponentId",inventory_item_id AS "inventoryItemId",inventory_item_name_snapshot AS "inventoryItemName",
       quantity_display::text AS quantity,unit,quantity_base::text AS "quantityBase",note
-      FROM inventory_recipe_components WHERE coffee_shop_id=$1 AND recipe_version_id=$2 ORDER BY inventory_item_name_snapshot`, [tenantId, active.recipeVersionId]);
-    return { ...active, components };
+      FROM inventory_recipe_components WHERE coffee_shop_id=$1 AND recipe_version_id=$2 ORDER BY id`, [tenantId, active.recipeVersionId]);
+    if (!components.length) throw new ConflictException({ code: "INVENTORY_RECIPE_INVALID", message: "An active order recipe has no components" });
+    return { recipeId: recipe.id, ...active, components };
   }
 }

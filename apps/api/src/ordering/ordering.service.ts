@@ -7,6 +7,7 @@ import { NotificationsService } from "../notifications/notifications.service";
 import { displayOrderNumber, displayToman, NotificationType } from "../notifications/notification-type";
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { SubscriptionFeatures } from "../subscriptions/subscription-features";
+import { InventoryService } from "../inventory/inventory.service";
 import { CheckoutAddressDto, CheckoutLineDto, ClientOrdersQueryDto, CreateOrderDto, OrdersQueryDto, UpdateOnlineOrderingSettingsDto } from "./dto/ordering.dto";
 import { OnlineOrderingSettings, Order, OrderDeliveryMethod, OrderItem, OrderPaymentMethod, OrderStatus } from "./entities";
 import { nextOrderStatuses } from "./order-status.util";
@@ -15,7 +16,7 @@ type UnavailableLine = { menuItemId: string; variantId: string | null; reason: s
 
 @Injectable()
 export class OrderingService {
-  constructor(private readonly dataSource: DataSource, private readonly subscriptions: SubscriptionsService, private readonly notifications: NotificationsService) { }
+  constructor(private readonly dataSource: DataSource, private readonly subscriptions: SubscriptionsService, private readonly notifications: NotificationsService, private readonly inventory: InventoryService) { }
 
   async publicState(coffeeShopId: string) {
     const [feature, settings, branch] = await Promise.all([
@@ -141,6 +142,8 @@ export class OrderingService {
       const order = await manager.getRepository(Order).createQueryBuilder("order").setLock("pessimistic_write").where("order.id = :id AND order.coffeeShopId = :coffeeShopId", { id, coffeeShopId }).getOne();
       if (!order) throw new NotFoundException("Order not found");
       if (!this.nextStatuses(order).includes(next)) throw new ConflictException("Invalid order status transition");
+      if (order.status === OrderStatus.UnderReview && next === OrderStatus.Preparing) await this.inventory.consumeOrder(manager, coffeeShopId, id, actorUserId);
+      if (next === OrderStatus.Canceled) await this.inventory.reverseOrder(manager, coffeeShopId, id, actorUserId);
       order.status = next;
       order.statusChangedAt = new Date();
       order.statusChangedByUserId = actorUserId;

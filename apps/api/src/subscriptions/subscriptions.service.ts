@@ -51,8 +51,8 @@ export class SubscriptionsService {
     return repository.save(plan);
   }
 
-  async featureState(coffeeShopId: string, feature: SubscriptionFeatureKey, now = new Date()) {
-    const subscription = await this.dataSource.getRepository(Subscription).findOne({ where: { coffeeShopId }, relations: { plan: true } });
+  async featureState(coffeeShopId: string, feature: SubscriptionFeatureKey, now = new Date(), manager?: EntityManager) {
+    const subscription = await (manager ? manager.getRepository(Subscription) : this.dataSource.getRepository(Subscription)).findOne({ where: { coffeeShopId }, relations: { plan: true } });
     if (!subscription) return { enabled: false, status: null, plan: null, feature };
     const effective = effectiveSubscriptionStatus(subscription, now, subscription.plan.graceDays);
     const enabled = [SubscriptionStatus.Trialing, SubscriptionStatus.Active, SubscriptionStatus.Grace].includes(effective.status) && subscription.plan.features?.[feature] === true;

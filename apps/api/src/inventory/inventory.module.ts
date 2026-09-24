@@ -8,5 +8,5 @@ import { InventoryService } from "./inventory.service";
 import { RecipesController } from "./recipes.controller";
 import { RecipesService } from "./recipes.service";
 
-@Module({imports:[AuthModule,AuthorizationModule,SubscriptionsModule],controllers:[InventoryController,RecipesController],providers:[InventoryService,RecipesService,TenantContextGuard]})
+@Module({imports:[AuthModule,AuthorizationModule,SubscriptionsModule],controllers:[InventoryController,RecipesController],providers:[InventoryService,RecipesService,TenantContextGuard],exports:[InventoryService]})
 export class InventoryModule {}

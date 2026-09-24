@@ -5,6 +5,7 @@ import { Order } from "./order.entity";
 
 @Entity({ name: "order_items" })
 @Index("IDX_order_items_order", ["orderId"])
+@Index("UQ_order_items_tenant_id", ["coffeeShopId", "id"], { unique: true })
 @Check("CK_order_items_quantity", "quantity > 0")
 @Check("CK_order_items_amounts", "unit_price_toman >= 0 AND line_total_toman >= 0")
 export class OrderItem {
