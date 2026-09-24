@@ -24,6 +24,8 @@ export const TenantPermissions = {
   OrdersRead: "orders.read",
   OrdersManage: "orders.manage",
   AnalyticsRead: "analytics.read",
+  InventoryRead: "inventory.read",
+  InventoryManage: "inventory.manage",
   StaffManage: "staff.manage",
   SubscriptionRead: "subscription.read",
   SubscriptionCheckout: "subscription.checkout",

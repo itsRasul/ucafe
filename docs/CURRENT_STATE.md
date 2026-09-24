@@ -13,6 +13,7 @@
 - Phase 1 adds configurable Analytics plan entitlement (Golden default), zero-filled revenue/order/AOV trends, and a responsive tenant-admin overview. See [ANALYTICS.md](ANALYTICS.md).
 - Phase 2 adds tenant-local hourly and weekday distributions, a weekly and calendar heatmap, and period-specific peaks. See [ANALYTICS.md](ANALYTICS.md).
 - Phase 3 adds historical line-based product/category rankings, contribution, growth/decline, zero-sale products, category-at-sale snapshots, and product/category trends. See [ANALYTICS.md](ANALYTICS.md).
+- Inventory Phase 1 adds tenant-scoped item/category/location management, transactional opening balances and adjustments, stock/count/history views, and the configurable feature gate. See [INVENTORY.md](INVENTORY.md) and [PROGRESS.md](PROGRESS.md).
 - PostgreSQL/Redis/MinIO readiness, security headers, request IDs, backup/restore scripts, Docker development/production targets.
 
 ## Production blockers

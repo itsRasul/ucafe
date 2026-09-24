@@ -419,3 +419,17 @@ The footer location map uses the classic keyless Google Maps embed (`https://map
 - **Decision:** aggregate Phase 3 product revenue, quantity, and containing-order counts from delivered `order_items`, keyed by stable menu item ID and falling back to the item-name snapshot only when the source no longer exists. Snapshot category ID/name on every new order item and report category-at-sale. Rank growth and decline by absolute revenue change while retaining the shared percentage comparison.
 - **Reasoning:** current menu prices and current category relationships can change after a sale. Existing item price/name/variant snapshots already preserve product economics, while two category snapshot columns are the minimum schema change that prevents future category reclassification. Absolute change avoids promoting tiny percentage bases.
 - **Consequences:** migration `1787828400000` best-effort backfills old categories from current menu relationships but cannot reconstruct category moves that predate the migration. Product/category revenue currently reconciles with Overview because orders contain no discounts or fees and totals equal line sums. Variant rows remain grouped under the parent product; variant/modifier reporting is deferred.
+
+## D-054 — Inventory uses an immutable movement ledger and cached balance
+
+- **Status:** implemented through Phase 1 on 2026-09-24
+- **Decision:** add configurable `inventory` plan entitlement; model tenant-owned items/locations, signed immutable movement rows, and a numeric current-balance projection. Use composite tenant foreign keys and tenant-scoped idempotency uniqueness. Keep quantities and unit costs as `numeric(20,6)` decimal strings.
+- **Reasoning:** inventory requires auditable history and cannot safely depend on a mutable quantity field. The existing subscription feature registry and `requireFeature` remain the only entitlement mechanism.
+- **Consequences:** migration `1787832000000` seeds Golden only when the feature key is absent. Phase 1 adds transactionally posted operations, RBAC, tenant-scoped routes, counts, and immutable history. See [INVENTORY.md](INVENTORY.md).
+
+## D-055 — Physical counts rebase against movements after each line is counted
+
+- **Status:** implemented on 2026-09-24
+- **Decision:** snapshot expected balance and timestamp when each count line is entered. On completion, target balance is counted quantity plus the sum of subsequent ledger movements; post a count adjustment from current balance to that target.
+- **Reasoning:** stock movements recorded while staff physically count other items/areas remain reflected after reconciliation, without requiring the whole location to be locked for the count duration.
+- **Consequences:** each line's physical value represents stock at its own submission time. Counts are one-way from draft to completed, and later changes require a new operational movement/count.

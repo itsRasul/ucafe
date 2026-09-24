@@ -4,11 +4,13 @@ import { AUTH_PRINCIPAL, AuthorizedRequest } from "../authorization/auth-princip
 import { AuthorizationService } from "../authorization/authorization.service";
 import { TENANT_CONTEXT } from "./tenant-context";
 import { TenantContextGuard } from "./tenant-context.guard";
+import { SubscriptionsService } from "../subscriptions/subscriptions.service";
+import { SubscriptionFeatures } from "../subscriptions/subscription-features";
 
 @Controller("tenant/admin")
 @UseGuards(AccessTokenGuard, TenantContextGuard)
 export class TenantAdminAccessController {
-  constructor(private readonly authorization: AuthorizationService) {}
+  constructor(private readonly authorization: AuthorizationService, private readonly subscriptions: SubscriptionsService) {}
 
   @Get("access")
   async access(@Req() request: AuthorizedRequest) {
@@ -18,6 +20,7 @@ export class TenantAdminAccessController {
     return {
       tenant: { slug: tenant.slug, status: tenant.status, locale: tenant.locale, timezone: tenant.timezone },
       permissions: access.permissions,
+      features: { inventory: (await this.subscriptions.featureState(tenant.coffeeShopId, SubscriptionFeatures.Inventory)).enabled },
     };
   }
 }

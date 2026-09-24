@@ -20,6 +20,7 @@ import { PlatformAccessModule } from "./identity/platform-access.module";
 import { ClientsModule } from "./clients/clients.module";
 import { OrderingModule } from "./ordering/ordering.module";
 import { AnalyticsModule } from "./analytics/analytics.module";
+import { InventoryModule } from "./inventory/inventory.module";
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { AnalyticsModule } from "./analytics/analytics.module";
     ClientsModule,
     OrderingModule,
     AnalyticsModule,
+    InventoryModule,
   ],
   controllers: [HealthController],
 })

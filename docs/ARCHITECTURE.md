@@ -31,7 +31,7 @@ The proxy forwards authorization/cookies and an authenticated tenant-host overri
 
 The API exposes REST groups under `/api/v1`: `/public`, `/auth`, `/tenant`, `/platform`, and `/health`. Global validation whitelists/transforms DTO input and rejects unknown properties. Controllers handle transport/identity metadata; services own use cases and transactions; entities map persistence; small utilities hold deterministic rules.
 
-Major modules: tenants, identity/authorization, auth, clients, subscriptions, site, menu, media, ordering, analytics, reservations, notifications, payments, platform consultation requests, audit, and health. Analytics definitions and extension points are in [ANALYTICS.md](ANALYTICS.md).
+Major modules: tenants, identity/authorization, auth, clients, subscriptions, site, menu, media, ordering, inventory, analytics, reservations, notifications, payments, platform consultation requests, audit, and health. Inventory movement/balance and count semantics are in [INVENTORY.md](INVENTORY.md); analytics definitions and extension points are in [ANALYTICS.md](ANALYTICS.md).
 
 ### Data and infrastructure
 

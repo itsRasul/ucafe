@@ -1,0 +1,101 @@
+import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
+
+export enum InventoryDimension { Weight = "WEIGHT", Volume = "VOLUME", Count = "COUNT" }
+export enum InventoryMovementType { OpeningBalance = "OPENING_BALANCE", PurchaseReceipt = "PURCHASE_RECEIPT", SaleConsumption = "SALE_CONSUMPTION", SaleReversal = "SALE_REVERSAL", Waste = "WASTE", ManualAdjustment = "MANUAL_ADJUSTMENT", StockCountAdjustment = "STOCK_COUNT_ADJUSTMENT", TransferIn = "TRANSFER_IN", TransferOut = "TRANSFER_OUT", ProductionConsumption = "PRODUCTION_CONSUMPTION", ProductionOutput = "PRODUCTION_OUTPUT" }
+export enum InventoryCountStatus { Draft = "DRAFT", Completed = "COMPLETED" }
+
+@Entity("inventory_categories")
+export class InventoryCategory {
+  @PrimaryGeneratedColumn("uuid") id!: string;
+  @Column({ name: "coffee_shop_id", type: "uuid" }) coffeeShopId!: string;
+  @Column({ type: "varchar", length: 80 }) name!: string;
+  @Column({ name: "is_active", type: "boolean", default: true }) isActive!: boolean;
+  @CreateDateColumn({ name: "created_at", type: "timestamptz" }) createdAt!: Date;
+  @UpdateDateColumn({ name: "updated_at", type: "timestamptz" }) updatedAt!: Date;
+}
+
+@Entity("inventory_items")
+@Index("UQ_inventory_items_tenant_sku", ["coffeeShopId", "sku"], { unique: true, where: '"sku" IS NOT NULL' })
+export class InventoryItem {
+  @PrimaryGeneratedColumn("uuid") id!: string;
+  @Column({ name: "coffee_shop_id", type: "uuid" }) coffeeShopId!: string;
+  @Column({ type: "varchar", length: 140 }) name!: string;
+  @Column({ type: "varchar", length: 80, nullable: true }) sku!: string | null;
+  @Column({ type: "varchar", length: 500, nullable: true }) description!: string | null;
+  @Column({ name: "category_id", type: "uuid", nullable: true }) categoryId!: string | null;
+  @Column({ type: "enum", enum: InventoryDimension, enumName: "inventory_dimension" }) dimension!: InventoryDimension;
+  @Column({ name: "base_unit", type: "varchar", length: 16 }) baseUnit!: string;
+  @Column({ name: "is_active", type: "boolean", default: true }) isActive!: boolean;
+  @CreateDateColumn({ name: "created_at", type: "timestamptz" }) createdAt!: Date;
+  @UpdateDateColumn({ name: "updated_at", type: "timestamptz" }) updatedAt!: Date;
+}
+
+@Entity("inventory_stock_counts")
+export class InventoryStockCount {
+  @PrimaryGeneratedColumn("uuid") id!: string;
+  @Column({ name: "coffee_shop_id", type: "uuid" }) coffeeShopId!: string;
+  @Column({ name: "location_id", type: "uuid" }) locationId!: string;
+  @Column({ type: "enum", enum: InventoryCountStatus, enumName: "inventory_count_status", default: InventoryCountStatus.Draft }) status!: InventoryCountStatus;
+  @Column({ type: "varchar", length: 500, nullable: true }) note!: string | null;
+  @Column({ name: "created_by_user_id", type: "uuid" }) createdByUserId!: string;
+  @Column({ name: "completed_by_user_id", type: "uuid", nullable: true }) completedByUserId!: string | null;
+  @Column({ name: "completed_at", type: "timestamptz", nullable: true }) completedAt!: Date | null;
+  @CreateDateColumn({ name: "created_at", type: "timestamptz" }) createdAt!: Date;
+  @UpdateDateColumn({ name: "updated_at", type: "timestamptz" }) updatedAt!: Date;
+}
+
+@Entity("inventory_stock_count_lines")
+@Index("UQ_inventory_stock_count_line_item", ["coffeeShopId", "countId", "itemId"], { unique: true })
+export class InventoryStockCountLine {
+  @PrimaryGeneratedColumn("uuid") id!: string;
+  @Column({ name: "coffee_shop_id", type: "uuid" }) coffeeShopId!: string;
+  @Column({ name: "count_id", type: "uuid" }) countId!: string;
+  @Column({ name: "item_id", type: "uuid" }) itemId!: string;
+  @Column({ name: "expected_quantity", type: "numeric", precision: 20, scale: 6 }) expectedQuantity!: string;
+  @Column({ name: "counted_quantity", type: "numeric", precision: 20, scale: 6 }) countedQuantity!: string;
+  @Column({ name: "counted_at", type: "timestamptz" }) countedAt!: Date;
+  @Column({ name: "variance_quantity", type: "numeric", precision: 20, scale: 6, nullable: true }) varianceQuantity!: string | null;
+  @Column({ name: "movement_id", type: "uuid", nullable: true }) movementId!: string | null;
+}
+
+@Entity("inventory_locations")
+@Index("UQ_inventory_locations_default", ["coffeeShopId"], { unique: true, where: '"is_default" = true' })
+export class InventoryLocation {
+  @PrimaryGeneratedColumn("uuid") id!: string;
+  @Column({ name: "coffee_shop_id", type: "uuid" }) coffeeShopId!: string;
+  @Column({ type: "varchar", length: 120 }) name!: string;
+  @Column({ name: "is_default", type: "boolean", default: false }) isDefault!: boolean;
+  @Column({ name: "is_active", type: "boolean", default: true }) isActive!: boolean;
+  @CreateDateColumn({ name: "created_at", type: "timestamptz" }) createdAt!: Date;
+  @UpdateDateColumn({ name: "updated_at", type: "timestamptz" }) updatedAt!: Date;
+}
+
+@Entity("inventory_stock_movements")
+@Index("IDX_inventory_movements_item_created", ["coffeeShopId", "itemId", "createdAt"])
+export class InventoryStockMovement {
+  @PrimaryGeneratedColumn("uuid") id!: string;
+  @Column({ name: "coffee_shop_id", type: "uuid" }) coffeeShopId!: string;
+  @Column({ name: "item_id", type: "uuid" }) itemId!: string;
+  @Column({ name: "location_id", type: "uuid" }) locationId!: string;
+  @Column({ type: "enum", enum: InventoryMovementType, enumName: "inventory_movement_type" }) type!: InventoryMovementType;
+  @Column({ name: "quantity_base", type: "numeric", precision: 20, scale: 6 }) quantityBase!: string;
+  @Column({ name: "unit_cost_toman", type: "numeric", precision: 20, scale: 6, nullable: true }) unitCostToman!: string | null;
+  @Column({ name: "source_type", type: "varchar", length: 40, nullable: true }) sourceType!: string | null;
+  @Column({ name: "source_id", type: "varchar", length: 100, nullable: true }) sourceId!: string | null;
+  @Column({ name: "idempotency_key", type: "varchar", length: 100, nullable: true }) idempotencyKey!: string | null;
+  @Column({ name: "actor_user_id", type: "uuid", nullable: true }) actorUserId!: string | null;
+  @Column({ type: "varchar", length: 500, nullable: true }) reason!: string | null;
+  @Column({ type: "jsonb", default: () => "'{}'::jsonb" }) metadata!: Record<string, unknown>;
+  @CreateDateColumn({ name: "created_at", type: "timestamptz" }) createdAt!: Date;
+}
+
+@Entity("inventory_stock_balances")
+@Index("UQ_inventory_stock_balances_item_location", ["coffeeShopId", "itemId", "locationId"], { unique: true })
+export class InventoryStockBalance {
+  @PrimaryGeneratedColumn("uuid") id!: string;
+  @Column({ name: "coffee_shop_id", type: "uuid" }) coffeeShopId!: string;
+  @Column({ name: "item_id", type: "uuid" }) itemId!: string;
+  @Column({ name: "location_id", type: "uuid" }) locationId!: string;
+  @Column({ name: "quantity_base", type: "numeric", precision: 20, scale: 6, default: "0" }) quantityBase!: string;
+  @Column({ name: "updated_at", type: "timestamptz", default: () => "now()" }) updatedAt!: Date;
+}
