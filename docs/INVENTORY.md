@@ -14,7 +14,27 @@ Reversals append positive `SALE_REVERSAL` rows linked to their original movement
 
 No historical backfill runs. Only an `UNDER_REVIEW → PREPARING` transition after deployment consumes stock; orders already in `PREPARING`, `READY`, `OUT_FOR_DELIVERY`, or `DELIVERED` remain untouched. Existing `UNDER_REVIEW` orders consume only if accepted after deployment. Checkout currently has no modifiers/add-ons, so free-text notes do not affect recipe quantities. Costs are not fabricated, and unit cost remains null. The data preserves order line, recipe version/component, item, normalized quantity, and timestamp for future Actual vs Theoretical reporting.
 
-Migration `1787851200000-IntegrateOrderInventory` adds structured source references, tenant-safe foreign keys, database duplicate guards, and reversal validation. `apps/api/src/inventory/order-inventory.spec.ts` covers the canonical order transition, exact/variant recipe resolution, idempotency, reversal, missing/invalid recipe behavior, feature gating, tenant isolation, and database reversal checks. Phase 4 can begin with Suppliers, Purchasing, and Goods Receiving; keep new purchase-source movements generic and reuse `InventoryService`'s ledger posting path.
+Migration `1787851200000-IntegrateOrderInventory` adds structured source references, tenant-safe foreign keys, database duplicate guards, and reversal validation. `apps/api/src/inventory/order-inventory.spec.ts` covers the canonical order transition, exact/variant recipe resolution, idempotency, reversal, missing/invalid recipe behavior, feature gating, tenant isolation, and database reversal checks.
+
+## Phase 4 suppliers, purchasing and receipts
+
+Phase 4 is implemented. Suppliers are tenant-owned records with contact details and active state. Names are case-insensitively unique within a tenant. Deactivation preserves supplier, PO, and receipt history; only active suppliers can be selected for new POs or direct receipts. PO and receipt names snapshot the supplier name at creation.
+
+Purchase Orders use per-tenant atomic sequence rows (`PO-000001`); Goods Receipts use a separate per-tenant sequence (`GR-000001`). POs move `DRAFT → ORDERED → PARTIALLY_RECEIVED → RECEIVED`, with cancellation available from draft, ordered, or partial states. A draft's supplier, lines, quantities, purchase units, estimated integer-toman unit prices, expected date, and notes can be edited. Ordered lines are immutable. Creating or canceling a PO does not change stock. Canceling a partially received PO retains posted receipt history, discards attached unposted receipt drafts, and cancels only the remaining commitment.
+
+Goods Receipts move `DRAFT → POSTED`. A draft can be edited; posting locks the receipt and its PO (when present), validates all lines, then writes receipt movements, balance and average-cost changes, receipt status, and derived PO status in one PostgreSQL transaction. Posting the same receipt again is an idempotent read. The balance rows are locked in item/location order; the PO row serializes receipts against the same order. Each line has a stable idempotency key plus generic `source_type`, `source_id`, and `source_line_id` movement references, with tenant uniqueness for both idempotency and source-line references. Direct receipts without a PO are supported and still require an active supplier.
+
+PO received and remaining quantities are calculated from posted receipt lines, never manually editable counters. The API rejects quantities above the current remainder unless the client explicitly confirms over-receiving. The confirmation is recorded on the immutable receipt. Actual quantity and price are retained even when they exceed the estimate; a PO is `RECEIVED` once all ordered line quantities are met or exceeded. Receipt lines accept a receiving location and default to the active tenant default location. Supplier invoice and delivery-note numbers are optional.
+
+Money remains integer toman per displayed purchase unit. Line totals are rounded to whole toman in PostgreSQL; movement totals preserve that exact line total. Movement `unit_cost_toman` and balance `average_unit_cost_toman` are numeric toman per normalized base unit, at six decimal places. Current average cost is held on the tenant/item/location balance. On receipt, a positive balance with known cost uses moving weighted average; if the prior balance is zero/negative or has no known average, the new receipt's normalized cost becomes the average. Existing uncosted stock is not assigned a fabricated historical cost. Purchase price history is the immutable posted receipt line; `GET /suppliers/:id/prices` derives each supplier/item's latest posted price without a duplicate price table.
+
+Weight (`g`/`kg`) and volume (`ml`/`l`) quantities convert exactly through the existing unit utility. Count items accept only their configured base unit: item-specific packaging conversions (for example, box-to-piece) are not implemented and are rejected rather than guessed. Tax, shipping, discounts, stock transfers, and multi-branch purchasing are not modeled.
+
+Posted receipts and their lines cannot be edited or deleted in the API or database. Receipt reversal/correction is deferred because a cost-safe reversal after later receipts needs an explicit cost policy. A stock adjustment can correct a quantity with an audit reason but does not rewrite the receipt or average-cost history; use this only for physical corrections until a reversal workflow is added.
+
+Routes are under `/api/v1/tenant/inventory`: suppliers (`GET/POST`, `PATCH /suppliers/:id`, `GET /suppliers/:id/prices`), purchase orders (`GET/POST`, `GET/PATCH /purchase-orders/:id`, `POST /purchase-orders/:id/order|cancel`), and goods receipts (`GET/POST`, `GET/PATCH /goods-receipts/:id`, `POST /goods-receipts/:id/post`). Lists are tenant-scoped, searchable, and paginated (maximum 100 rows). All routes reuse `inventory.read`/`inventory.manage`, `TenantContextGuard`, and the shared `inventory` entitlement.
+
+The Persian RTL admin flow is `/admin/inventory/purchasing`, with supplier, PO, and receipt views, draft editing, PO receiving, direct receipt, explicit over-receive confirmation, last-price lookup, and movement cost visibility. Migration `1787854800000-InventoryPurchasing` adds tenant-scoped purchasing tables, source-line cost snapshots, and balance average cost; `1787858400000-AuditPurchaseOverReceipt` persists over-receive confirmation. `apps/api/src/inventory/purchasing.spec.ts` covers validation, feature gating, no stock on draft PO/receipt, partial receipt, explicit over-receive, idempotent posting, actual price snapshots, weighted average, direct receipt, supplier history, and immutability.
 
 ## Phase 2 status
 
@@ -24,7 +44,7 @@ Phase 1 is implemented. The `inventory` plan feature remains configurable, defau
 
 ## Goals and non-goals
 
-The system tracks café stock with a tenant-safe, auditable movement ledger and a fast current balance. Phase 1 provides items, categories, locations, stock views, opening balances, manual adjustments, physical counts, movement history, and an operational overview. Phase 2 adds versioned menu recipes. Order depletion, suppliers, purchasing, waste workflows, alerts, costing, advanced reports, integrations, forecasting, and multi-branch transfers remain deferred.
+The system tracks café stock with a tenant-safe, auditable movement ledger and a fast current balance. Phase 1 provides items, categories, locations, stock views, opening balances, manual adjustments, physical counts, movement history, and an operational overview. Phase 2 adds versioned menu recipes. Phase 3 adds sale consumption and reversals. Phase 4 adds suppliers, purchasing, goods receipts, and current purchase cost. Waste workflows, alerts, recipe costing, advanced reports, integrations, forecasting, and multi-branch transfers remain deferred.
 
 ## Terms and foundation entities
 
@@ -63,7 +83,7 @@ Tenant RBAC uses `inventory.read` and `inventory.manage`, granted to the protect
 - **Menu:** recipes link to a menu item or its existing variant; menu products need not have recipes. Variant IDs remain stable during edits; removed variants become unavailable so recipe and order history retain their references.
 - **Orders:** future consumption is generated from immutable order item snapshots and recipe versions; cancellation creates reversal movements. Use an idempotency key per source operation. UCafe is not assumed to be the only POS/source.
 - **Analytics:** operational stock screens require `inventory`; a future inventory report surfaced in Analytics may require both `inventory` and `analytics`. Analytics owns report aggregation and presentation; Inventory owns stock facts and movement history.
-- **Suppliers/purchasing:** receipts will generate movements and snapshot purchase/unit costs. Supplier and purchase-order records are deferred.
+- **Suppliers/purchasing:** posted receipts generate generic source-referenced movements and snapshot actual purchase costs. Phase 4 supplier, PO, and receipt history is documented above.
 - **Waste:** waste should generate a reasoned negative movement, not edit balance directly.
 - **Recipes and actual-vs-theoretical:** version recipes and preserve the recipe version/source used for each consumption. Actual usage comes from counts/movements; theoretical usage derives from fulfilled sales and recipe snapshots. Variance is a comparison, not a second stock ledger.
 - **Forecasting:** use bounded historical demand and local café time rules from Analytics; forecasts/recommendations remain advisory until explicitly accepted into purchasing.
@@ -76,7 +96,7 @@ Tenant RBAC uses `inventory.read` and `inventory.manage`, granted to the protect
 | 1 | Items, categories, locations, balances, adjustments, counts and history | Implemented |
 | 2 | Menu/variant recipes and recipe versioning | Implemented |
 | 3 | Order consumption and reversal | Implemented |
-| 4 | Suppliers, purchasing, receipts and purchase costs | Planned |
+| 4 | Suppliers, purchasing, receipts and purchase costs | Implemented |
 | 5 | Waste, minimum stock and PAR alerts | Planned |
 | 6 | Recipe costing and menu profitability | Planned |
 | 7 | Actual vs Theoretical usage and variance | Planned |

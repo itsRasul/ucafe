@@ -85,6 +85,8 @@ export class InventoryStockMovement {
   @Column({ name: "unit_cost_toman", type: "numeric", precision: 20, scale: 6, nullable: true }) unitCostToman!: string | null;
   @Column({ name: "source_type", type: "varchar", length: 40, nullable: true }) sourceType!: string | null;
   @Column({ name: "source_id", type: "varchar", length: 100, nullable: true }) sourceId!: string | null;
+  @Column({ name: "source_line_id", type: "varchar", length: 100, nullable: true }) sourceLineId!: string | null;
+  @Column({ name: "total_cost_toman", type: "bigint", nullable: true }) totalCostToman!: string | null;
   @Column({ name: "order_item_id", type: "uuid", nullable: true }) orderItemId!: string | null;
   @Column({ name: "recipe_version_id", type: "uuid", nullable: true }) recipeVersionId!: string | null;
   @Column({ name: "recipe_component_id", type: "uuid", nullable: true }) recipeComponentId!: string | null;
@@ -104,5 +106,6 @@ export class InventoryStockBalance {
   @Column({ name: "item_id", type: "uuid" }) itemId!: string;
   @Column({ name: "location_id", type: "uuid" }) locationId!: string;
   @Column({ name: "quantity_base", type: "numeric", precision: 20, scale: 6, default: "0" }) quantityBase!: string;
+  @Column({ name: "average_unit_cost_toman", type: "numeric", precision: 20, scale: 6, nullable: true }) averageUnitCostToman!: string | null;
   @Column({ name: "updated_at", type: "timestamptz", default: () => "now()" }) updatedAt!: Date;
 }

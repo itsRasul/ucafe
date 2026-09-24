@@ -6,7 +6,7 @@ import { BadRequestException, ConflictException, ForbiddenException } from "@nes
 import { plainToInstance } from "class-transformer";
 import { validateSync } from "class-validator";
 import { InventoryService } from "./inventory.service";
-import { addQuantities, quantityToBase } from "./quantity.util";
+import { addQuantities, quantityFromBase, quantityToBase } from "./quantity.util";
 import { InventoryDimension, InventoryMovementType } from "./entities";
 import { CreateInventoryItemDto, InventoryListQueryDto, StockAdjustmentDto } from "./inventory.dto";
 
@@ -20,6 +20,12 @@ test("quantity conversion rejects cross-dimension, custom-count and excess-preci
   assert.throws(()=>quantityToBase("1",InventoryDimension.Weight,"l","g"));
   assert.throws(()=>quantityToBase("1",InventoryDimension.Count,"box","piece"));
   assert.throws(()=>quantityToBase("0.000001",InventoryDimension.Weight,"g","kg"));
+});
+
+test("base quantities convert back to purchase units exactly", () => {
+  assert.equal(quantityFromBase("1250",InventoryDimension.Weight,"kg","g"),"1.25");
+  assert.equal(quantityFromBase("500",InventoryDimension.Volume,"l","ml"),"0.5");
+  assert.equal(quantityFromBase("2",InventoryDimension.Count,"box","box"),"2");
 });
 
 test("item creation rejects a base unit from another measurement dimension before persistence",async()=>{

@@ -15,6 +15,18 @@ export function quantityToBase(value: string, dimension: InventoryDimension, uni
   return format(micros * factor / baseFactor);
 }
 
+export function quantityFromBase(value: string, dimension: InventoryDimension, unit: string, baseUnit: string): string {
+  if (dimension === InventoryDimension.Weight && !["g", "kg"].includes(unit) || dimension === InventoryDimension.Volume && !["ml", "l"].includes(unit) || dimension === InventoryDimension.Count && unit !== baseUnit) throw new BadRequestException("Unit does not match this inventory item");
+  const match = /^(-?)(\d{1,14})(?:\.(\d{1,6}))?$/.exec(value);
+  if (!match) throw new BadRequestException("Quantity must have at most six decimal places");
+  const fraction = (match[3] ?? "").padEnd(6, "0");
+  const micros = (BigInt(match[2]!) * scale + BigInt(fraction || "0")) * (match[1] ? -1n : 1n);
+  const factor = factors[unit] ?? 1n;
+  const baseFactor = factors[baseUnit] ?? 1n;
+  if (micros * baseFactor % factor !== 0n) throw new BadRequestException("Converted quantity exceeds six decimal places");
+  return format(micros * baseFactor / factor);
+}
+
 export function addQuantities(...values: string[]): string {
   const total = values.reduce((sum, value) => {
     const negative = value.startsWith("-");
