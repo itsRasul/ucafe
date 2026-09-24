@@ -629,10 +629,246 @@
     }
 }
 
+.costing-page>.inventory-heading {
+    align-items: center
+}
+
+.costing-disclaimer,
+.costing-hint,
+.costing-warning,
+.costing-missing-summary {
+    margin: 0;
+    color: #736657;
+    font-size: .75rem;
+    line-height: 1.8
+}
+
+.costing-disclaimer {
+    padding: .7rem .9rem;
+    border-right: 1px solid #ba8b62;
+    background: #fbf7f1
+}
+
+.costing-result-count {
+    color: #786b5e;
+    font-size: .75rem;
+    white-space: nowrap
+}
+
+.costing-filters {
+    align-items: center
+}
+
+.costing-filters>input {
+    flex: 2 1 14rem
+}
+
+.costing-filters>select {
+    flex: 1 1 9rem
+}
+
+.profitability-list {
+    border-top: 1px solid #eee8e0
+}
+
+.profitability-row {
+    display: grid;
+    gap: .65rem;
+    padding: 1rem .25rem;
+    border-bottom: 1px solid #eee8e0
+}
+
+.profitability-title,
+.cost-breakdown-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .8rem
+}
+
+.profitability-title h3,
+.cost-breakdown-heading h4 {
+    margin: 0;
+    color: #34271d;
+    font-size: .95rem
+}
+
+.profitability-title small,
+.cost-breakdown-heading p {
+    display: block;
+    margin: .2rem 0 0;
+    color: #857768;
+    font-size: .7rem
+}
+
+.costing-status {
+    flex: 0 0 auto
+}
+
+.costing-complete {
+    color: #28644c
+}
+
+.costing-incomplete,
+.costing-no_cost_data,
+.costing-no_active_version {
+    color: #93652f
+}
+
+.costing-not_configured {
+    color: #76685a
+}
+
+.profitability-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .65rem 1rem;
+    margin: 0
+}
+
+.profitability-metrics>div {
+    display: grid;
+    gap: .15rem;
+    min-width: 0
+}
+
+.profitability-metrics dt {
+    color: #857768;
+    font-size: .68rem
+}
+
+.profitability-metrics dd {
+    margin: 0;
+    color: #36291f;
+    font-size: .79rem;
+    font-weight: 800;
+    overflow-wrap: anywhere
+}
+
+.profitability-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem
+}
+
+.cost-breakdown {
+    display: grid;
+    gap: .65rem;
+    padding-top: .7rem;
+    border-top: 1px solid #eee8e0
+}
+
+.cost-breakdown-table {
+    display: grid;
+    border: 1px solid #eee8e0;
+    border-radius: .65rem;
+    overflow: hidden
+}
+
+.cost-breakdown-head,
+.cost-breakdown-line {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, .9fr) minmax(0, .7fr);
+    align-items: center;
+    gap: .7rem;
+    padding: .55rem .7rem
+}
+
+.cost-breakdown-head {
+    background: #f8f4ee;
+    color: #746657;
+    font-size: .68rem;
+    font-weight: 800
+}
+
+.cost-breakdown-line {
+    border-top: 1px solid #f0ebe4;
+    color: #463a30;
+    font-size: .72rem
+}
+
+.cost-breakdown-line>span:first-child {
+    display: grid;
+    gap: .15rem
+}
+
+.cost-breakdown-line small {
+    color: #857768;
+    font-size: .66rem
+}
+
+.cost-breakdown-total {
+    display: grid;
+    gap: .25rem;
+    padding: .7rem .8rem;
+    border-radius: .65rem;
+    background: #f8f4ee;
+    color: #3b2c20;
+    font-size: .76rem
+}
+
+.cost-breakdown-total>span,
+.costing-footnote {
+    color: #746657;
+    font-size: .7rem;
+    line-height: 1.8
+}
+
+.costing-skeleton {
+    display: grid;
+    gap: .55rem;
+    padding: .8rem 0
+}
+
+.costing-skeleton i {
+    display: block;
+    height: 5.5rem;
+    border-radius: .65rem;
+    background: linear-gradient(90deg, #f8f4ee 25%, #eee8e0 50%, #f8f4ee 75%);
+    background-size: 200% 100%;
+    animation: inventory-skeleton 1.4s ease-in-out infinite
+}
+
+@keyframes inventory-skeleton {
+    to { background-position: -200% 0 }
+}
+
+@media(max-width:42rem) {
+    .costing-page>.inventory-heading {
+        align-items: start
+    }
+
+    .profitability-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr))
+    }
+
+    .cost-breakdown-head {
+        display: none
+    }
+
+    .cost-breakdown-line {
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: .25rem .6rem
+    }
+
+    .cost-breakdown-line>span:first-child {
+        grid-column: 1/-1
+    }
+
+    .cost-breakdown-heading {
+        align-items: start
+    }
+}
+
 @media(prefers-reduced-motion:reduce) {
     .inventory-page * {
         scroll-behavior: auto !important;
         transition: none !important
+    }
+
+    .costing-skeleton i {
+        animation: none;
+        background: #f1ece4
     }
 }
 

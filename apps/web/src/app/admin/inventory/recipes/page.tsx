@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useAdminSession } from "../../admin-session";
 import "../inventory.css";
+import { percent, toman } from "../costing/costing-format";
 
 type Target = { menuItemId: string; menuItemVariantId: string | null; menuItemName: string; variantName: string | null; isArchived: boolean; isAvailable: boolean; recipeId: string | null; status: "NONE" | "DRAFT" | "ACTIVE"; activeVersionId: string | null; activeVersionNumber: number | null; effectiveFrom: string | null; draftVersionId: string | null; draftVersionNumber: number | null; draftRevision: number | null; componentCount: number; updatedAt: string };
 type Ingredient = { id: string; name: string; dimension: "WEIGHT" | "VOLUME" | "COUNT"; baseUnit: string; isActive: boolean };
@@ -12,6 +13,8 @@ type Version = { id: string; versionNumber: number; status: "DRAFT" | "ACTIVE" |
 type Recipe = { id: string; menuItemId: string; menuItemVariantId: string | null; menuItemName: string; variantName: string | null; menuItemDeletedAt: string | null; versions: Version[] };
 type Page<T> = { items: T[]; page: number; limit: number; total: number };
 type DraftLine = { inventoryItemId: string; quantity: string; unit: string; note: string };
+type CostLine = { recipeComponentId: string; inventoryItemName: string; quantity: string; unit: string; normalizedQuantity: string; normalizedUnit: string; normalizedUnitCostToman: string | null; componentCostToman: string | null; costAvailable: boolean; itemActive: boolean };
+type CostSummary = { recipeVersionNumber: number | null; recipeVersionStatus: string | null; costStatus: string; costLocation: { id: string; name: string } | null; componentCount: number; costedComponentCount: number; inactiveComponentCount: number; totalKnownCostToman: string | null; recipeCostToman: string | null; sellingPriceToman: string | null; grossProfitToman: string | null; grossMarginPercent: string | null; materialCostPercent: string | null; components: CostLine[]; missingCostItems: Array<{ inventoryItemName: string }> };
 const units: Record<string, string> = { g: "گرم", kg: "کیلوگرم", ml: "میلی‌لیتر", l: "لیتر", piece: "عدد", pack: "بسته", box: "جعبه", bottle: "بطری" };
 const statusNames: Record<Target["status"] | Version["status"], string> = { NONE: "بدون دستور", DRAFT: "پیش‌نویس", ACTIVE: "فعال", SUPERSEDED: "نسخه پیشین" };
 const fa = (value: string | number) => new Intl.NumberFormat("fa-IR").format(Number(value));
@@ -36,7 +39,11 @@ export default function RecipesPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [requestedMenuItem, setRequestedMenuItem] = useState("");
+  const [requestedMenuVariant, setRequestedMenuVariant] = useState("");
   const [linkHandled, setLinkHandled] = useState(false);
+  const [cost, setCost] = useState<CostSummary | null>(null);
+  const [costBusy, setCostBusy] = useState(false);
+  const [costError, setCostError] = useState("");
 
   const loadTargets = useCallback(async () => {
     const rows = await api<Target[]>("/tenant/inventory/recipes");
@@ -45,7 +52,9 @@ export default function RecipesPage() {
   }, [api]);
 
   useEffect(() => {
-    setRequestedMenuItem(new URLSearchParams(window.location.search).get("menuItemId") ?? "");
+    const params = new URLSearchParams(window.location.search);
+    setRequestedMenuItem(params.get("menuItemId") ?? "");
+    setRequestedMenuVariant(params.get("variantId") ?? "");
   }, []);
 
   useEffect(() => {
@@ -66,19 +75,33 @@ export default function RecipesPage() {
 
   useEffect(() => {
     if (!requestedMenuItem || !targets.length || linkHandled) return;
-    const target = targets.find((row) => row.menuItemId === requestedMenuItem && !row.menuItemVariantId);
+    const target = targets.find((row) => row.menuItemId === requestedMenuItem && row.menuItemVariantId === (requestedMenuVariant || null));
     if (!target) return;
     setSelectedTarget(keyOf(target));
     setLinkHandled(true);
     if (target.recipeId) void openRecipe(target.recipeId);
-  }, [linkHandled, requestedMenuItem, targets]);
+  }, [linkHandled, requestedMenuItem, requestedMenuVariant, targets]);
 
   const selectedVersion = recipe?.versions.find((version) => version.id === selectedVersionId) ?? null;
+  const savedDraft = selectedVersion?.components.map((component) => ({ inventoryItemId: component.inventoryItemId, quantity: component.quantity, unit: component.unit, note: component.note ?? "" })) ?? [];
+  const draftHasChanges = selectedVersion?.status === "DRAFT" && JSON.stringify(draft) !== JSON.stringify(savedDraft);
   const visibleTargets = useMemo(() => targets.filter((target) => {
     const text = `${target.menuItemName} ${target.variantName ?? ""}`.toLocaleLowerCase();
     return (!onlyMissing || target.status === "NONE") && (!search.trim() || text.includes(search.trim().toLocaleLowerCase()));
   }), [onlyMissing, search, targets]);
   const copySources = targets.filter((target) => target.recipeId && target.status === "ACTIVE" && !target.isArchived);
+
+  useEffect(() => {
+    if (!recipe || !selectedVersion) { setCost(null); return; }
+    let canceled = false;
+    const query = new URLSearchParams({ versionId: selectedVersion.id });
+    setCostBusy(true); setCostError("");
+    api<CostSummary>(`/tenant/inventory/recipes/${recipe.id}/cost?${query}`)
+      .then((result) => { if (!canceled) setCost(result); })
+      .catch((reason: Error) => { if (!canceled) setCostError(reason.message || "محاسبه بهای رسپی انجام نشد."); })
+      .finally(() => { if (!canceled) setCostBusy(false); });
+    return () => { canceled = true; };
+  }, [api, recipe?.id, selectedVersion?.id, selectedVersion?.revision, selectedVersion?.status]);
 
   async function openRecipe(id: string) {
     setBusy(true); setError("");
@@ -156,7 +179,7 @@ export default function RecipesPage() {
   if (access.features?.inventory === false) return <section className="inventory-state"><span>موجودی</span><h1>این قابلیت در طرح فعلی فعال نیست</h1><p>برای مدیریت دستور مواد، وضعیت اشتراک را بررسی کنید.</p><Link href="/admin/subscription">مشاهده اشتراک</Link></section>;
 
   return <section className="inventory-page recipe-page" dir="rtl">
-    <header className="inventory-heading"><div><span>موجودی و منو</span><h1>دستور مواد</h1><p>نسخه‌های منتشرشده، دستور فعال هر آیتم را برای سفارش‌های آینده مشخص می‌کنند.</p></div><Link className="inventory-secondary" href="/admin/inventory">بازگشت به موجودی</Link></header>
+    <header className="inventory-heading"><div><span>موجودی و منو</span><h1>دستور مواد</h1><p>نسخه‌های منتشرشده، دستور فعال هر آیتم را برای سفارش‌های آینده مشخص می‌کنند.</p></div><div className="costing-heading-links"><Link className="inventory-secondary" href="/admin/inventory/costing">بهای مواد و سود</Link><Link className="inventory-secondary" href="/admin/inventory">بازگشت به موجودی</Link></div></header>
     {error && <p className="inventory-alert" role="alert">{error}</p>}{notice && <p className="inventory-notice" role="status">{notice}</p>}
     <div className="recipe-layout">
       <section className="inventory-panel recipe-list-panel">
@@ -213,10 +236,31 @@ export default function RecipesPage() {
               <button type="button" className="inventory-secondary" disabled={!ingredients.length} onClick={() => setDraft((rows) => [...rows, { inventoryItemId: "", quantity: "1", unit: "", note: "" }])}>＋ افزودن ماده</button>
             </div> : <div className="inventory-table-scroll recipe-components"><table className="inventory-table"><thead><tr><th>ماده</th><th>مقدار دستور</th><th>مقدار پایه</th><th>یادداشت</th></tr></thead><tbody>{selectedVersion.components.map((component) => <tr key={component.id}><td><strong>{component.inventoryItemName}</strong>{!component.itemActive && <small>غیرفعال · محفوظ در تاریخچه</small>}</td><td>{component.quantity} {units[component.unit] ?? component.unit}</td><td>{component.quantityBase} {units[component.baseUnit] ?? component.baseUnit}</td><td>{component.note || "—"}</td></tr>)}{!selectedVersion.components.length && <tr><td colSpan={4}>این نسخه هنوز ماده‌ای ندارد.</td></tr>}</tbody></table></div>}
             {selectedVersion.status === "DRAFT" && canManage && <div className="inventory-actions"><button type="button" className="inventory-secondary" disabled={busy} onClick={() => void saveDraft()}>ذخیره پیش‌نویس</button><button type="button" className="inventory-primary" disabled={busy || !draft.length} onClick={() => void publishDraft()}>انتشار نسخه</button></div>}
+            <RecipeCostSummary cost={cost} busy={costBusy} error={costError} draftHasChanges={Boolean(draftHasChanges)} />
           </>}
         </> : <div className="recipe-empty-state"><h2>یک آیتم منو را انتخاب کنید</h2><p>برای هر آیتم می‌توانید نسخه‌های اختیاری و مستقل تعریف کنید.</p><Link href="/admin/menu">رفتن به مدیریت منو</Link></div>}
       </section>
     </div>
     {busy && <p className="inventory-loading" role="status">در حال ذخیره یا دریافت اطلاعات…</p>}
+  </section>;
+}
+
+function RecipeCostSummary({ cost, busy, error, draftHasChanges }: { cost: CostSummary | null; busy: boolean; error: string; draftHasChanges: boolean }) {
+  if (busy) return <section className="recipe-cost-summary"><h3>هزینه فعلی رسپی</h3><p className="inventory-loading" role="status">در حال محاسبه هزینه مواد…</p></section>;
+  if (error) return <section className="recipe-cost-summary"><h3>هزینه فعلی رسپی</h3><p className="inventory-alert" role="alert">{error}</p></section>;
+  if (!cost) return null;
+  return <section className="recipe-cost-summary">
+    <div className="cost-breakdown-heading"><div><h3>{cost.recipeVersionStatus === "SUPERSEDED" ? "برآورد امروز برای نسخه پیشین" : "هزینه فعلی رسپی"}</h3><p>{cost.costLocation ? `میانگین هزینه محل پیش‌فرض: ${cost.costLocation.name}` : "محل پیش‌فرض برای ثبت میانگین هزینه موجود نیست."}</p></div><b className={`recipe-status costing-status costing-${cost.costStatus.toLowerCase()}`}>{cost.costStatus === "COMPLETE" ? "هزینه کامل" : cost.costStatus === "NO_COST_DATA" ? "هزینه ثبت نشده" : "هزینه ناقص"}</b></div>
+    {draftHasChanges && <p className="costing-hint">این برآورد برای آخرین نسخه ذخیره‌شده است؛ پس از ذخیره پیش‌نویس به‌روز می‌شود.</p>}
+    {cost.recipeVersionStatus === "SUPERSEDED" && <p className="costing-hint">قیمت‌های فعلی جایگزین هزینه تاریخی این نسخه نمی‌شوند.</p>}
+    {cost.inactiveComponentCount > 0 && <p className="costing-warning">این رسپی {fa(cost.inactiveComponentCount)} کالای غیرفعال دارد؛ در محاسبه حذف نشده‌اند.</p>}
+    <div className="cost-breakdown-table"><div className="cost-breakdown-head"><span>ماده و مقدار</span><span>میانگین هر واحد پایه</span><span>هزینه جزء</span></div>
+      {cost.components.map((component) => <div className="cost-breakdown-line" key={component.recipeComponentId}><span><strong>{component.inventoryItemName}{!component.itemActive ? " · غیرفعال" : ""}</strong><small>{component.quantity} {units[component.unit] ?? component.unit} · پایه {component.normalizedQuantity} {units[component.normalizedUnit] ?? component.normalizedUnit}</small></span><span>{component.costAvailable ? `${toman(component.normalizedUnitCostToman)} / ${units[component.normalizedUnit] ?? component.normalizedUnit}` : "هزینه ثبت نشده"}</span><span>{component.costAvailable ? toman(component.componentCostToman) : "نامشخص"}</span></div>)}
+      {!cost.components.length && <p className="recipe-empty">این نسخه هنوز ماده‌ای ندارد.</p>}
+    </div>
+    {cost.costStatus !== "COMPLETE" && cost.totalKnownCostToman !== null && <p className="costing-hint">جمع هزینه‌های مشخص (ناقص): {toman(cost.totalKnownCostToman)}</p>}
+    {cost.missingCostItems.length > 0 && <p className="costing-missing-summary">برای تکمیل محاسبه، هزینه {cost.missingCostItems.map((item) => item.inventoryItemName).join("، ")} را از طریق رسید خرید ثبت کنید.</p>}
+    <div className="cost-breakdown-total"><strong>{cost.costStatus === "COMPLETE" ? `بهای رسپی: ${toman(cost.recipeCostToman)}` : "بهای رسپی کامل نیست"}</strong>{cost.costStatus === "COMPLETE" && <span>قیمت فروش {toman(cost.sellingPriceToman)} · سود ناخالص {toman(cost.grossProfitToman)} · حاشیه {percent(cost.grossMarginPercent)} · بهای مواد {percent(cost.materialCostPercent)}</span>}</div>
+    <small className="costing-footnote">محاسبه بر مبنای میانگین فعلی محل پیش‌فرض است و هزینه‌های عملیاتی را شامل نمی‌شود.</small>
   </section>;
 }

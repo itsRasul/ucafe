@@ -50,6 +50,7 @@ test("accepted orders consume the applied recipe once and cancellation reverses 
       const location = await inventory.createLocation(tenantId, { name: "Main", isDefault: true });
       const coffee = await inventory.createItem(tenantId, actor.id, { name: "Coffee", dimension: InventoryDimension.Weight, baseUnit: "g", locationId: location.id, openingQuantity: "1000" });
       const milk = await inventory.createItem(tenantId, actor.id, { name: "Milk", dimension: InventoryDimension.Volume, baseUnit: "ml", locationId: location.id, openingQuantity: "1000" });
+      await manager.query(`UPDATE inventory_stock_balances SET average_unit_cost_toman=CASE WHEN item_id=$2 THEN 1600 ELSE 75 END WHERE coffee_shop_id=$1 AND item_id=ANY($3::uuid[]) AND location_id=$4`, [tenantId, coffee.id, [coffee.id, milk.id], location.id]);
 
       const addRecipe = async (menuItemId: string, variantId: string | null, coffeeQty: string, milkQty: string) => {
         const recipe = await recipes.create(tenantId, actor.id, { menuItemId, menuItemVariantId: variantId });
@@ -74,11 +75,17 @@ test("accepted orders consume the applied recipe once and cancellation reverses 
       const orderA = await createOrder(`order-a-${randomUUID()}`, [{ item: latte.id, name: "Latte", quantity: 2 }, { item: gift.id, name: "Gift Card", quantity: 1 }]);
       const acceptedA = await ordering.updateStatus(tenantId, orderA, actor.id, OrderStatus.Preparing);
       assert.equal(acceptedA.status, OrderStatus.Preparing);
-      const appliedA = await manager.query(`SELECT id,order_item_id AS "orderItemId",recipe_version_id AS "recipeVersionId",actor_user_id AS "actorUserId",quantity_base::text AS quantity FROM inventory_stock_movements WHERE coffee_shop_id=$1 AND source_id=$2 AND source_type='ORDER_CONSUMPTION' ORDER BY item_id`, [tenantId, orderA]);
+      const appliedA = await manager.query(`SELECT id,item_id AS "itemId",order_item_id AS "orderItemId",recipe_version_id AS "recipeVersionId",actor_user_id AS "actorUserId",quantity_base::text AS quantity,unit_cost_toman::text AS "unitCostToman",total_cost_toman::text AS "totalCostToman" FROM inventory_stock_movements WHERE coffee_shop_id=$1 AND source_id=$2 AND source_type='ORDER_CONSUMPTION' ORDER BY item_id`, [tenantId, orderA]);
       assert.equal(appliedA.length, 2);
       assert.ok(appliedA.every((movement: { recipeVersionId: string }) => movement.recipeVersionId === baseV1.versionId));
       assert.ok(appliedA.every((movement: { actorUserId: string }) => movement.actorUserId === actor.id));
       assert.deepEqual(appliedA.map((movement: { quantity: string }) => movement.quantity).sort(), ["-36.000000", "-440.000000"]);
+      const coffeeCost = appliedA.find((movement: { itemId: string }) => movement.itemId === coffee.id);
+      const milkCost = appliedA.find((movement: { itemId: string }) => movement.itemId === milk.id);
+      assert.equal(coffeeCost.unitCostToman, "1600.000000");
+      assert.equal(coffeeCost.totalCostToman, "57600");
+      assert.equal(milkCost.unitCostToman, "75.000000");
+      assert.equal(milkCost.totalCostToman, "33000");
       assert.equal((await inventory.consumeOrder(manager, tenantId, orderA, actor.id)).duplicate, true);
       await assert.rejects(ordering.updateStatus(tenantId, orderA, actor.id, OrderStatus.Preparing), /Invalid order status transition/);
       assert.equal((await manager.query(`SELECT count(*)::int AS count FROM inventory_stock_movements WHERE coffee_shop_id=$1 AND source_id=$2 AND type='SALE_CONSUMPTION'`, [tenantId, orderA]))[0].count, 2);
@@ -91,9 +98,13 @@ test("accepted orders consume the applied recipe once and cancellation reverses 
         { inventoryItemId: coffee.id, quantity: "20", unit: "g" }, { inventoryItemId: milk.id, quantity: "210", unit: "ml" },
       ] });
       await recipes.publish(tenantId, actor.id, baseV1.recipeId, next.id);
+      await manager.query(`UPDATE inventory_stock_balances SET average_unit_cost_toman=NULL WHERE coffee_shop_id=$1 AND item_id=$2 AND location_id=$3`, [tenantId, milk.id, location.id]);
       const orderB = await createOrder(`order-b-${randomUUID()}`, [{ item: latte.id, name: "Latte", quantity: 1 }]);
       await ordering.updateStatus(tenantId, orderB, actor.id, OrderStatus.Preparing);
       assert.deepEqual((await manager.query(`SELECT DISTINCT recipe_version_id AS id FROM inventory_stock_movements WHERE coffee_shop_id=$1 AND source_id=$2 AND type='SALE_CONSUMPTION'`, [tenantId, orderB])).map((row: { id: string }) => row.id), [next.id]);
+      const unknownMilk = (await manager.query(`SELECT unit_cost_toman AS cost,total_cost_toman AS total FROM inventory_stock_movements WHERE coffee_shop_id=$1 AND source_id=$2 AND type='SALE_CONSUMPTION' AND item_id=$3`, [tenantId, orderB, milk.id]))[0];
+      assert.deepEqual(unknownMilk, { cost: null, total: null });
+      await manager.query(`UPDATE inventory_stock_balances SET average_unit_cost_toman=75 WHERE coffee_shop_id=$1 AND item_id=$2 AND location_id=$3`, [tenantId, milk.id, location.id]);
       const orderC = await createOrder(`order-c-${randomUUID()}`, [{ item: latte.id, variant: large.id, name: "Latte Large", quantity: 2 }]);
       await ordering.updateStatus(tenantId, orderC, actor.id, OrderStatus.Preparing);
       const versions = await manager.query(`SELECT DISTINCT recipe_version_id AS id FROM inventory_stock_movements WHERE coffee_shop_id=$1 AND source_id=$2 AND type='SALE_CONSUMPTION'`, [tenantId, orderC]);
@@ -101,15 +112,24 @@ test("accepted orders consume the applied recipe once and cancellation reverses 
 
       await ordering.updateStatus(tenantId, orderA, actor.id, OrderStatus.Canceled);
       await assert.rejects(ordering.updateStatus(tenantId, orderA, actor.id, OrderStatus.Canceled), /Invalid order status transition/);
-      const reversals = await manager.query(`SELECT reversal_of_movement_id AS "reverses",quantity_base::text AS quantity FROM inventory_stock_movements WHERE coffee_shop_id=$1 AND source_id=$2 AND type='SALE_REVERSAL' ORDER BY item_id`, [tenantId, orderA]);
+      await manager.query(`UPDATE inventory_stock_balances SET average_unit_cost_toman=999 WHERE coffee_shop_id=$1 AND item_id=$2 AND location_id=$3`, [tenantId, coffee.id, location.id]);
+      const reversals = await manager.query(`SELECT reversal_of_movement_id AS "reverses",quantity_base::text AS quantity,unit_cost_toman::text AS "unitCostToman",total_cost_toman AS "totalCostToman" FROM inventory_stock_movements WHERE coffee_shop_id=$1 AND source_id=$2 AND type='SALE_REVERSAL' ORDER BY item_id`, [tenantId, orderA]);
       assert.equal(reversals.length, 2);
       assert.deepEqual(reversals.map((movement: { quantity: string }) => movement.quantity).sort(), ["36.000000", "440.000000"]);
       assert.deepEqual(new Set(reversals.map((movement: { reverses: string }) => movement.reverses)), new Set(appliedA.map((movement: { id: string }) => movement.id)));
+      for (const reversal of reversals) {
+        const original = appliedA.find((movement: { id: string }) => movement.id === reversal.reverses);
+        assert.equal(reversal.unitCostToman, original.unitCostToman);
+        assert.equal(reversal.totalCostToman, original.totalCostToman);
+      }
       await inventory.reverseOrder(manager, tenantId, orderA, actor.id);
       assert.equal((await manager.query(`SELECT count(*)::int AS count FROM inventory_stock_movements WHERE coffee_shop_id=$1 AND source_id=$2 AND type='SALE_REVERSAL'`, [tenantId, orderA]))[0].count, 2);
       await manager.query(`SAVEPOINT duplicate_reversal_guard`);
       await assert.rejects(manager.query(`INSERT INTO inventory_stock_movements(coffee_shop_id,item_id,location_id,type,quantity_base,source_type,source_id,order_item_id,recipe_version_id,recipe_component_id,reversal_of_movement_id,idempotency_key) SELECT coffee_shop_id,item_id,location_id,'SALE_REVERSAL',-quantity_base,'ORDER_REVERSAL',source_id,order_item_id,recipe_version_id,recipe_component_id,id,'duplicate-reversal:'||id FROM inventory_stock_movements WHERE coffee_shop_id=$1 AND source_id=$2 AND type='SALE_CONSUMPTION' LIMIT 1`, [tenantId, orderA]));
       await manager.query(`ROLLBACK TO SAVEPOINT duplicate_reversal_guard`);
+      await manager.query(`SAVEPOINT immutable_sale_cost`);
+      await assert.rejects(manager.query(`UPDATE inventory_stock_movements SET unit_cost_toman=999 WHERE coffee_shop_id=$1 AND id=$2`, [tenantId, coffeeCost.id]));
+      await manager.query(`ROLLBACK TO SAVEPOINT immutable_sale_cost`);
 
       const canceledEarly = await createOrder(`order-early-${randomUUID()}`, [{ item: latte.id, name: "Latte", quantity: 1 }]);
       await ordering.updateStatus(tenantId, canceledEarly, actor.id, OrderStatus.Canceled);

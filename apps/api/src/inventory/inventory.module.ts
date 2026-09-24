@@ -9,6 +9,8 @@ import { RecipesController } from "./recipes.controller";
 import { RecipesService } from "./recipes.service";
 import { PurchasingController } from "./purchasing.controller";
 import { PurchasingService } from "./purchasing.service";
+import { CostingController } from "./costing.controller";
+import { RecipeCostingService } from "./costing.service";
 
-@Module({imports:[AuthModule,AuthorizationModule,SubscriptionsModule],controllers:[InventoryController,RecipesController,PurchasingController],providers:[InventoryService,RecipesService,PurchasingService,TenantContextGuard],exports:[InventoryService]})
+@Module({imports:[AuthModule,AuthorizationModule,SubscriptionsModule],controllers:[InventoryController,RecipesController,CostingController,PurchasingController],providers:[InventoryService,RecipesService,RecipeCostingService,PurchasingService,TenantContextGuard],exports:[InventoryService]})
 export class InventoryModule {}

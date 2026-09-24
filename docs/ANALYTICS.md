@@ -67,7 +67,7 @@ No additional query index was added. Product queries first constrain delivered o
 
 ## Limits and extension
 
-Delivered value is not verified payment. There is no historical status event table, so prior outcomes can be restated by direct data repair. Custom ranges are bounded to 366 days. There is no reservation report, refund accounting, guest identity, or multi-branch breakdown. Add a payment/refund ledger before paid-revenue or financial settlement reporting. Phase 2 should add focused peak-time views using the established local-time bucketing rule, without changing the Overview definitions.
+Delivered value is not verified payment. There is no historical status event table, so prior outcomes can be restated by direct data repair. Custom ranges are bounded to 366 days. There is no reservation report, refund accounting, guest identity, or multi-branch breakdown. Add a payment/refund ledger before paid-revenue or financial settlement reporting. Inventory Phase 6 menu profitability is a separate current-cost estimate; it does not change delivered-sales revenue or provide historical margin. A future Analytics profitability report needs both Analytics access and a defined historical cost basis. Phase 2 should add focused peak-time views using the established local-time bucketing rule, without changing the Overview definitions.
 
 At the end of each analytics phase, update this file with implemented metrics/endpoints/database changes, decisions, limits, and the next recommended phase.
 

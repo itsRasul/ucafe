@@ -400,6 +400,7 @@ export class InventoryService {
   async reverseOrder(manager: EntityManager, tenantId: string, orderId: string, actorId: string) {
     await this.lockOrder(manager, tenantId, orderId);
     const consumed = await manager.query(`SELECT id,item_id AS "itemId",location_id AS "locationId",quantity_base::text AS quantity,
+      unit_cost_toman::text AS "unitCostToman",total_cost_toman::text AS "totalCostToman",
       order_item_id AS "orderItemId",recipe_version_id AS "recipeVersionId",recipe_component_id AS "recipeComponentId"
       FROM inventory_stock_movements WHERE coffee_shop_id=$1 AND source_type='ORDER_CONSUMPTION' AND source_id=$2 AND type='SALE_CONSUMPTION'
       ORDER BY item_id,id FOR UPDATE`, [tenantId, orderId]);
@@ -411,6 +412,8 @@ export class InventoryService {
         orderItemId: movement.orderItemId,
         recipeVersionId: movement.recipeVersionId,
         recipeComponentId: movement.recipeComponentId,
+        unitCostToman: movement.unitCostToman,
+        totalCostToman: movement.totalCostToman,
         reversalOfMovementId: movement.id,
         locationId: movement.locationId,
         type: InventoryMovementType.SaleReversal,
@@ -545,13 +548,20 @@ export class InventoryService {
     const checkPrior=async()=>{
       const [prior]=await m.query(`SELECT id,item_id,location_id,type,quantity_base::text,reason,source_type,source_id,source_line_id,unit_cost_toman::text,total_cost_toman,order_item_id,recipe_version_id,recipe_component_id,reversal_of_movement_id FROM inventory_stock_movements WHERE coffee_shop_id=$1 AND idempotency_key=$2`,[tenantId,op.idempotencyKey]);
       if(!prior)return null;
-      if(prior.item_id!==op.itemId||prior.location_id!==op.locationId||prior.type!==op.type||addQuantities(prior.quantity_base)!==addQuantities(op.quantity)||prior.reason!==op.reason||prior.source_type!==op.sourceType||prior.source_id!==op.sourceId||prior.source_line_id!==(op.sourceLineId??null)||prior.unit_cost_toman!==(op.unitCostToman??null)||prior.total_cost_toman!==(op.totalCostToman??null)||prior.order_item_id!==(op.orderItemId??null)||prior.recipe_version_id!==(op.recipeVersionId??null)||prior.recipe_component_id!==(op.recipeComponentId??null)||prior.reversal_of_movement_id!==(op.reversalOfMovementId??null))throw new ConflictException("Idempotency key was already used for a different stock operation");
+      const autoCost = op.type === InventoryMovementType.SaleConsumption && op.unitCostToman === undefined && op.totalCostToman === undefined;
+      if(prior.item_id!==op.itemId||prior.location_id!==op.locationId||prior.type!==op.type||addQuantities(prior.quantity_base)!==addQuantities(op.quantity)||prior.reason!==op.reason||prior.source_type!==op.sourceType||prior.source_id!==op.sourceId||prior.source_line_id!==(op.sourceLineId??null)||(!autoCost&&(prior.unit_cost_toman!==(op.unitCostToman??null)||prior.total_cost_toman!==(op.totalCostToman??null)))||prior.order_item_id!==(op.orderItemId??null)||prior.recipe_version_id!==(op.recipeVersionId??null)||prior.recipe_component_id!==(op.recipeComponentId??null)||prior.reversal_of_movement_id!==(op.reversalOfMovementId??null))throw new ConflictException("Idempotency key was already used for a different stock operation");
       const [balance]=await m.query(`SELECT quantity_base::text AS quantity_base FROM inventory_stock_balances WHERE coffee_shop_id=$1 AND item_id=$2 AND location_id=$3`,[tenantId,op.itemId,op.locationId]);return {id:prior.id,balance:balance?.quantity_base??"0",duplicate:true};
     };
     const prior=await checkPrior();if(prior)return prior;
     await m.query(`INSERT INTO inventory_stock_balances(coffee_shop_id,item_id,location_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING`,[tenantId,op.itemId,op.locationId]);
     await m.query(`SELECT id FROM inventory_stock_balances WHERE coffee_shop_id=$1 AND item_id=$2 AND location_id=$3 FOR UPDATE`,[tenantId,op.itemId,op.locationId]);
     const afterLock=await checkPrior();if(afterLock)return afterLock;
+    if(op.type===InventoryMovementType.SaleConsumption&&op.unitCostToman===undefined&&op.totalCostToman===undefined){
+      const [balanceCost]=await m.query(`SELECT average_unit_cost_toman::text AS cost FROM inventory_stock_balances WHERE coffee_shop_id=$1 AND item_id=$2 AND location_id=$3`,[tenantId,op.itemId,op.locationId]);
+      op.unitCostToman=balanceCost.cost;
+      op.totalCostToman=null;
+      if(balanceCost.cost!==null){const [total]=await m.query(`SELECT ROUND(ABS($1::numeric)*$2::numeric)::bigint::text AS value`,[op.quantity,balanceCost.cost]);op.totalCostToman=total.value;}
+    }
     const [movement]=await m.query(`INSERT INTO inventory_stock_movements(coffee_shop_id,item_id,location_id,type,quantity_base,unit_cost_toman,total_cost_toman,source_type,source_id,source_line_id,order_item_id,recipe_version_id,recipe_component_id,reversal_of_movement_id,idempotency_key,actor_user_id,reason,created_at)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,clock_timestamp())
       ON CONFLICT(coffee_shop_id,idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING RETURNING id`,
