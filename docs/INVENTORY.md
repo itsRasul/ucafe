@@ -36,6 +36,20 @@ Routes are under `/api/v1/tenant/inventory`: suppliers (`GET/POST`, `PATCH /supp
 
 The Persian RTL admin flow is `/admin/inventory/purchasing`, with supplier, PO, and receipt views, draft editing, PO receiving, direct receipt, explicit over-receive confirmation, last-price lookup, and movement cost visibility. Migration `1787854800000-InventoryPurchasing` adds tenant-scoped purchasing tables, source-line cost snapshots, and balance average cost; `1787858400000-AuditPurchaseOverReceipt` persists over-receive confirmation. `apps/api/src/inventory/purchasing.spec.ts` covers validation, feature gating, no stock on draft PO/receipt, partial receipt, explicit over-receive, idempotent posting, actual price snapshots, weighted average, direct receipt, supplier history, and immutability.
 
+## Phase 5 waste, stock thresholds and alerts
+
+Phase 5 is implemented with tenant-scoped Waste Records and per-item/location stock rules. A waste record has `DRAFT`, `POSTED`, or `REVERSED` status, a location, event time, structured reason (`EXPIRED`, `DAMAGED`, `SPILLED`, `PREPARATION_ERROR`, `CUSTOMER_RETURN`, `QUALITY_ISSUE`, `OVERPRODUCTION`, `STAFF_USE`, `TRAINING`, `OTHER`), optional note, and creator/poster/reverser attribution. Each draft line snapshots the item name, entered quantity/unit, normalized base quantity, and eventual movement reference. Duplicate items in one record are rejected; users can put multiple different items in a single record.
+
+Posting locks the draft and every affected item/location balance in stable item order, revalidates the item and normalized quantity, then writes one negative `WASTE` movement per line through the canonical `postMovement` transaction path. Movement source type/ID/line points to its waste record and line, actor and structured reason are retained, balances update atomically, and per-line cost snapshots use the location's current moving-average unit cost. Total estimated waste cost is rounded to integer toman; missing average cost stays null and is displayed as unknown. Waste and its positive `MANUAL_ADJUSTMENT` reversal movements never change the remaining balance's average unit cost. Reposting a posted record is an idempotent read. Drafts can be edited; posted data and movements are immutable. A correction fully reverses every line with `WASTE_REVERSAL` source references, marks the record `REVERSED`, and retains the original cost/history; partial correction is done by reversing the whole record and creating a corrected record. Database triggers and movement source-line uniqueness protect posting and reversal integrity.
+
+Minimum and PAR settings live in `inventory_stock_rules`, keyed by tenant, item, and location; quantities are normalized using the item's existing unit converter and the display unit is retained. Either threshold may be unset; when both exist, `PAR >= minimum` is enforced in the API and database. Status precedence is `NEGATIVE` for quantity below zero, `OUT_OF_STOCK` at zero, `LOW_STOCK` for positive quantity at or below minimum, `BELOW_PAR` below target when not low, then `OK`. `BELOW_PAR` is informational and does not open a low-stock alert. Stock alerts are persistent in-app records for `NEGATIVE`, `OUT_OF_STOCK`, and `LOW_STOCK`. Only the affected tenant/item/location is reevaluated after a stock movement or threshold edit. A partial unique index allows one open alert per item/location; its type updates as severity changes, recovery resolves it, and a later crossing creates a new alert episode. There is no SMS or scheduled reconciliation job.
+
+Stock rows expose minimum, PAR, current PAR gap, open purchase order quantity, projected quantity, and projected PAR gap. Remaining quantities from `ORDERED` and `PARTIALLY_RECEIVED` purchase order lines count only at each line's expected location; draft, canceled, and fully received orders do not count. Receipts reduce the outstanding quantity. Projected stock is current balance plus remaining commitments; projected PAR gap is `max(PAR - projected stock, 0)`. This is a static operational calculation, not demand forecasting or an automatic reorder suggestion.
+
+Routes under `/api/v1/tenant/inventory` add `PATCH /items/:id/stock-settings`, `GET /stock-alerts`, `GET/POST /waste`, `GET/PATCH /waste/:id`, `POST /waste/:id/post`, and `POST /waste/:id/reverse`. Read/manage permission, tenant context, and the shared Inventory entitlement apply. Migration `1787862000000-InventoryWasteAndStockLevels` adds per-location PO destinations, stock rules, alert history, waste records/lines, and movement source checks; `1787865600000-ProtectWasteLifecycle` strengthens database validation for complete, immutable posting and full reversals. The Persian RTL `/admin/inventory` tabs provide Waste entry/history with reason/date/location/search filters, warning before negative stock, low-stock alert history, threshold editing, stock status, and projected PAR gaps. Overview adds negative/out/low/below-PAR counts and recent/monthly waste indicators. `apps/api/src/inventory/phase-five.spec.ts` covers decimal status boundaries, DTO validation, feature gating, tenant isolation, cost snapshots, average-cost preservation, atomic/idempotent posting, reversal, alert transitions and deduplication, threshold validation, and open-PO projection.
+
+Limits: reversal is all-or-nothing per record; no SMS/push alerts, batch expiry automation, item-level waste detail page, recipe-derived waste, smart purchasing, forecasting, or profitability reports were added. A PO's projected quantity uses its expected location even if a receipt is posted to a different location; receiving against another location does not silently move the remaining commitment.
+
 ## Phase 2 status
 
 Phase 2 is implemented. Recipes are optional per menu item or variant, versioned, Inventory-feature-gated, and tenant-scoped. Draft edits replace that draft's components with an optimistic revision check; publishing atomically activates the draft and supersedes the prior active version. Published components are immutable in the API and protected by a database trigger. Recipe operations do not post stock movements.
@@ -44,7 +58,7 @@ Phase 1 is implemented. The `inventory` plan feature remains configurable, defau
 
 ## Goals and non-goals
 
-The system tracks café stock with a tenant-safe, auditable movement ledger and a fast current balance. Phase 1 provides items, categories, locations, stock views, opening balances, manual adjustments, physical counts, movement history, and an operational overview. Phase 2 adds versioned menu recipes. Phase 3 adds sale consumption and reversals. Phase 4 adds suppliers, purchasing, goods receipts, and current purchase cost. Waste workflows, alerts, recipe costing, advanced reports, integrations, forecasting, and multi-branch transfers remain deferred.
+The system tracks café stock with a tenant-safe, auditable movement ledger and a fast current balance. Phase 1 provides items, categories, locations, stock views, opening balances, manual adjustments, physical counts, movement history, and an operational overview. Phase 2 adds versioned menu recipes. Phase 3 adds sale consumption and reversals. Phase 4 adds suppliers, purchasing, goods receipts, and current purchase cost. Phase 5 adds Waste, minimum/PAR levels, stock alerts and projected quantity from open POs. Recipe costing, advanced reports, integrations, forecasting, and multi-branch transfers remain deferred.
 
 ## Terms and foundation entities
 
@@ -52,15 +66,18 @@ The system tracks café stock with a tenant-safe, auditable movement ledger and 
 - **Inventory category:** a flat tenant-owned label; deleting is avoided and deactivation preserves item history.
 - **Inventory location:** a tenant-owned physical stock location. At most one location per tenant is marked default; the first inventory location read creates `Main Inventory` if none exists.
 - **Stock movement:** an immutable signed quantity change with item, location, type, optional cost/source/idempotency key/actor/reason/metadata, and creation time.
-- **Stock balance:** cached quantity for one tenant/item/location pair. It is a projection, not history or independent truth.
+- **Stock balance:** cached quantity and average cost for one tenant/item/location pair. It is a projection, not history or independent truth.
+- **Stock rule:** optional normalized minimum and PAR quantity for one tenant/item/location pair.
+- **Waste record:** reasoned and attributed operational stock loss whose posted item lines link to immutable `WASTE` movements.
+- **Stock alert:** deduplicated history of a negative, zero, or below-minimum stock episode for one item/location.
 
-The schema retains future movement vocabulary, while Phase 1 writes only `OPENING_BALANCE`, `MANUAL_ADJUSTMENT`, and `STOCK_COUNT_ADJUSTMENT`.
+The ledger writes `OPENING_BALANCE`, `MANUAL_ADJUSTMENT`, `STOCK_COUNT_ADJUSTMENT`, `SALE_CONSUMPTION`, `SALE_REVERSAL`, `PURCHASE_RECEIPT`, and `WASTE` movements; a waste correction appends a positive `MANUAL_ADJUSTMENT` with `WASTE_REVERSAL` source references.
 
 ## Units, quantity and cost
 
 Each item has one dimension (`WEIGHT`, `VOLUME`, or `COUNT`) and one base unit. The current allowed base-unit codes are `g`/`kg`, `ml`/`l`, and `piece`/`pack`/`box`/`bottle`. Dimension/unit agreement is constrained in PostgreSQL. Package conversions such as one box to 24 bottles are item-specific and not implemented; no cross-dimension conversion is valid. Convert quantities to the item's base unit before writing a movement.
 
-Quantity and unit cost use PostgreSQL `numeric(20,6)`. TypeORM exposes these as decimal strings. Keep calculations in decimal arithmetic in the write path; never round-trip stock values through JavaScript `number`. Money elsewhere in UCafe remains integer toman; `unit_cost_toman` is a decimal unit cost and future totals must define their rounding boundary.
+Quantity and unit cost use PostgreSQL `numeric(20,6)`. TypeORM exposes these as decimal strings. Keep calculations in decimal arithmetic in the write path; never round-trip stock values through JavaScript `number`. Money elsewhere in UCafe remains integer toman; waste cost multiplies normalized quantity by the six-place average unit cost and rounds each line total to a whole toman.
 
 ## Ledger, balances, concurrency and idempotency
 
@@ -84,7 +101,7 @@ Tenant RBAC uses `inventory.read` and `inventory.manage`, granted to the protect
 - **Orders:** future consumption is generated from immutable order item snapshots and recipe versions; cancellation creates reversal movements. Use an idempotency key per source operation. UCafe is not assumed to be the only POS/source.
 - **Analytics:** operational stock screens require `inventory`; a future inventory report surfaced in Analytics may require both `inventory` and `analytics`. Analytics owns report aggregation and presentation; Inventory owns stock facts and movement history.
 - **Suppliers/purchasing:** posted receipts generate generic source-referenced movements and snapshot actual purchase costs. Phase 4 supplier, PO, and receipt history is documented above.
-- **Waste:** waste should generate a reasoned negative movement, not edit balance directly.
+- **Waste:** posted records generate reasoned negative movements, never direct balance edits. Minimum/PAR thresholds and deduplicated alert history are owned by Inventory; PO projected stock includes only unreceived ordered quantities at their expected location.
 - **Recipes and actual-vs-theoretical:** version recipes and preserve the recipe version/source used for each consumption. Actual usage comes from counts/movements; theoretical usage derives from fulfilled sales and recipe snapshots. Variance is a comparison, not a second stock ledger.
 - **Forecasting:** use bounded historical demand and local café time rules from Analytics; forecasts/recommendations remain advisory until explicitly accepted into purchasing.
 
@@ -97,7 +114,7 @@ Tenant RBAC uses `inventory.read` and `inventory.manage`, granted to the protect
 | 2 | Menu/variant recipes and recipe versioning | Implemented |
 | 3 | Order consumption and reversal | Implemented |
 | 4 | Suppliers, purchasing, receipts and purchase costs | Implemented |
-| 5 | Waste, minimum stock and PAR alerts | Planned |
+| 5 | Waste, minimum stock and PAR alerts | Implemented |
 | 6 | Recipe costing and menu profitability | Planned |
 | 7 | Actual vs Theoretical usage and variance | Planned |
 | 8 | Lots, expiry and FIFO/FEFO | Planned |
@@ -119,10 +136,12 @@ All admin requests use the existing `AdminSessionProvider` API client: `/api/bac
 | `GET/POST locations`, `PATCH locations/:id` | `locations`, `createLocation`, `updateLocation` |
 | `GET/POST items`, `PATCH items/:id` | `items`, `createItem`, `updateItem` |
 | `GET stock`, `POST adjustments`, `GET movements` | `stock`, `adjust`, `movements` |
+| `PATCH items/:id/stock-settings`, `GET stock-alerts` | `updateStockSettings`, `stockAlerts` |
+| `GET/POST waste`, `GET/PATCH waste/:id`, `POST waste/:id/post`, `POST waste/:id/reverse` | Waste list/detail/draft/post/reversal operations |
 | `GET/POST counts`, `GET counts/:id` | `counts`, `createCount`, `countDetail` |
 | `PATCH counts/:id/lines`, `POST counts/:id/complete` | `saveCountLines`, `completeCount` |
 
-Counts move from `DRAFT` to immutable `COMPLETED`. Each entered line snapshots the balance and `counted_at` when that physical quantity is submitted. At completion, the service adds ledger movements strictly after that line's timestamp to its counted quantity, then reconciles to the current balance. This preserves intervening operations; a count line is entered in the item's base unit. Items, stock, counts, and movement lists are paginated (maximum 100 rows per request); the UI pages stock/count history and loads item catalog pages for selectors. Overview reports active items, negative balances, draft counts, and recent manual adjustments. The admin UI is Persian-first and RTL with Overview, Stock/Items, Counts, History, and Settings views. Category and location names are unique per tenant after trimming and case folding. Inactive items cannot receive manual adjustments or new count lines.
+Counts move from `DRAFT` to immutable `COMPLETED`. Each entered line snapshots the balance and `counted_at` when that physical quantity is submitted. At completion, the service adds ledger movements strictly after that line's timestamp to its counted quantity, then reconciles to the current balance. This preserves intervening operations; a count line is entered in the item's base unit. Items, stock, counts, and movement lists are paginated (maximum 100 rows per request); the UI pages stock/count history and loads item catalog pages for selectors. Overview reports active items, negative/out/low stock, below-PAR counts, draft counts, recent adjustments, and recent/monthly waste indicators. The Persian RTL admin UI includes Overview, Stock/Items, Counts, History, Waste, Alerts, and Settings views. Category and location names are unique per tenant after trimming and case folding. Inactive items cannot receive manual adjustments or new count lines.
 
 Migration `1787832000000` creates the Phase 0 ledger foundation; `1787835600000` adds categories, counts, count immutability, item category linkage, and owner permissions. Migration `1787840000000` adds normalized category/location uniqueness and movement indexes for history and balance lookups. API tests and PostgreSQL integration scenarios cover decimal behavior, entitlement, idempotency, rebase-on-concurrency, transaction consistency, validation, and tenant isolation.
 

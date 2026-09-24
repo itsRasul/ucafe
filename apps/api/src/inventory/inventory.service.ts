@@ -2,9 +2,10 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { DataSource, EntityManager } from "typeorm";
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { SubscriptionFeatures } from "../subscriptions/subscription-features";
-import { CreateInventoryCategoryDto, CreateInventoryItemDto, CreateInventoryLocationDto, CreateStockCountDto, InventoryListQueryDto, MovementListQueryDto, StockAdjustmentDto, UpdateInventoryCategoryDto, UpdateInventoryItemDto, UpdateInventoryLocationDto, UpdateStockCountLinesDto } from "./inventory.dto";
-import { InventoryCountStatus, InventoryDimension, InventoryMovementType } from "./entities";
-import { addQuantities, multiplyQuantity, quantityToBase } from "./quantity.util";
+import { CreateInventoryCategoryDto, CreateInventoryItemDto, CreateInventoryLocationDto, CreateStockCountDto, CreateWasteRecordDto, InventoryListQueryDto, InventoryStockSettingsDto, MovementListQueryDto, StockAdjustmentDto, StockAlertListQueryDto, UpdateInventoryCategoryDto, UpdateInventoryItemDto, UpdateInventoryLocationDto, UpdateStockCountLinesDto, UpdateWasteRecordDto, WasteListQueryDto } from "./inventory.dto";
+import { InventoryCountStatus, InventoryDimension, InventoryMovementType, InventoryStockAlertStatus, InventoryStockAlertType, InventoryStockStatus, InventoryWasteReason, InventoryWasteStatus } from "./entities";
+import { addQuantities, multiplyQuantity, quantityFromBase, quantityToBase } from "./quantity.util";
+import { compareQuantities, inventoryStockStatus } from "./stock.util";
 import { RecipesService } from "./recipes.service";
 
 type Row = { id: string; is_active: boolean; dimension: InventoryDimension; base_unit: string };
@@ -29,9 +30,14 @@ export class InventoryService {
     await this.gate(tenantId);
     const [summary] = await this.db.query(`SELECT
       (SELECT count(*)::int FROM inventory_items WHERE coffee_shop_id=$1 AND is_active) AS "activeItems",
-      (SELECT count(DISTINCT (item_id,location_id))::int FROM inventory_stock_balances WHERE coffee_shop_id=$1 AND quantity_base<0) AS "negativeBalances",
+      (SELECT count(*)::int FROM inventory_stock_balances b JOIN inventory_items i ON i.coffee_shop_id=b.coffee_shop_id AND i.id=b.item_id AND i.is_active WHERE b.coffee_shop_id=$1 AND b.quantity_base<0) AS "negativeBalances",
+      (SELECT count(*)::int FROM inventory_stock_balances b JOIN inventory_items i ON i.coffee_shop_id=b.coffee_shop_id AND i.id=b.item_id AND i.is_active WHERE b.coffee_shop_id=$1 AND b.quantity_base=0) AS "outOfStockItems",
+      (SELECT count(*)::int FROM inventory_stock_balances b JOIN inventory_items i ON i.coffee_shop_id=b.coffee_shop_id AND i.id=b.item_id AND i.is_active JOIN inventory_stock_rules r ON r.coffee_shop_id=b.coffee_shop_id AND r.item_id=b.item_id AND r.location_id=b.location_id WHERE b.coffee_shop_id=$1 AND b.quantity_base>0 AND r.minimum_quantity_base IS NOT NULL AND b.quantity_base<=r.minimum_quantity_base) AS "lowStockItems",
+      (SELECT count(*)::int FROM inventory_stock_balances b JOIN inventory_items i ON i.coffee_shop_id=b.coffee_shop_id AND i.id=b.item_id AND i.is_active JOIN inventory_stock_rules r ON r.coffee_shop_id=b.coffee_shop_id AND r.item_id=b.item_id AND r.location_id=b.location_id WHERE b.coffee_shop_id=$1 AND b.quantity_base>0 AND r.par_quantity_base IS NOT NULL AND b.quantity_base<r.par_quantity_base AND (r.minimum_quantity_base IS NULL OR b.quantity_base>r.minimum_quantity_base)) AS "belowParItems",
       (SELECT count(*)::int FROM inventory_stock_counts WHERE coffee_shop_id=$1 AND status='DRAFT') AS "draftCounts",
-      (SELECT count(*)::int FROM inventory_stock_movements WHERE coffee_shop_id=$1 AND type IN ('MANUAL_ADJUSTMENT','STOCK_COUNT_ADJUSTMENT') AND created_at>now()-interval '7 days') AS "recentAdjustments"`, [tenantId]);
+      (SELECT count(*)::int FROM inventory_stock_movements WHERE coffee_shop_id=$1 AND type IN ('MANUAL_ADJUSTMENT','STOCK_COUNT_ADJUSTMENT') AND created_at>now()-interval '7 days') AS "recentAdjustments",
+      (SELECT count(*)::int FROM inventory_waste_records WHERE coffee_shop_id=$1 AND status='POSTED' AND wasted_at>now()-interval '7 days') AS "recentWasteRecords",
+      (SELECT CASE WHEN count(m.total_cost_toman)>0 THEN sum(m.total_cost_toman)::text ELSE NULL END FROM inventory_waste_records w JOIN inventory_waste_items wi ON wi.coffee_shop_id=w.coffee_shop_id AND wi.waste_record_id=w.id JOIN inventory_stock_movements m ON m.coffee_shop_id=wi.coffee_shop_id AND m.id=wi.movement_id WHERE w.coffee_shop_id=$1 AND w.status='POSTED' AND w.wasted_at>=date_trunc('month',now())) AS "estimatedWasteCostThisMonth"`, [tenantId]);
     return summary;
   }
 
@@ -97,16 +103,189 @@ export class InventoryService {
   }
   async stock(tenantId: string, query: InventoryListQueryDto) {
     await this.gate(tenantId);
+    const status = `CASE WHEN b.id IS NULL AND r.id IS NULL THEN NULL WHEN COALESCE(b.quantity_base,0)<0 THEN 'NEGATIVE' WHEN COALESCE(b.quantity_base,0)=0 THEN 'OUT_OF_STOCK' WHEN r.minimum_quantity_base IS NOT NULL AND b.quantity_base<=r.minimum_quantity_base THEN 'LOW_STOCK' WHEN r.par_quantity_base IS NOT NULL AND b.quantity_base<r.par_quantity_base THEN 'BELOW_PAR' ELSE 'OK' END`;
+    const from = `FROM inventory_items i JOIN inventory_locations l ON l.coffee_shop_id=i.coffee_shop_id AND l.is_active LEFT JOIN inventory_categories c ON c.coffee_shop_id=i.coffee_shop_id AND c.id=i.category_id LEFT JOIN inventory_stock_balances b ON b.coffee_shop_id=i.coffee_shop_id AND b.item_id=i.id AND b.location_id=l.id LEFT JOIN inventory_stock_rules r ON r.coffee_shop_id=i.coffee_shop_id AND r.item_id=i.id AND r.location_id=l.id LEFT JOIN LATERAL (SELECT sum(greatest(oi.quantity_base-COALESCE((SELECT sum(rl.quantity_base) FROM inventory_goods_receipt_lines rl JOIN inventory_goods_receipts gr ON gr.coffee_shop_id=rl.coffee_shop_id AND gr.id=rl.goods_receipt_id AND gr.status='POSTED' WHERE rl.coffee_shop_id=oi.coffee_shop_id AND rl.purchase_order_item_id=oi.id),0),0)) AS quantity_base FROM inventory_purchase_order_items oi JOIN inventory_purchase_orders po ON po.coffee_shop_id=oi.coffee_shop_id AND po.id=oi.purchase_order_id AND po.status IN ('ORDERED','PARTIALLY_RECEIVED') WHERE oi.coffee_shop_id=i.coffee_shop_id AND oi.inventory_item_id=i.id AND oi.location_id=l.id) on_order ON true`;
     const where = ["i.coffee_shop_id=$1"];
     const values: unknown[]=[tenantId];
-    if (query.active) { values.push(query.active === "true"); where.push(`i.is_active=$${values.length}`); }
-    if (query.search?.trim()) { values.push(query.search.trim()); where.push(`(i.name ILIKE '%'||$${values.length}||'%' OR i.sku ILIKE '%'||$${values.length}||'%')`); }
-    if (query.categoryId) { values.push(query.categoryId); where.push(`i.category_id=$${values.length}`); }
-    if (query.locationId) { values.push(query.locationId); where.push(`l.id=$${values.length}`); }
+    const add=(sql:string,value:unknown)=>{values.push(value);where.push(sql.replaceAll("?",`$${values.length}`));};
+    if (query.active) add("i.is_active=?",query.active === "true");
+    if (query.search?.trim()) add("(i.name ILIKE '%'||?||'%' OR i.sku ILIKE '%'||?||'%')",query.search.trim());
+    if (query.categoryId) add("i.category_id=?",query.categoryId);
+    if (query.itemId) add("i.id=?",query.itemId);
+    if (query.locationId) add("l.id=?",query.locationId);
+    if (query.stockStatus) add(`${status}=?`,query.stockStatus);
     const page=query.page??1,limit=query.limit??50,countValues=[...values];values.push(limit,(page-1)*limit);
-    const items=await this.db.query(`SELECT i.id AS "itemId",i.name,i.sku,i.dimension,i.base_unit AS "baseUnit",i.is_active AS "isActive",c.name AS "categoryName",l.id AS "locationId",l.name AS "locationName",l.is_default AS "isDefault",COALESCE(b.quantity_base,0)::text AS "quantityBase",b.average_unit_cost_toman::text AS "averageUnitCostToman",(SELECT max(m.created_at) FROM inventory_stock_movements m WHERE m.coffee_shop_id=i.coffee_shop_id AND m.item_id=i.id AND m.location_id=l.id) AS "lastMovementAt" FROM inventory_items i JOIN inventory_locations l ON l.coffee_shop_id=i.coffee_shop_id AND l.is_active LEFT JOIN inventory_categories c ON c.coffee_shop_id=i.coffee_shop_id AND c.id=i.category_id LEFT JOIN inventory_stock_balances b ON b.coffee_shop_id=i.coffee_shop_id AND b.item_id=i.id AND b.location_id=l.id WHERE ${where.join(" AND ")} ORDER BY i.is_active DESC,i.name,l.is_default DESC,l.name LIMIT $${values.length-1} OFFSET $${values.length}`, values);
-    const [{count}]=await this.db.query(`SELECT count(*)::int AS count FROM inventory_items i JOIN inventory_locations l ON l.coffee_shop_id=i.coffee_shop_id AND l.is_active WHERE ${where.join(" AND ")}`,countValues);
+    const rows=await this.db.query(`SELECT i.id AS "itemId",i.name,i.sku,i.dimension,i.base_unit AS "baseUnit",i.is_active AS "isActive",c.name AS "categoryName",l.id AS "locationId",l.name AS "locationName",l.is_default AS "isDefault",COALESCE(b.quantity_base,0)::text AS "quantityBase",b.average_unit_cost_toman::text AS "averageUnitCostToman",r.minimum_quantity_base::text AS "minimumQuantityBase",r.par_quantity_base::text AS "parQuantityBase",r.display_unit AS "thresholdUnit",${status} AS "stockStatus",
+      COALESCE(on_order.quantity_base,0)::text AS "onOrderQuantityBase",(COALESCE(b.quantity_base,0)+COALESCE(on_order.quantity_base,0))::text AS "projectedQuantityBase",
+      CASE WHEN r.par_quantity_base IS NULL THEN NULL ELSE greatest(r.par_quantity_base-COALESCE(b.quantity_base,0),0)::text END AS "parGapBase",
+      CASE WHEN r.par_quantity_base IS NULL THEN NULL ELSE greatest(r.par_quantity_base-(COALESCE(b.quantity_base,0)+COALESCE(on_order.quantity_base,0)),0)::text END AS "projectedParGapBase",
+      (SELECT max(m.created_at) FROM inventory_stock_movements m WHERE m.coffee_shop_id=i.coffee_shop_id AND m.item_id=i.id AND m.location_id=l.id) AS "lastMovementAt" ${from} WHERE ${where.join(" AND ")} ORDER BY i.is_active DESC,i.name,l.is_default DESC,l.name LIMIT $${values.length-1} OFFSET $${values.length}`, values);
+    const [{count}]=await this.db.query(`SELECT count(*)::int AS count ${from} WHERE ${where.join(" AND ")}`,countValues);
+    const items=rows.map((row:Record<string,string|null>)=>{
+      const baseUnit=row.baseUnit!,dimension=row.dimension as InventoryDimension,unit=row.thresholdUnit??baseUnit;
+      const display=(value:string|null|undefined)=>value==null?null:quantityFromBase(value,dimension,unit,baseUnit);
+      return {...row,unit,quantity:display(row.quantityBase)!,minimumQuantity:display(row.minimumQuantityBase),parQuantity:display(row.parQuantityBase),onOrderQuantity:display(row.onOrderQuantityBase)!,projectedQuantity:display(row.projectedQuantityBase)!,parGap:display(row.parGapBase),projectedParGap:display(row.projectedParGapBase)};
+    });
     return {items,page,limit,total:count};
+  }
+
+  async updateStockSettings(tenantId: string, itemId: string, input: InventoryStockSettingsDto) {
+    await this.gate(tenantId);
+    await this.db.transaction(async (m) => {
+      const item = await this.tenantRow(m, "inventory_items", itemId, tenantId);
+      await this.activeLocation(m, tenantId, input.locationId);
+      await m.query(`INSERT INTO inventory_stock_balances(coffee_shop_id,item_id,location_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING`, [tenantId, itemId, input.locationId]);
+      const [balance] = await m.query(`SELECT id FROM inventory_stock_balances WHERE coffee_shop_id=$1 AND item_id=$2 AND location_id=$3 FOR UPDATE`, [tenantId, itemId, input.locationId]);
+      const [current] = await m.query(`SELECT minimum_quantity_base::text AS "minimumQuantityBase",par_quantity_base::text AS "parQuantityBase",display_unit AS "displayUnit" FROM inventory_stock_rules WHERE coffee_shop_id=$1 AND item_id=$2 AND location_id=$3 FOR UPDATE`, [tenantId, itemId, input.locationId]);
+      const unit = input.unit ?? current?.displayUnit ?? item.base_unit;
+      const minimum = input.minimumQuantity === undefined ? current?.minimumQuantityBase ?? null : input.minimumQuantity === null ? null : quantityToBase(input.minimumQuantity, item.dimension, unit, item.base_unit);
+      const par = input.parQuantity === undefined ? current?.parQuantityBase ?? null : input.parQuantity === null ? null : quantityToBase(input.parQuantity, item.dimension, unit, item.base_unit);
+      if (minimum !== null && compareQuantities(minimum, "0") < 0 || par !== null && compareQuantities(par, "0") < 0) throw new BadRequestException("Stock thresholds cannot be negative");
+      if (minimum !== null && par !== null && compareQuantities(par, minimum) < 0) throw new BadRequestException("Target stock must be greater than or equal to minimum stock");
+      if (minimum === null && par === null) {
+        await m.query(`DELETE FROM inventory_stock_rules WHERE coffee_shop_id=$1 AND item_id=$2 AND location_id=$3`, [tenantId, itemId, input.locationId]);
+      } else {
+        await m.query(`INSERT INTO inventory_stock_rules(coffee_shop_id,item_id,location_id,minimum_quantity_base,par_quantity_base,display_unit)
+          VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(coffee_shop_id,item_id,location_id) DO UPDATE SET minimum_quantity_base=EXCLUDED.minimum_quantity_base,par_quantity_base=EXCLUDED.par_quantity_base,display_unit=EXCLUDED.display_unit,updated_at=clock_timestamp()`,
+        [tenantId, itemId, input.locationId, minimum, par, unit]);
+      }
+      await this.evaluateStockAlert(m, tenantId, itemId, input.locationId);
+      if (!balance) throw new ConflictException("Stock row could not be initialized");
+    });
+    const [result] = await this.db.query(`SELECT r.minimum_quantity_base::text AS "minimumQuantityBase",r.par_quantity_base::text AS "parQuantityBase",r.display_unit AS unit
+      FROM inventory_stock_rules r WHERE r.coffee_shop_id=$1 AND r.item_id=$2 AND r.location_id=$3`, [tenantId, itemId, input.locationId]);
+    return result ?? { minimumQuantityBase: null, parQuantityBase: null, unit: null };
+  }
+
+  async stockAlerts(tenantId: string, query: StockAlertListQueryDto) {
+    await this.gate(tenantId);
+    const page=query.page??1,limit=query.limit??50,values:unknown[]=[tenantId],where=["a.coffee_shop_id=$1"];
+    if (query.status && query.status !== "ALL") { values.push(query.status); where.push(`a.status=$${values.length}`); }
+    if (query.itemId) { values.push(query.itemId); where.push(`a.item_id=$${values.length}`); }
+    if (query.locationId) { values.push(query.locationId); where.push(`a.location_id=$${values.length}`); }
+    const from=`FROM inventory_stock_alerts a JOIN inventory_items i ON i.coffee_shop_id=a.coffee_shop_id AND i.id=a.item_id JOIN inventory_locations l ON l.coffee_shop_id=a.coffee_shop_id AND l.id=a.location_id LEFT JOIN inventory_stock_balances b ON b.coffee_shop_id=a.coffee_shop_id AND b.item_id=a.item_id AND b.location_id=a.location_id LEFT JOIN inventory_stock_rules r ON r.coffee_shop_id=a.coffee_shop_id AND r.item_id=a.item_id AND r.location_id=a.location_id`;
+    const countValues=[...values];values.push(limit,(page-1)*limit);
+    const rows=await this.db.query(`SELECT a.id,a.item_id AS "itemId",i.name AS "itemName",i.dimension,i.base_unit AS "baseUnit",r.display_unit AS "displayUnit",a.location_id AS "locationId",l.name AS "locationName",a.alert_type AS type,a.status,a.opened_at AS "openedAt",a.last_observed_at AS "lastObservedAt",a.resolved_at AS "resolvedAt",COALESCE(b.quantity_base,0)::text AS "quantityBase",r.minimum_quantity_base::text AS "minimumQuantityBase",r.par_quantity_base::text AS "parQuantityBase" ${from} WHERE ${where.join(" AND ")} ORDER BY (a.status='OPEN') DESC,a.opened_at DESC,a.id DESC LIMIT $${values.length-1} OFFSET $${values.length}`,values);
+    const [{count}]=await this.db.query(`SELECT count(*)::int AS count ${from} WHERE ${where.join(" AND ")}`,countValues);
+    const items=rows.map((row:Record<string,string|null>)=>{const baseUnit=row.baseUnit!,dimension=row.dimension as InventoryDimension,unit=row.displayUnit??baseUnit;const display=(value:string|null|undefined)=>value==null?null:quantityFromBase(value,dimension,unit,baseUnit);return {...row,unit,quantity:display(row.quantityBase)!,minimumQuantity:display(row.minimumQuantityBase),parQuantity:display(row.parQuantityBase)};});
+    return {items,page,limit,total:count};
+  }
+
+  async wasteRecords(tenantId: string, query: WasteListQueryDto) {
+    await this.gate(tenantId);
+    if(query.from&&query.to&&query.from>query.to)throw new BadRequestException("Start date must be before end date");
+    const page=query.page??1,limit=query.limit??50,values:unknown[]=[tenantId],where=["w.coffee_shop_id=$1"];
+    const add=(sql:string,value:unknown)=>{values.push(value);where.push(sql.replaceAll("?",`$${values.length}`));};
+    if(query.status)add("w.status=?",query.status);
+    if(query.reason)add("w.reason=?",query.reason);
+    if(query.locationId)add("w.location_id=?",query.locationId);
+    if(query.itemId)add("EXISTS(SELECT 1 FROM inventory_waste_items wi WHERE wi.coffee_shop_id=w.coffee_shop_id AND wi.waste_record_id=w.id AND wi.item_id=?)",query.itemId);
+    if(query.from)add("w.wasted_at>=?::date",query.from);
+    if(query.to)add("w.wasted_at<?::date+interval '1 day'",query.to);
+    if(query.search?.trim())add("(w.note ILIKE '%'||?||'%' OR EXISTS(SELECT 1 FROM inventory_waste_items wi WHERE wi.coffee_shop_id=w.coffee_shop_id AND wi.waste_record_id=w.id AND wi.item_name_snapshot ILIKE '%'||?||'%'))",query.search.trim());
+    const from=`FROM inventory_waste_records w JOIN inventory_locations l ON l.coffee_shop_id=w.coffee_shop_id AND l.id=w.location_id`;
+    const countValues=[...values];values.push(limit,(page-1)*limit);
+    const items=await this.db.query(`SELECT w.id,w.location_id AS "locationId",l.name AS "locationName",w.wasted_at AS "wastedAt",w.reason,w.note,w.status,w.created_by_user_id AS "createdByUserId",w.posted_by_user_id AS "postedByUserId",w.posted_at AS "postedAt",w.reversed_by_user_id AS "reversedByUserId",w.reversed_at AS "reversedAt",w.created_at AS "createdAt",
+      (SELECT count(*)::int FROM inventory_waste_items wi WHERE wi.coffee_shop_id=w.coffee_shop_id AND wi.waste_record_id=w.id) AS "itemCount",
+      (SELECT CASE WHEN count(m.total_cost_toman)>0 THEN sum(m.total_cost_toman)::text ELSE NULL END FROM inventory_waste_items wi JOIN inventory_stock_movements m ON m.coffee_shop_id=wi.coffee_shop_id AND m.id=wi.movement_id WHERE wi.coffee_shop_id=w.coffee_shop_id AND wi.waste_record_id=w.id) AS "estimatedCostToman",
+      (SELECT count(*)::int FROM inventory_waste_items wi WHERE wi.coffee_shop_id=w.coffee_shop_id AND wi.waste_record_id=w.id AND wi.movement_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM inventory_stock_movements m WHERE m.coffee_shop_id=wi.coffee_shop_id AND m.id=wi.movement_id AND m.total_cost_toman IS NOT NULL)) AS "unknownCostItemCount"
+      ${from} WHERE ${where.join(" AND ")} ORDER BY w.wasted_at DESC,w.id DESC LIMIT $${values.length-1} OFFSET $${values.length}`,values);
+    const [{count}]=await this.db.query(`SELECT count(*)::int AS count ${from} WHERE ${where.join(" AND ")}`,countValues);
+    return {items,page,limit,total:count};
+  }
+
+  async wasteRecord(tenantId: string, id: string) {
+    await this.gate(tenantId);
+    const [record]=await this.db.query(`SELECT w.id,w.location_id AS "locationId",l.name AS "locationName",w.wasted_at AS "wastedAt",w.reason,w.note,w.status,w.created_by_user_id AS "createdByUserId",w.posted_by_user_id AS "postedByUserId",w.posted_at AS "postedAt",w.reversed_by_user_id AS "reversedByUserId",w.reversed_at AS "reversedAt",w.created_at AS "createdAt"
+      FROM inventory_waste_records w JOIN inventory_locations l ON l.coffee_shop_id=w.coffee_shop_id AND l.id=w.location_id WHERE w.coffee_shop_id=$1 AND w.id=$2`,[tenantId,id]);
+    if(!record)throw new NotFoundException("Waste record not found");
+    record.items=await this.db.query(`SELECT wi.id,wi.item_id AS "itemId",wi.item_name_snapshot AS "itemName",i.dimension,i.base_unit AS "baseUnit",wi.quantity_display::text AS quantity,wi.unit,wi.quantity_base::text AS "quantityBase",wi.movement_id AS "movementId",m.unit_cost_toman::text AS "unitCostToman",m.total_cost_toman AS "totalCostToman"
+      FROM inventory_waste_items wi JOIN inventory_items i ON i.coffee_shop_id=wi.coffee_shop_id AND i.id=wi.item_id LEFT JOIN inventory_stock_movements m ON m.coffee_shop_id=wi.coffee_shop_id AND m.id=wi.movement_id
+      WHERE wi.coffee_shop_id=$1 AND wi.waste_record_id=$2 ORDER BY wi.created_at,wi.id`,[tenantId,id]);
+    const costs=record.items.filter((line:Record<string,unknown>)=>line.totalCostToman!==null&&line.totalCostToman!==undefined).map((line:Record<string,string>)=>line.totalCostToman);
+    record.estimatedCostToman=costs.length?costs.reduce((sum:string,value:string)=>addQuantities(sum,value),"0"):null;
+    record.unknownCostItemCount=record.items.filter((line:Record<string,unknown>)=>line.movementId&&line.totalCostToman==null).length;
+    return record;
+  }
+
+  async createWasteRecord(tenantId: string, actorId: string, input: CreateWasteRecordDto) {
+    await this.gate(tenantId);
+    const id=await this.db.transaction(async(m)=>{
+      await this.activeLocation(m,tenantId,input.locationId);
+      const items=await this.normalizeWasteItems(m,tenantId,input.items);
+      const wastedAt=this.wasteDate(input.wastedAt);
+      const [record]=await m.query(`INSERT INTO inventory_waste_records(coffee_shop_id,location_id,wasted_at,reason,note,created_by_user_id) VALUES($1,$2,COALESCE($3::timestamptz,clock_timestamp()),$4,$5,$6) RETURNING id`,[tenantId,input.locationId,wastedAt,input.reason,input.note?.trim()||null,actorId]);
+      for(const line of items)await m.query(`INSERT INTO inventory_waste_items(coffee_shop_id,waste_record_id,item_id,item_name_snapshot,quantity_display,unit,quantity_base) VALUES($1,$2,$3,$4,$5,$6,$7)`,[tenantId,record.id,line.item.id,line.item.name,line.quantity,line.unit,line.quantityBase]);
+      return record.id as string;
+    });
+    return this.wasteRecord(tenantId,id);
+  }
+
+  async updateWasteRecord(tenantId: string, id: string, input: UpdateWasteRecordDto) {
+    await this.gate(tenantId);
+    await this.db.transaction(async(m)=>{
+      const [record]=await m.query(`SELECT * FROM inventory_waste_records WHERE coffee_shop_id=$1 AND id=$2 FOR UPDATE`,[tenantId,id]);
+      if(!record)throw new NotFoundException("Waste record not found");
+      if(record.status!==InventoryWasteStatus.Draft)throw new ConflictException("Posted waste records cannot be edited; reverse and create a corrected record");
+      const locationId=input.locationId??record.location_id;
+      if(input.locationId)await this.activeLocation(m,tenantId,locationId);
+      await m.query(`UPDATE inventory_waste_records SET location_id=$3,wasted_at=COALESCE($4::timestamptz,wasted_at),reason=COALESCE($5,reason),note=CASE WHEN $6 THEN $7 ELSE note END,updated_at=clock_timestamp() WHERE coffee_shop_id=$1 AND id=$2`,[tenantId,id,locationId,this.wasteDate(input.wastedAt),input.reason??null,input.note!==undefined,input.note?.trim()||null]);
+      if(input.items){
+        const items=await this.normalizeWasteItems(m,tenantId,input.items);
+        await m.query(`DELETE FROM inventory_waste_items WHERE coffee_shop_id=$1 AND waste_record_id=$2`,[tenantId,id]);
+        for(const line of items)await m.query(`INSERT INTO inventory_waste_items(coffee_shop_id,waste_record_id,item_id,item_name_snapshot,quantity_display,unit,quantity_base) VALUES($1,$2,$3,$4,$5,$6,$7)`,[tenantId,id,line.item.id,line.item.name,line.quantity,line.unit,line.quantityBase]);
+      }
+    });
+    return this.wasteRecord(tenantId,id);
+  }
+
+  async postWasteRecord(tenantId: string, actorId: string, id: string) {
+    await this.gate(tenantId);
+    await this.db.transaction(async(m)=>{
+      const [record]=await m.query(`SELECT * FROM inventory_waste_records WHERE coffee_shop_id=$1 AND id=$2 FOR UPDATE`,[tenantId,id]);
+      if(!record)throw new NotFoundException("Waste record not found");
+      if(record.status!==InventoryWasteStatus.Draft)return;
+      await this.activeLocation(m,tenantId,record.location_id);
+      const lines=await m.query(`SELECT wi.id,wi.item_id AS "itemId",wi.item_name_snapshot AS "itemName",wi.quantity_display::text AS quantity,wi.unit,wi.quantity_base::text AS "quantityBase",i.dimension,i.base_unit AS "baseUnit",i.is_active AS "isActive"
+        FROM inventory_waste_items wi JOIN inventory_items i ON i.coffee_shop_id=wi.coffee_shop_id AND i.id=wi.item_id WHERE wi.coffee_shop_id=$1 AND wi.waste_record_id=$2 ORDER BY wi.item_id FOR UPDATE OF wi,i`,[tenantId,id]);
+      if(!lines.length)throw new BadRequestException("Add at least one item before posting waste");
+      for(const line of lines){
+        if(!line.isActive)throw new ConflictException("Inactive inventory items cannot be posted as waste");
+        const normalized=quantityToBase(line.quantity,line.dimension,line.unit,line.baseUnit);
+        if(compareQuantities(normalized,line.quantityBase)!==0||compareQuantities(normalized,"0")<=0)throw new ConflictException("Waste quantity changed after it was saved");
+        await m.query(`INSERT INTO inventory_stock_balances(coffee_shop_id,item_id,location_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING`,[tenantId,line.itemId,record.location_id]);
+        await m.query(`SELECT id FROM inventory_stock_balances WHERE coffee_shop_id=$1 AND item_id=$2 AND location_id=$3 FOR UPDATE`,[tenantId,line.itemId,record.location_id]);
+      }
+      for(const line of lines){
+        const [balance]=await m.query(`SELECT average_unit_cost_toman::text AS cost FROM inventory_stock_balances WHERE coffee_shop_id=$1 AND item_id=$2 AND location_id=$3`,[tenantId,line.itemId,record.location_id]);
+        let totalCostToman:string|null=null;
+        if(balance.cost!==null){const [cost]=await m.query(`SELECT ROUND($1::numeric*$2::numeric)::bigint::text AS value`,[line.quantityBase,balance.cost]);totalCostToman=cost.value;}
+        const movement=await this.postMovement(m,tenantId,actorId,{itemId:line.itemId,locationId:record.location_id,type:InventoryMovementType.Waste,quantity:`-${line.quantityBase}`,reason:`WASTE:${record.reason}`,idempotencyKey:`waste:${id}:${line.id}`,sourceType:"WASTE_RECORD",sourceId:id,sourceLineId:line.id,unitCostToman:balance.cost,totalCostToman});
+        await m.query(`UPDATE inventory_waste_items SET movement_id=$3 WHERE coffee_shop_id=$1 AND id=$2`,[tenantId,line.id,movement.id]);
+      }
+      await m.query(`UPDATE inventory_waste_records SET status='POSTED',posted_by_user_id=$3,posted_at=clock_timestamp(),updated_at=clock_timestamp() WHERE coffee_shop_id=$1 AND id=$2`,[tenantId,id,actorId]);
+    });
+    return this.wasteRecord(tenantId,id);
+  }
+
+  async reverseWasteRecord(tenantId: string, actorId: string, id: string) {
+    await this.gate(tenantId);
+    await this.db.transaction(async(m)=>{
+      const [record]=await m.query(`SELECT * FROM inventory_waste_records WHERE coffee_shop_id=$1 AND id=$2 FOR UPDATE`,[tenantId,id]);
+      if(!record)throw new NotFoundException("Waste record not found");
+      if(record.status===InventoryWasteStatus.Reversed)return;
+      if(record.status!==InventoryWasteStatus.Posted)throw new ConflictException("Only posted waste can be reversed");
+      const lines=await m.query(`SELECT wi.id,wi.item_id AS "itemId",wi.quantity_base::text AS "quantityBase",wi.movement_id AS "movementId",m.quantity_base::text AS "movementQuantity"
+        FROM inventory_waste_items wi JOIN inventory_stock_movements m ON m.coffee_shop_id=wi.coffee_shop_id AND m.id=wi.movement_id
+        WHERE wi.coffee_shop_id=$1 AND wi.waste_record_id=$2 ORDER BY wi.item_id FOR UPDATE OF wi,m`,[tenantId,id]);
+      if(!lines.length)throw new ConflictException("Posted waste movements are unavailable");
+      for(const line of lines){
+        if(!line.movementQuantity.startsWith("-"))throw new ConflictException("Waste movement has an invalid quantity");
+        await this.postMovement(m,tenantId,actorId,{itemId:line.itemId,locationId:record.location_id,type:InventoryMovementType.ManualAdjustment,quantity:line.movementQuantity.slice(1),reason:`WASTE_REVERSAL:${id}`,idempotencyKey:`waste-reversal:${id}:${line.id}`,sourceType:"WASTE_REVERSAL",sourceId:id,sourceLineId:line.id});
+      }
+      await m.query(`UPDATE inventory_waste_records SET status='REVERSED',reversed_by_user_id=$3,reversed_at=clock_timestamp(),updated_at=clock_timestamp() WHERE coffee_shop_id=$1 AND id=$2`,[tenantId,id,actorId]);
+    });
+    return this.wasteRecord(tenantId,id);
   }
 
   async createItem(tenantId: string, actorId: string, input: CreateInventoryItemDto) {
@@ -306,6 +485,42 @@ export class InventoryService {
     return this.countDetail(tenantId,id);
   }
 
+  private async normalizeWasteItems(m:EntityManager,tenantId:string,items:CreateWasteRecordDto["items"]){
+    if(!items.length)throw new BadRequestException("Add at least one item to a waste record");
+    if(new Set(items.map((line)=>line.inventoryItemId)).size!==items.length)throw new BadRequestException("An inventory item can appear only once in a waste record");
+    const normalized=[];
+    for(const line of items){
+      const [item]=await m.query(`SELECT id,name,dimension,base_unit,is_active FROM inventory_items WHERE coffee_shop_id=$1 AND id=$2 FOR SHARE`,[tenantId,line.inventoryItemId]);
+      if(!item)throw new NotFoundException("Inventory item not found");
+      if(!item.is_active)throw new ConflictException("Inactive inventory items cannot be selected for waste");
+      const quantityBase=quantityToBase(line.quantity,item.dimension,line.unit,item.base_unit);
+      if(compareQuantities(quantityBase,"0")<=0)throw new BadRequestException("Waste quantity must be greater than zero");
+      normalized.push({item,quantity:line.quantity,unit:line.unit,quantityBase});
+    }
+    return normalized;
+  }
+  private wasteDate(value?:string){
+    if(!value)return null;
+    const date=new Date(value);
+    if(!Number.isFinite(date.getTime()))throw new BadRequestException("Waste date is invalid");
+    return date.toISOString();
+  }
+  private async evaluateStockAlert(m:EntityManager,tenantId:string,itemId:string,locationId:string){
+    const [stock]=await m.query(`SELECT b.quantity_base::text AS quantity,r.minimum_quantity_base::text AS minimum,r.par_quantity_base::text AS par
+      FROM inventory_stock_balances b LEFT JOIN inventory_stock_rules r ON r.coffee_shop_id=b.coffee_shop_id AND r.item_id=b.item_id AND r.location_id=b.location_id
+      WHERE b.coffee_shop_id=$1 AND b.item_id=$2 AND b.location_id=$3`,[tenantId,itemId,locationId]);
+    if(!stock)return;
+    const status=inventoryStockStatus(stock.quantity,stock.minimum,stock.par);
+    const type=status===InventoryStockStatus.Negative?InventoryStockAlertType.Negative:status===InventoryStockStatus.OutOfStock?InventoryStockAlertType.OutOfStock:status===InventoryStockStatus.LowStock?InventoryStockAlertType.LowStock:null;
+    const [open]=await m.query(`SELECT id,alert_type AS type FROM inventory_stock_alerts WHERE coffee_shop_id=$1 AND item_id=$2 AND location_id=$3 AND status='OPEN' FOR UPDATE`,[tenantId,itemId,locationId]);
+    if(type===null){
+      if(open)await m.query(`UPDATE inventory_stock_alerts SET status='RESOLVED',last_observed_at=clock_timestamp(),resolved_at=clock_timestamp() WHERE coffee_shop_id=$1 AND id=$2`,[tenantId,open.id]);
+    }else if(open){
+      await m.query(`UPDATE inventory_stock_alerts SET alert_type=$3,last_observed_at=clock_timestamp() WHERE coffee_shop_id=$1 AND id=$2`,[tenantId,open.id,type]);
+    }else{
+      await m.query(`INSERT INTO inventory_stock_alerts(coffee_shop_id,item_id,location_id,alert_type,status,opened_at,last_observed_at) VALUES($1,$2,$3,$4,'OPEN',clock_timestamp(),clock_timestamp()) ON CONFLICT(coffee_shop_id,item_id,location_id) WHERE status='OPEN' DO UPDATE SET alert_type=EXCLUDED.alert_type,last_observed_at=clock_timestamp()`,[tenantId,itemId,locationId,type]);
+    }
+  }
   private assertUnit(dimension:InventoryDimension,unit:string){
     const valid=dimension===InventoryDimension.Weight?["g","kg"]:dimension===InventoryDimension.Volume?["ml","l"]:["piece","pack","box","bottle"];
     if(!valid.includes(unit))throw new BadRequestException("Base unit does not match the measurement dimension");
@@ -346,6 +561,7 @@ export class InventoryService {
       average_unit_cost_toman=CASE WHEN $5='PURCHASE_RECEIPT' THEN CASE WHEN quantity_base<=0 OR average_unit_cost_toman IS NULL THEN $6::numeric ELSE ROUND((quantity_base*average_unit_cost_toman+$7::numeric)/(quantity_base+$4::numeric),6) END ELSE average_unit_cost_toman END,
       updated_at=clock_timestamp() WHERE coffee_shop_id=$1 AND item_id=$2 AND location_id=$3`,[tenantId,op.itemId,op.locationId,op.quantity,op.type,op.unitCostToman??null,op.totalCostToman??null]);
     const [balance]=await m.query(`SELECT quantity_base::text AS quantity_base FROM inventory_stock_balances WHERE coffee_shop_id=$1 AND item_id=$2 AND location_id=$3`,[tenantId,op.itemId,op.locationId]);
+    await this.evaluateStockAlert(m,tenantId,op.itemId,op.locationId);
     return {id:movement.id,balance:balance.quantity_base,duplicate:false};
   }
 }

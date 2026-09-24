@@ -48,6 +48,7 @@ export class InventoryPurchaseOrderItem {
   @Column({ name: "coffee_shop_id", type: "uuid" }) coffeeShopId!: string;
   @Column({ name: "purchase_order_id", type: "uuid" }) purchaseOrderId!: string;
   @Column({ name: "inventory_item_id", type: "uuid" }) itemId!: string;
+  @Column({ name: "location_id", type: "uuid" }) locationId!: string;
   @Column({ name: "item_name_snapshot", type: "varchar", length: 140 }) itemNameSnapshot!: string;
   @Column({ name: "quantity_display", type: "numeric", precision: 20, scale: 6 }) quantityDisplay!: string;
   @Column({ type: "varchar", length: 16 }) unit!: string;

@@ -13,7 +13,7 @@ const items: Array<{ href: string; label: string; short: string; icon: string; p
   { href: "/admin/reservations", label: "رزروها", short: "رزرو", icon: "reservations", permissions: ["reservations.read", "reservations.manage"] },
   { href: "/admin/orders", label: "سفارش‌ها", short: "سفارش", icon: "orders", permissions: ["orders.read", "orders.manage"] },
   { href: "/admin/analytics", label: "آمار و تحلیل", short: "آمار", icon: "analytics", permissions: ["analytics.read"] },
-  { href: "/admin/inventory", label: "موجودی", short: "موجودی", icon: "inventory", permissions: ["inventory.read", "inventory.manage"], feature: "inventory" },
+  { href: "/admin/inventory", label: "انبارداری", short: "انبار", icon: "inventory", permissions: ["inventory.read", "inventory.manage"], feature: "inventory" },
   { href: "/admin/subscription", label: "اشتراک", short: "اشتراک", icon: "subscription", permissions: ["subscription.read"] },
   { href: "/admin/invoices", label: "فاکتورها", short: "فاکتور", icon: "subscription", permissions: ["subscription.read"] },
 ];

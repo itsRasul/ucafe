@@ -115,12 +115,13 @@ export class PurchasingService {
       WHERE po.coffee_shop_id=$1 AND po.id=$2 GROUP BY po.id`, [tenantId, id]);
     if (!order) throw new NotFoundException("Purchase order not found");
     const items = await this.db.query(`SELECT i.id,i.inventory_item_id AS "inventoryItemId",i.item_name_snapshot AS "itemName",it.dimension,it.base_unit AS "baseUnit",
-      i.quantity_display::text AS quantity,i.unit,i.quantity_base::text AS "quantityBase",i.unit_price_toman AS "unitPriceToman",i.note,
+      i.location_id AS "locationId",loc.name AS "locationName",i.quantity_display::text AS quantity,i.unit,i.quantity_base::text AS "quantityBase",i.unit_price_toman AS "unitPriceToman",i.note,
       COALESCE(sum(r.quantity_base) FILTER(WHERE g.status='POSTED'),0)::text AS "receivedQuantityBase"
       FROM inventory_purchase_order_items i JOIN inventory_items it ON it.coffee_shop_id=i.coffee_shop_id AND it.id=i.inventory_item_id
+      JOIN inventory_locations loc ON loc.coffee_shop_id=i.coffee_shop_id AND loc.id=i.location_id
       LEFT JOIN inventory_goods_receipt_lines r ON r.coffee_shop_id=i.coffee_shop_id AND r.purchase_order_item_id=i.id
       LEFT JOIN inventory_goods_receipts g ON g.coffee_shop_id=r.coffee_shop_id AND g.id=r.goods_receipt_id
-      WHERE i.coffee_shop_id=$1 AND i.purchase_order_id=$2 GROUP BY i.id,it.id ORDER BY i.item_name_snapshot`, [tenantId, id]);
+      WHERE i.coffee_shop_id=$1 AND i.purchase_order_id=$2 GROUP BY i.id,it.id,loc.name ORDER BY i.item_name_snapshot`, [tenantId, id]);
     const lines = items.map((line: Record<string, string>) => {
       const remaining = addQuantities(line.quantityBase!, `-${line.receivedQuantityBase!}`);
       return { ...line, remainingQuantityBase: remaining, remainingQuantity: quantityFromBase(remaining, line.dimension as InventoryDimension, line.unit!, line.baseUnit!) };
@@ -304,10 +305,13 @@ export class PurchasingService {
   private async replacePurchaseOrderItems(m: EntityManager, tenantId: string, orderId: string, lines: PurchaseOrderLineDto[]) {
     if (new Set(lines.map((line) => line.inventoryItemId)).size !== lines.length) throw new BadRequestException("An inventory item can appear only once on a purchase order");
     await m.query(`DELETE FROM inventory_purchase_order_items WHERE coffee_shop_id=$1 AND purchase_order_id=$2`, [tenantId, orderId]);
+    const defaultLocation = await this.inventory.defaultLocation(m, tenantId);
     for (const line of lines) {
       const item = await this.inventoryLine(m, tenantId, line.inventoryItemId, line.quantity, line.unit);
-      await m.query(`INSERT INTO inventory_purchase_order_items(coffee_shop_id,purchase_order_id,inventory_item_id,item_name_snapshot,quantity_display,unit,quantity_base,unit_price_toman,note)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, [tenantId, orderId, item.id, item.name, line.quantity, line.unit, item.quantityBase, line.unitPriceToman, clean(line.note)]);
+      const locationId = line.locationId ?? defaultLocation.id;
+      await this.inventory.activeLocation(m, tenantId, locationId);
+      await m.query(`INSERT INTO inventory_purchase_order_items(coffee_shop_id,purchase_order_id,inventory_item_id,location_id,item_name_snapshot,quantity_display,unit,quantity_base,unit_price_toman,note)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, [tenantId, orderId, item.id, locationId, item.name, line.quantity, line.unit, item.quantityBase, line.unitPriceToman, clean(line.note)]);
     }
   }
 

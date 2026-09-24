@@ -33,6 +33,7 @@ export class UpdateSupplierDto {
 
 export class PurchaseOrderLineDto {
   @IsUUID() inventoryItemId!: string;
+  @IsOptional() @IsUUID() locationId?: string;
   @Matches(quantity) quantity!: string;
   @IsString() @MaxLength(16) unit!: string;
   @Matches(money) unitPriceToman!: string;
