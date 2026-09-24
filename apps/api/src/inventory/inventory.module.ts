@@ -5,6 +5,8 @@ import { SubscriptionsModule } from "../subscriptions/subscriptions.module";
 import { TenantContextGuard } from "../tenants/tenant-context.guard";
 import { InventoryController } from "./inventory.controller";
 import { InventoryService } from "./inventory.service";
+import { RecipesController } from "./recipes.controller";
+import { RecipesService } from "./recipes.service";
 
-@Module({imports:[AuthModule,AuthorizationModule,SubscriptionsModule],controllers:[InventoryController],providers:[InventoryService,TenantContextGuard]})
+@Module({imports:[AuthModule,AuthorizationModule,SubscriptionsModule],controllers:[InventoryController,RecipesController],providers:[InventoryService,RecipesService,TenantContextGuard]})
 export class InventoryModule {}

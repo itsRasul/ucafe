@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useAdminSession } from "../admin-session";
@@ -44,7 +45,7 @@ export default function InventoryPage(){
   if(!canRead&&!canManage)return <section className="inventory-state"><h1>شما دسترسی به این بخش را ندارید</h1><p>نقش شما اجازه مشاهده موجودی این کافه را ندارد.</p></section>;
   if(access.features?.inventory===false)return <section className="inventory-state"><span>موجودی</span><h1>این قابلیت در طرح فعلی فعال نیست</h1><p>برای دسترسی به موجودی، وضعیت اشتراک را بررسی کنید.</p><a href="/admin/subscription">مشاهده اشتراک</a></section>;
   return <section className="inventory-page" dir="rtl">
-    <header className="inventory-heading"><div><span>عملیات روزانه</span><h1>موجودی کافه</h1><p>کالاها، محل نگهداری و تغییرات موجودی را یکجا مدیریت کنید.</p></div>{canManage&&<button className="inventory-primary" onClick={()=>setTab("items")}>＋ افزودن کالا</button>}</header>
+    <header className="inventory-heading"><div><span>عملیات روزانه</span><h1>موجودی کافه</h1><p>کالاها، محل نگهداری و تغییرات موجودی را یکجا مدیریت کنید.</p></div><div className="inventory-heading-actions"><Link className="inventory-secondary" href="/admin/inventory/recipes">دستور مواد</Link>{canManage&&<button className="inventory-primary" onClick={()=>setTab("items")}>＋ افزودن کالا</button>}</div></header>
     <nav className="inventory-tabs" aria-label="بخش‌های موجودی">{tabs.map(([key,label])=><button key={key} type="button" aria-current={tab===key?"page":undefined} onClick={()=>{setTab(key);if(key==="overview")setStockPage(1);}}>{label}</button>)}</nav>
     {error&&<p className="inventory-alert" role="alert">{error}</p>}{notice&&<p className="inventory-notice" role="status">{notice}</p>}
     {tab==="overview"&&<><div className="inventory-metrics"><article><small>کالاهای فعال</small><strong>{fa(overview.activeItems)}</strong></article><article><small>موجودی منفی</small><strong>{fa(overview.negativeBalances)}</strong></article><article><small>انبارگردانی پیش‌نویس</small><strong>{fa(overview.draftCounts)}</strong></article><article><small>اصلاحات در ۷ روز</small><strong>{fa(overview.recentAdjustments)}</strong></article></div><StockTable rows={stock.items.slice(0,12)} onAdjust={canManage?setAdjusting:undefined}/><button className="inventory-secondary" onClick={()=>setTab("items")}>نمایش همه کالاها</button></>}

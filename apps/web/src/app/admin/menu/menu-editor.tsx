@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import {
   ChangeEvent,
   FormEvent,
@@ -40,6 +41,7 @@ type Category = {
   isActive: boolean;
   items: Item[];
 };
+type RecipeTarget = { menuItemId: string; menuItemVariantId: string | null; variantName: string | null; recipeId: string | null; status: "NONE" | "DRAFT" | "ACTIVE"; activeVersionNumber: number | null; draftVersionNumber: number | null };
 type CategoryForm = {
   id?: string;
   name: string;
@@ -84,7 +86,9 @@ export function MenuEditor() {
   const { access, api } = useAdminSession();
   const canRead = access.permissions.includes("menu.read"),
     canManage = access.permissions.includes("menu.manage");
+  const canReadInventory = access.features?.inventory === true && (access.permissions.includes("inventory.read") || access.permissions.includes("inventory.manage"));
   const [categories, setCategories] = useState<Category[]>([]),
+    [recipeTargets, setRecipeTargets] = useState<RecipeTarget[]>([]),
     [categoryForm, setCategoryForm] = useState<CategoryForm | null>(null),
     [itemForm, setItemForm] = useState<ItemForm | null>(null),
     [pendingItemImage, setPendingItemImage] = useState<File | null>(null),
@@ -96,10 +100,14 @@ export function MenuEditor() {
     [busy, setBusy] = useState(true),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
-  const load = useCallback(
-    async () => setCategories(await api<Category[]>("/tenant/menu")),
-    [api],
-  );
+  const load = useCallback(async () => {
+    const [menu, recipes] = await Promise.all([
+      api<Category[]>("/tenant/menu"),
+      canReadInventory ? api<RecipeTarget[]>("/tenant/inventory/recipes").catch(() => []) : Promise.resolve([]),
+    ]);
+    setCategories(menu);
+    setRecipeTargets(recipes);
+  }, [api, canReadInventory]);
   useEffect(() => {
     if (!canRead) return;
     load()
@@ -191,6 +199,7 @@ export function MenuEditor() {
         isFeatured: itemForm.isFeatured,
         sortOrder: itemForm.sortOrder,
         variants: itemForm.variants.map((variant, index) => ({
+          id: variant.id,
           name: variant.name.trim(),
           priceToman: Number(variant.priceToman),
           isDefault: variant.isDefault,
@@ -467,6 +476,10 @@ export function MenuEditor() {
                               ? price(item.basePriceToman)
                               : "قیمت ثبت نشده"}
                         </small>
+                        {canReadInventory && <p className="menu-recipe-status"><strong>دستور مواد:</strong> {recipeTargets.filter((target) => target.menuItemId === item.id).map((target) => {
+                          const label = target.status === "ACTIVE" ? "فعال" : target.status === "DRAFT" ? "پیش‌نویس" : "نیازمند تنظیم";
+                          return `${target.variantName ?? "پایه"}: ${label}`;
+                        }).join(" · ") || "بدون دستور"} <Link href={`/admin/inventory/recipes?menuItemId=${item.id}`}>مدیریت دستور</Link></p>}
                       </div>
                       {canManage && (
                         <div className="row-actions">
@@ -588,6 +601,7 @@ export function MenuEditor() {
                   <form onSubmit={saveItem}>
                     <header>
                       <h2>{itemForm.id ? "ویرایش آیتم" : "آیتم جدید"}</h2>
+                      {canReadInventory && itemForm.id && <Link href={`/admin/inventory/recipes?menuItemId=${itemForm.id}`}>تنظیم دستور مواد</Link>}
                       <button
                         type="button"
                         className="close"
@@ -852,6 +866,10 @@ export function MenuEditor() {
                               }
                             />
                             پیش‌فرض
+                          </label>
+                          <label title="قابل سفارش">
+                            <input type="checkbox" checked={variant.isAvailable} onChange={(e) => updateVariant(index, { isAvailable: e.currentTarget.checked })} />
+                            فعال
                           </label>
                           <button
                             type="button"

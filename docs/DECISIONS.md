@@ -433,3 +433,10 @@ The footer location map uses the classic keyless Google Maps embed (`https://map
 - **Decision:** snapshot expected balance and timestamp when each count line is entered. On completion, target balance is counted quantity plus the sum of subsequent ledger movements; post a count adjustment from current balance to that target.
 - **Reasoning:** stock movements recorded while staff physically count other items/areas remain reflected after reconciliation, without requiring the whole location to be locked for the count duration.
 - **Consequences:** each line's physical value represents stock at its own submission time. Counts are one-way from draft to completed, and later changes require a new operational movement/count.
+
+## D-056 — Recipes are tenant-scoped identities with immutable published versions
+
+- **Status:** implemented on 2026-09-24
+- **Decision:** attach optional recipes to existing menu item or variant IDs. Keep editable draft versions, normalized component quantities, creator/publisher attribution, activation timestamps, and immutable published history. A variant resolves its exact recipe first and may fall back to its item's base recipe. Recipe edits never change stock.
+- **Reasoning:** stable target and version IDs let future orders preserve the exact recipe applied while reusing the existing unit converter and feature/permission system.
+- **Consequences:** migration `1787844000000` adds tenant-scoped recipe tables and invariants. Version-number allocation and publication lock the recipe row; stale draft saves use a revision check. Removed menu variants become unavailable instead of being deleted so recipe/order references remain valid. Phase 3 must snapshot `recipeVersionId` on consumption; modifiers, prep recipes, costing, and stock deduction remain future work. See [INVENTORY.md](INVENTORY.md).

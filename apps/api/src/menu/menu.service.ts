@@ -74,6 +74,7 @@ export class MenuService {
   }
 
   async createItem(coffeeShopId: string, input: CreateMenuItemDto) {
+    if (input.variants.some((variant) => variant.id)) throw new BadRequestException("New menu variants cannot include IDs");
     this.validatePricing(input.basePriceToman, input.variants);
     return this.dataSource.transaction(async (manager) => {
       if (!await manager.existsBy(MenuCategory, { id: input.categoryId, coffeeShopId, deletedAt: IsNull() })) throw new NotFoundException("Menu category not found");
@@ -120,10 +121,30 @@ export class MenuService {
   }
 
   private async replaceVariants(manager: EntityManager, coffeeShopId: string, itemId: string, variants: MenuItemVariantDto[]) {
-    await manager.delete(MenuItemVariant, { coffeeShopId, itemId });
-    if (!variants.length) return;
-    await manager.save(MenuItemVariant, variants.map((variant) => manager.create(MenuItemVariant, {
-      coffeeShopId, itemId, name: variant.name.trim(), priceToman: variant.priceToman.toString(), isDefault: variant.isDefault, isAvailable: variant.isAvailable, sortOrder: variant.sortOrder,
-    })));
+    const existing = await manager.findBy(MenuItemVariant, { coffeeShopId, itemId });
+    if (existing.length) await manager.update(MenuItemVariant, { coffeeShopId, itemId }, { isDefault: false });
+    const used = new Set<string>();
+    for (const variant of variants) {
+      const match = variant.id
+        ? existing.find((row) => row.id === variant.id)
+        : existing.find((row) => !used.has(row.id) && row.name.trim().toLocaleLowerCase() === variant.name.trim().toLocaleLowerCase());
+      if (variant.id && !match) throw new NotFoundException("Menu variant not found");
+      if (match) {
+        if (used.has(match.id)) throw new BadRequestException("Menu variant was included more than once");
+        used.add(match.id);
+        match.name = variant.name.trim();
+        match.priceToman = variant.priceToman.toString();
+        match.isDefault = variant.isDefault;
+        match.isAvailable = variant.isAvailable;
+        match.sortOrder = variant.sortOrder;
+        await manager.save(match);
+      } else {
+        await manager.save(MenuItemVariant, manager.create(MenuItemVariant, {
+          coffeeShopId, itemId, name: variant.name.trim(), priceToman: variant.priceToman.toString(), isDefault: variant.isDefault, isAvailable: variant.isAvailable, sortOrder: variant.sortOrder,
+        }));
+      }
+    }
+    const removed = existing.filter((variant) => !used.has(variant.id));
+    if (removed.length) await manager.update(MenuItemVariant, removed.map(({ id }) => id), { isAvailable: false, isDefault: false });
   }
 }

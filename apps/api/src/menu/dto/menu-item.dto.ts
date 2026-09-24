@@ -2,6 +2,7 @@ import { Type } from "class-transformer";
 import { IsArray, IsBoolean, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min, ValidateNested } from "class-validator";
 
 export class MenuItemVariantDto {
+  @IsOptional() @IsUUID() id?: string;
   @IsString() @MaxLength(80) name!: string;
   @IsInt() @Min(0) priceToman!: number;
   @IsOptional() @IsBoolean() isDefault = false;

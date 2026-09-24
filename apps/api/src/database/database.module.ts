@@ -14,7 +14,7 @@ import { PaymentIntent } from "../payments/entities";
 import { PlatformOrderRequest } from "../platform-orders/entities";
 import { Client, ClientAddress, ClientAuthSession } from "../clients/entities";
 import { OnlineOrderingSettings, Order, OrderItem } from "../ordering/entities";
-import { InventoryCategory, InventoryItem, InventoryLocation, InventoryStockBalance, InventoryStockCount, InventoryStockCountLine, InventoryStockMovement } from "../inventory/entities";
+import { InventoryCategory, InventoryItem, InventoryLocation, InventoryRecipe, InventoryRecipeComponent, InventoryRecipeVersion, InventoryStockBalance, InventoryStockCount, InventoryStockCountLine, InventoryStockMovement } from "../inventory/entities";
 
 @Module({
   imports: [
@@ -24,7 +24,7 @@ import { InventoryCategory, InventoryItem, InventoryLocation, InventoryStockBala
       useFactory: (config: ConfigService) => ({
         type: "postgres" as const,
         url: config.getOrThrow<string>("DATABASE_URL"),
-        entities: [CoffeeShop, Branch, Domain, User, CoffeeShopMembership, Role, Permission, MembershipRole, RolePermission, UserPlatformRole, OtpChallenge, AuthSession, Client, ClientAddress, ClientAuthSession, SubscriptionPlan, Subscription, SubscriptionPayment, SubscriptionPeriod, WebsiteSettings, BranchOpeningHour, MenuCategory, MenuItem, MenuItemVariant, Reservation, ReservationSettings, MediaAsset, NotificationDelivery, PaymentIntent, PlatformOrderRequest, OnlineOrderingSettings, Order, OrderItem, InventoryCategory, InventoryItem, InventoryLocation, InventoryStockMovement, InventoryStockBalance, InventoryStockCount, InventoryStockCountLine],
+        entities: [CoffeeShop, Branch, Domain, User, CoffeeShopMembership, Role, Permission, MembershipRole, RolePermission, UserPlatformRole, OtpChallenge, AuthSession, Client, ClientAddress, ClientAuthSession, SubscriptionPlan, Subscription, SubscriptionPayment, SubscriptionPeriod, WebsiteSettings, BranchOpeningHour, MenuCategory, MenuItem, MenuItemVariant, Reservation, ReservationSettings, MediaAsset, NotificationDelivery, PaymentIntent, PlatformOrderRequest, OnlineOrderingSettings, Order, OrderItem, InventoryCategory, InventoryItem, InventoryLocation, InventoryStockMovement, InventoryStockBalance, InventoryStockCount, InventoryStockCountLine, InventoryRecipe, InventoryRecipeVersion, InventoryRecipeComponent],
         synchronize: false,
         migrationsRun: false,
         logging: config.get<string>("NODE_ENV") === "development" ? ["error", "warn"] : ["error"],
