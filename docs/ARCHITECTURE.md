@@ -33,6 +33,8 @@ The API exposes REST groups under `/api/v1`: `/public`, `/auth`, `/tenant`, `/pl
 
 Major modules: tenants, identity/authorization, auth, clients, subscriptions, site, menu, media, ordering, inventory, analytics, reservations, notifications, payments, platform consultation requests, audit, and health. Inventory movement/balance and count semantics are in [INVENTORY.md](INVENTORY.md); analytics definitions and extension points are in [ANALYTICS.md](ANALYTICS.md).
 
+Analytics imports the exported `InventoryVarianceService` for the Inventory Phase 7 report. That service reads tenant-scoped physical counts, source-validated movements and order recipe snapshots; it checks both effective `inventory` and `analytics` entitlements. Inventory does not depend on Analytics, and report reads do not post stock movements.
+
 ### Data and infrastructure
 
 PostgreSQL is authoritative for business data, session/outbox state, constraints, advisory locks, and lifecycle records. TypeORM synchronization and automatic migration execution are disabled in application configuration; production API startup currently runs migrations before starting the server.
@@ -63,6 +65,7 @@ See [DATABASE.md](DATABASE.md) for important constraints without duplicating the
 - **Tenant request:** host → domain → effective subscription/cafe status → tenant context → public or authenticated guard → tenant-scoped service query.
 - **Client action:** cafe-scoped OTP/session → client JWT tied to resolved cafe → owned resource query.
 - **Order:** feature/settings checks → server-side menu validation/pricing → transaction/snapshots → outbox.
+- **Inventory variance:** authenticated Analytics page → tenant count interval → one grouped movement/count query → paginated signed variance and source drill-down; no operational stock write.
 - **Reservation:** feature/slot checks → branch/date advisory lock → capacity recheck → transaction/outbox.
 - **Renewal:** owner permission → immutable payment intent → public authority callback → provider verification → idempotent subscription payment/reactivation.
 - **Notification:** business transaction inserts encrypted unique outbox row → API timer claims/retries → current-state eligibility check → provider.

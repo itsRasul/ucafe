@@ -1,6 +1,6 @@
 # Project continuation checkpoint
 
-Last updated: 2026-09-24
+Last updated: 2026-09-25
 
 ## Inventory Phase 0/1 stabilization
 
@@ -60,4 +60,12 @@ Verification: migration 38 applied in development; focused costing and order-con
 
 Known limits: this is material-cost profitability, not accounting profit; labor, rent, tax, fee, waste allocation, modifiers, historical cost replay, forecasts, and multiple-location profitability remain outside scope. Earlier sale movements have no backfilled cost.
 
-Continuation: Phase 7 is Actual vs Theoretical usage and variance. It should use sale-line and recipe-component movement snapshots for actual consumption, preserving the exact recipe version used on each order. It is a reporting comparison, not a second stock ledger.
+Continuation: Phase 8 is Batch, Lot & Expiry Management. Start by tracing `PurchasingService` receipt posting and `inventory_goods_receipt_lines`, then define lot allocation, per-location remaining quantity, expiry, and FIFO/FEFO semantics at receipt time. Add a tenant-scoped batch migration tied to receipt lines and ledger movement references; keep prior movements immutable and do not synthesize lots for historical stock. Preserve Phase 7's count-anchored reporting and never write stock corrections from variance.
+
+## Inventory Phase 7: actual vs theoretical usage and variance
+
+Implemented a read-only count-to-count report at `/admin/analytics`. Actual depletion uses explicit physical counted quantities and per-item `counted_at` bounds, trusted posted receipts, supported trusted non-consumption movements and the closing physical quantity. Theoretical use nets only source-valid signed `SALE_CONSUMPTION` / `SALE_REVERSAL` movements, preserving each order's recipe version; known waste nets valid Waste and full-record reversal movements. Manual adjustments, opening balances and count reconciliation are excluded and visibly flagged. Missing count lines are non-calculable; zero counts remain valid. Source-invalid receipt/sale/waste movements are omitted and shown in drill-down.
+
+Added three tenant-scoped Analytics endpoints, DTO validation, both feature/permission requirements, one grouped PostgreSQL report query, paginated items, summary/coverage, item movement drill-down, and Persian RTL UI with cafe-timezone dates. Migration `1787872800000-InventoryVarianceMovementIndex` adds a tenant/location/item/time lookup index; no business tables changed. Historical variance cost is unavailable because current average balance cost cannot recover the cost at a past count boundary. Order-line coverage uses creation time as a proxy because accepted-at event history is not stored. The report never creates stock or waste corrections.
+
+Verification: migration 39 is applied; `migration:show` lists all migrations applied. The focused rollback-only PostgreSQL variance suite passed (4/4). The complete API suite passed (110 passed, 3 skipped); the skipped database-only Analytics/plan cases were not pointed at the development database because its Silver plan settings are customized. Root workspace typecheck and production build passed (`NODE_ENV=production npm run build`); `git diff --check` passed. The Analytics page returned HTTP 200 and the new API route returned the expected unauthenticated 401 after restarting the local API. An authenticated visual interaction check remains pending because this browser has no tenant-admin session.

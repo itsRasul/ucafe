@@ -74,7 +74,7 @@ Phase 1 is implemented. The `inventory` plan feature remains configurable, defau
 
 ## Goals and non-goals
 
-The system tracks café stock with a tenant-safe, auditable movement ledger and a fast current balance. Phase 1 provides items, categories, locations, stock views, opening balances, manual adjustments, physical counts, movement history, and an operational overview. Phase 2 adds versioned menu recipes. Phase 3 adds sale consumption and reversals. Phase 4 adds suppliers, purchasing, goods receipts, and current purchase cost. Phase 5 adds Waste, minimum/PAR levels, stock alerts and projected quantity from open POs. Recipe costing, advanced reports, integrations, forecasting, and multi-branch transfers remain deferred.
+The system tracks café stock with a tenant-safe, auditable movement ledger and a fast current balance. Phase 1 provides items, categories, locations, stock views, opening balances, manual adjustments, physical counts, movement history, and an operational overview. Phase 2 adds versioned menu recipes. Phase 3 adds sale consumption and reversals. Phase 4 adds suppliers, purchasing, goods receipts, and current purchase cost. Phase 5 adds Waste, minimum/PAR levels, stock alerts and projected quantity from open POs. Phase 6 provides current-cost recipe profitability; Phase 7 adds historical count-to-count usage and variance analysis. Lot tracking, integrations, forecasting, and multi-location transfers remain deferred.
 
 ## Terms and foundation entities
 
@@ -115,7 +115,7 @@ Tenant RBAC uses `inventory.read` and `inventory.manage`, granted to the protect
 
 - **Menu:** recipes link to a menu item or its existing variant; menu products need not have recipes. Variant IDs remain stable during edits; removed variants become unavailable so recipe and order history retain their references.
 - **Orders:** future consumption is generated from immutable order item snapshots and recipe versions; cancellation creates reversal movements. Use an idempotency key per source operation. UCafe is not assumed to be the only POS/source.
-- **Analytics:** operational stock screens and Phase 6 current recipe-cost estimates require `inventory`. Analytics continues to own delivered-sales aggregation; any future historical inventory-cost report surfaced in Analytics requires both `inventory` and `analytics` and must define historical cost semantics explicitly.
+- **Analytics:** Phase 7 count-to-count usage and variance requires both `inventory` and `analytics`; it uses immutable stock movements and physical count lines without changing delivered-sales definitions. Historical variance cost remains unavailable until an item/location cost at the count boundary can be reconstructed defensibly.
 - **Suppliers/purchasing:** posted receipts generate generic source-referenced movements and snapshot actual purchase costs. Phase 4 supplier, PO, and receipt history is documented above.
 - **Waste:** posted records generate reasoned negative movements, never direct balance edits. Minimum/PAR thresholds and deduplicated alert history are owned by Inventory; PO projected stock includes only unreceived ordered quantities at their expected location.
 - **Recipes and actual-vs-theoretical:** version recipes and preserve the recipe version/source used for each consumption. Actual usage comes from counts/movements; theoretical usage derives from fulfilled sales and recipe snapshots. Variance is a comparison, not a second stock ledger.
@@ -132,7 +132,7 @@ Tenant RBAC uses `inventory.read` and `inventory.manage`, granted to the protect
 | 4 | Suppliers, purchasing, receipts and purchase costs | Implemented |
 | 5 | Waste, minimum stock and PAR alerts | Implemented |
 | 6 | Recipe costing and menu profitability | Implemented |
-| 7 | Actual vs Theoretical usage and variance | Planned |
+| 7 | Actual vs Theoretical usage and variance | Implemented |
 | 8 | Lots, expiry and FIFO/FEFO | Planned |
 | 9 | Supplier price history and purchase recommendations | Planned |
 | 10 | Demand and inventory forecasting | Planned |
@@ -203,4 +203,32 @@ Migrations `1787844000000` and `1787847600000` add recipe tables, composite tena
 
 Phase 3 stores the source order-item and recipe-version/component references on each consumption movement. Historical order analysis must use those snapshots rather than looking up the currently active recipe; `effective_from` does not replace a version snapshot.
 
-Modifiers/add-ons can later add optional modifier-level recipe components alongside the base recipe. Prep recipes can add a production-output item component once that workflow is explicitly scoped; Phase 2 has no recursive recipe graph. Recipe costing and Actual vs Theoretical reporting remain deferred.
+Modifiers/add-ons can later add optional modifier-level recipe components alongside the base recipe. Prep recipes can add a production-output item component once that workflow is explicitly scoped; Phase 2 has no recursive recipe graph. Recipe costing is documented in Phase 6 and count-to-count usage reporting in Phase 7.
+
+## Phase 7 actual vs theoretical usage and variance
+
+Phase 7 is a read-only count-to-count report at `/admin/analytics`. It requires an explicit tenant location, opening count, and later closing count. Both counts must be completed, belong to that same location and tenant, and be distinct. Up to 100 recent completed counts are available in the selector. For each item, the physical `counted_quantity` and its own `counted_at` form the boundary; expected/system quantities are never substituted. An explicit zero is valid, while a missing item in either count returns `NOT_CALCULABLE` rather than an assumed zero.
+
+For each item with both physical boundaries and closing `counted_at > opening counted_at`, the report uses:
+
+```text
+Actual Depletion = Opening Physical Quantity + Trusted Inbound - Trusted Outbound - Closing Physical Quantity
+Theoretical Sale Usage = -SUM(valid signed SALE_CONSUMPTION and SALE_REVERSAL quantities)
+Known Waste = -SUM(valid signed WASTE and WASTE_REVERSAL quantities)
+Unexplained Variance = Actual Depletion - Theoretical Sale Usage - Known Waste - Other Explained Consumption
+Variance % = Unexplained Variance / Theoretical Sale Usage × 100
+```
+
+Percentages retain their sign and are `null` when net theoretical usage is zero. “Positive” and “negative” describe the signed quantity only; they do not assign a cause. The report does not change stock, create waste, post an adjustment, or imply theft.
+
+Movement evidence is included only in the per-item interval `opening counted_at < effective movement time <= closing counted_at`. A posted Goods Receipt uses its `received_at`; a WASTE row uses its record's `wasted_at`; other movements use immutable movement `created_at`. Receipt, sale, reversal, and waste rows contribute only with valid source links to their posted/immutable records. Source-incomplete stock events are omitted from trusted totals and set `INVALID_MOVEMENT_SOURCE`. Sale reversals are accepted only when they link to a valid original sale consumption; signed ledger quantities net the reversal without rereading the current recipe. Consequently, exact recipe versions and normalized component quantities used on accepted orders remain authoritative.
+
+`PURCHASE_RECEIPT`, and future supported `TRANSFER_IN` / `PRODUCTION_OUTPUT`, are trusted inbound; supported `TRANSFER_OUT` is trusted non-consumption outbound. This deployment has no transfer workflow. `PRODUCTION_CONSUMPTION` is kept separate as other explained consumption, but no production workflow currently writes it. `WASTE` and its positive `MANUAL_ADJUSTMENT` compensation with `WASTE_REVERSAL` source references form net known waste. Draft/canceled purchase documents do not affect calculations because they have no accepted stock movement. Receipt reversal/correction is not implemented. `STOCK_COUNT_ADJUSTMENT` is excluded from all usage totals because the physical closing count already anchors actual depletion; its presence is flagged. Ordinary `MANUAL_ADJUSTMENT` and `OPENING_BALANCE` movements are excluded and flagged rather than guessed as usage or receipt.
+
+Order coverage is a factual proxy, not a complete recipe coverage audit: the report counts order items created between the selected counts' `completed_at` timestamps and marks an item covered only when a source-valid `SALE_CONSUMPTION` movement references that item, order and matching recipe component. The order schema does not retain an acceptance-event history, so created-at time can differ from consumption time; current terminal status can also change. The percentage is shown with that caveat. Missing recipes and orders with no consumption are not assigned invented ingredient quantities. Sales outside UCafe that were not imported are absent from theoretical usage and may contribute to unexplained variance. Historical periods before reliable physical counts and ledger coverage are therefore not represented as fully reliable.
+
+The report has no defensible historical average-cost snapshot at count time: `inventory_stock_balances.average_unit_cost_toman` stores only the current projection, while receipt, waste, and sale movement snapshots do not establish the full item/location average at the closing boundary. `varianceCostStatus` is `UNAVAILABLE` and value is `null`; current cost is never relabeled as historical cost. Existing known receipt, waste, and sale costs remain unchanged.
+
+API routes are `GET /api/v1/tenant/analytics/inventory/variance/counts`, `GET /api/v1/tenant/analytics/inventory/variance`, and `GET /api/v1/tenant/analytics/inventory/variance/items/:itemId`. DTOs validate UUIDs, interval ordering/location ownership, allow-listed sorting/filtering, and bounded pagination (100 rows). Tenant identity is read only from `TenantContextGuard`; report SQL scopes count, item, movement, order and source joins to that tenant. Controllers require `analytics.read` and `inventory.read`; the service also checks both effective subscription entitlements. The bulk report uses one grouped PostgreSQL CTE query for item calculations, summary, and coverage, rather than querying per item. Migration `1787872800000-InventoryVarianceMovementIndex` adds `(coffee_shop_id,location_id,item_id,created_at)` for interval movement scans.
+
+The Persian RTL Analytics tab includes location/count selection, signed variance filters, allow-listed sorting, page navigation, data-quality statuses/flags and an item drill-down showing formula inputs, source movements/effective times, invalid-source markers and the closing count adjustment. Dates display in the café timezone. `apps/api/src/inventory/variance.spec.ts` covers classification, validation, both entitlement gates, physical and theoretical formulas, a valid posted receipt and recipe-versioned sale movements, sale/waste reversals, exact interval edges, explicit zero and missing counts, invalid sources, reconciliation/manual/opening flags, coverage gaps and tenant/location isolation. It uses a rollback-only PostgreSQL fixture when `INVENTORY_INTEGRATION_DATABASE_URL` is configured.

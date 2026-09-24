@@ -7,11 +7,31 @@ import { TENANT_CONTEXT, TenantContextRequest } from "../tenants/tenant-context"
 import { TenantContextGuard } from "../tenants/tenant-context.guard";
 import { AnalyticsQueryDto, ProductAnalyticsQueryDto } from "./analytics.dto";
 import { AnalyticsService } from "./analytics.service";
+import { InventoryVarianceService } from "../inventory/variance.service";
+import { InventoryVarianceIntervalDto, InventoryVarianceQueryDto } from "../inventory/variance.dto";
 
 @Controller("tenant/analytics")
 @UseGuards(AccessTokenGuard, TenantContextGuard, TenantPermissionGuard)
 export class AnalyticsController {
-  constructor(private readonly analytics: AnalyticsService) {}
+  constructor(private readonly analytics: AnalyticsService, private readonly inventoryVariance: InventoryVarianceService) {}
+
+  @Get("inventory/variance/counts")
+  @RequireTenantPermissions(TenantPermissions.AnalyticsRead, TenantPermissions.InventoryRead)
+  varianceCountOptions(@Req() req: TenantContextRequest) {
+    return this.inventoryVariance.countOptions(req[TENANT_CONTEXT]!.coffeeShopId);
+  }
+
+  @Get("inventory/variance")
+  @RequireTenantPermissions(TenantPermissions.AnalyticsRead, TenantPermissions.InventoryRead)
+  inventoryVarianceReport(@Req() req: TenantContextRequest, @Query() query: InventoryVarianceQueryDto) {
+    return this.inventoryVariance.report(req[TENANT_CONTEXT]!.coffeeShopId, query);
+  }
+
+  @Get("inventory/variance/items/:itemId")
+  @RequireTenantPermissions(TenantPermissions.AnalyticsRead, TenantPermissions.InventoryRead)
+  inventoryVarianceItem(@Req() req: TenantContextRequest, @Param("itemId", ParseUUIDPipe) itemId: string, @Query() query: InventoryVarianceIntervalDto) {
+    return this.inventoryVariance.item(req[TENANT_CONTEXT]!.coffeeShopId, itemId, query);
+  }
 
   @Get("overview")
   @RequireTenantPermissions(TenantPermissions.AnalyticsRead)

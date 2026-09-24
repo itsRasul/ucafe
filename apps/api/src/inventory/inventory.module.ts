@@ -11,6 +11,7 @@ import { PurchasingController } from "./purchasing.controller";
 import { PurchasingService } from "./purchasing.service";
 import { CostingController } from "./costing.controller";
 import { RecipeCostingService } from "./costing.service";
+import { InventoryVarianceService } from "./variance.service";
 
-@Module({imports:[AuthModule,AuthorizationModule,SubscriptionsModule],controllers:[InventoryController,RecipesController,CostingController,PurchasingController],providers:[InventoryService,RecipesService,RecipeCostingService,PurchasingService,TenantContextGuard],exports:[InventoryService]})
+@Module({imports:[AuthModule,AuthorizationModule,SubscriptionsModule],controllers:[InventoryController,RecipesController,CostingController,PurchasingController],providers:[InventoryService,RecipesService,RecipeCostingService,PurchasingService,InventoryVarianceService,TenantContextGuard],exports:[InventoryService,InventoryVarianceService]})
 export class InventoryModule {}
