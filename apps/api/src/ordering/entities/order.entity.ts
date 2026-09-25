@@ -72,6 +72,13 @@ export class Order {
   @Column({ name: "discount_total_toman", type: "bigint", default: 0 })
   discountTotalToman!: string;
 
+  @Column({ name: "order_discount_toman", type: "bigint", default: 0 }) orderDiscountToman!: string;
+  @Column({ name: "order_promotion_id_snapshot", type: "uuid", nullable: true }) orderPromotionIdSnapshot!: string | null;
+  @Column({ name: "order_promotion_name_snapshot", type: "varchar", length: 120, nullable: true }) orderPromotionNameSnapshot!: string | null;
+  @Column({ name: "order_promotion_reward_type_snapshot", type: "varchar", length: 20, nullable: true }) orderPromotionRewardTypeSnapshot!: string | null;
+  @Column({ name: "order_promotion_reward_value_snapshot", type: "bigint", nullable: true }) orderPromotionRewardValueSnapshot!: string | null;
+  @Column({ name: "coupon_code_snapshot", type: "varchar", length: 64, nullable: true }) couponCodeSnapshot!: string | null;
+
   @Column({ name: "idempotency_key", type: "varchar", length: 80 })
   idempotencyKey!: string;
 

@@ -27,10 +27,12 @@ function addressText(address: AddressLike) {
 export function CheckoutClient({ menu, ordering }: { menu: PublicMenu; ordering: PublicOrderingState | null }) {
   const router = useRouter();
   const cart = useResolvedCart(menu);
-  const serverQuote = useServerCartQuote(cart.lines);
+  const session = useClientSession();
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState("");
+  const serverQuote = useServerCartQuote(cart.lines, appliedCoupon, session.api);
   const quotedLine = (menuItemId: string, variantId: string | null) => serverQuote.quote?.items.find((item) => item.menuItemId === menuItemId && item.variantId === variantId) ?? null;
   const displayedTotal = serverQuote.quote?.totalAmountToman ?? String(cart.totalToman);
-  const session = useClientSession();
   const enabledDelivery = useMemo(() => ordering?.deliveryMethods.filter((method) => method.enabled) ?? [], [ordering]);
   const [deliveryMethod, setDeliveryMethod] = useState<"PICKUP" | "COURIER">(enabledDelivery[0]?.key ?? "PICKUP");
   const [addresses, setAddresses] = useState<Address[]>([]);
@@ -41,10 +43,19 @@ export function CheckoutClient({ menu, ordering }: { menu: PublicMenu; ordering:
   const [customerNote, setCustomerNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const checkoutAttempt = useRef<{ fingerprint: string; key: string } | null>(null);
+  const checkoutFingerprint = JSON.stringify({ items: cart.lines, deliveryMethod, addressId, newAddress, customerNote, couponCode: appliedCoupon });
+  const retryable = checkoutAttempt.current?.fingerprint === checkoutFingerprint;
   const [addressModal, setAddressModal] = useState(false);
   const dialog = useRef<HTMLDivElement>(null);
 
   useEffect(() => { if (enabledDelivery[0]) setDeliveryMethod(enabledDelivery[0].key); }, [enabledDelivery]);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(`ucafe_checkout_attempt:${location.host}`) ?? "null") as { fingerprint: string; key: string; couponCode?: string } | null;
+      if (saved?.fingerprint && saved.key) { checkoutAttempt.current = saved; if (saved.couponCode) { setCouponInput(saved.couponCode); setAppliedCoupon(saved.couponCode); } }
+    } catch { /* A malformed old attempt is ignored. */ }
+  }, []);
   useEffect(() => { if (session.state === "ready" && !session.client) router.replace("/cart?auth=checkout"); }, [session.state, session.client, router]);
   useEffect(() => {
     if (!session.client) return;
@@ -115,13 +126,20 @@ export function CheckoutClient({ menu, ordering }: { menu: PublicMenu; ordering:
     if (newAddress.postalCode && !/^\d{10}$/.test(newAddress.postalCode)) { setError("کدپستی باید دقیقاً ۱۰ رقم باشد."); return; }
     setBusy(true); setError("");
     try {
-      if (!await serverQuote.refresh()) throw new Error("قیمت نهایی سبد دریافت نشد؛ دوباره تلاش کنید.");
+      const isRetry = retryable;
+      if (!isRetry && !await serverQuote.refresh()) throw new Error("قیمت نهایی سبد دریافت نشد؛ دوباره تلاش کنید.");
+      if (!isRetry) {
+        checkoutAttempt.current = { fingerprint: checkoutFingerprint, key: crypto.randomUUID() };
+        sessionStorage.setItem(`ucafe_checkout_attempt:${location.host}`, JSON.stringify({ ...checkoutAttempt.current, couponCode: appliedCoupon }));
+      }
+      const idempotencyKey = checkoutAttempt.current!.key;
       const result = await session.api<{ id: string }>("/public/orders", {
         method: "POST", body: JSON.stringify({
-          items: cart.resolved.map((line) => ({ menuItemId: line.menuItemId, variantId: line.variantId ?? undefined, quantity: line.quantity })), paymentMethod: "OFFLINE", deliveryMethod, idempotencyKey: crypto.randomUUID(), customerNote: customerNote.trim() || undefined,
+          items: cart.resolved.map((line) => ({ menuItemId: line.menuItemId, variantId: line.variantId ?? undefined, quantity: line.quantity })), paymentMethod: "OFFLINE", deliveryMethod, idempotencyKey, customerNote: customerNote.trim() || undefined, ...(appliedCoupon ? { couponCode: appliedCoupon } : {}),
           ...(deliveryMethod === "COURIER" ? addressId ? { addressId } : { newAddress: { ...newAddress, label: newAddress.label.trim() || undefined, unit: newAddress.unit.trim() || undefined, postalCode: newAddress.postalCode || undefined, isDefault: !addresses.length } } : {}),
         })
       });
+      sessionStorage.removeItem(`ucafe_checkout_attempt:${location.host}`);
       clearCart(); router.replace(`/checkout/result?order=${result.id}`);
     } catch (reason) {
       const body = (reason as { body?: { items?: Array<{ name?: string; reason: string }> } }).body;
@@ -138,9 +156,10 @@ export function CheckoutClient({ menu, ordering }: { menu: PublicMenu; ordering:
       <div className="checkout-main">
         <section className="checkout-panel"><div className="checkout-panel-heading"><PaymentIcon /><div><h2>روش پرداخت</h2><p>هزینه سفارش هنگام تحویل دریافت می‌شود.</p></div></div><label className="checkout-option selected locked"><input type="radio" checked readOnly /><span><strong>پرداخت در محل</strong><small>پرداخت در محل کافه یا هنگام دریافت از پیک</small></span></label></section>
         <section className="checkout-panel"><div className="checkout-panel-heading"><CourierIcon /><div><h2>نحوه دریافت سفارش</h2><p>یکی از روش‌های فعال کافه را انتخاب کنید.</p></div></div><div className="checkout-delivery-options">{enabledDelivery.length ? enabledDelivery.map((method) => <label className={`checkout-option ${deliveryMethod === method.key ? "selected" : ""}`} key={method.key}><input type="radio" name="delivery" checked={deliveryMethod === method.key} onChange={() => setDeliveryMethod(method.key)} /><span className="checkout-option-icon">{method.key === "PICKUP" ? <PickupIcon /> : <CourierIcon />}</span><span><strong>{deliveryLabel[method.key]}</strong><small>{method.key === "PICKUP" ? "سفارش را از کافه تحویل می‌گیرید" : "سفارش به نشانی شما ارسال می‌شود"}</small></span></label>) : <p className="form-message error">هیچ روش تحویلی برای این کافه فعال نیست.</p>}</div>{deliveryMethod === "COURIER" && <button className={"checkout-address-summary" + (selectedAddress ? "" : " empty")} type="button" onClick={openAddressModal}><span className="checkout-address-summary-head"><strong>{selectedAddress ? "ارسال به آدرس انتخاب شده" : "ارسال با پیک"}</strong><span className="checkout-address-summary-change">{selectedAddress ? "تغییر آدرس" : "افزودن آدرس"} <span aria-hidden="true">‹</span></span></span><span className="checkout-address-summary-body"><CourierIcon /><span>{selectedAddress ? addressText(selectedAddress) : "آدرس خود را وارد نمایید"}</span></span></button>}{deliveryMethod === "PICKUP" && <p className="checkout-address-hint">{ordering?.deliveryMethods.find((method) => method.key === "PICKUP")?.address ?? "نشانی کافه هنوز ثبت نشده است."}</p>}</section>
+        <section className="checkout-panel"><h2>کد تخفیف</h2><label>کد تخفیف<input dir="ltr" maxLength={64} value={couponInput} onChange={(event) => setCouponInput(event.target.value)} placeholder="WELCOME20" /></label><button type="button" disabled={!couponInput.trim() || serverQuote.loading} onClick={() => setAppliedCoupon(couponInput.trim())}>اعمال کد</button>{appliedCoupon && <button type="button" onClick={() => { setAppliedCoupon(""); setCouponInput(""); }}>حذف کد</button>}{serverQuote.quote?.couponCode && <p role="status">کد {serverQuote.quote.couponCode} اعمال شد.</p>}{appliedCoupon && serverQuote.error && <p className="form-message error" role="alert">{serverQuote.error}</p>}</section>
         <section className="checkout-panel"><div className="checkout-panel-heading"><NoteIcon /><div><h2>یادداشت سفارش</h2><p>اگر نکته‌ای برای آماده‌سازی دارید، اینجا بنویسید.</p></div></div><label>توضیحات <small>اختیاری</small><textarea value={customerNote} onChange={(event) => setCustomerNote(event.target.value)} maxLength={500} placeholder="مثلاً غذا تند نباشد" /></label><small className="checkout-character-count">{new Intl.NumberFormat("fa-IR").format(customerNote.length)} از ۵۰۰</small></section>
       </div>
-      <aside className="cart-summary checkout-summary"><div><h2>سفارش شما</h2><p>قیمت‌ها هنگام ثبت سفارش دوباره محاسبه می‌شوند.</p></div><div className="checkout-lines">{cart.resolved.map((line) => { const quote = quotedLine(line.menuItemId, line.variantId); return <div className="checkout-line" key={`${line.menuItemId}:${line.variantId ?? ""}`}><span>{line.item?.name}{line.variant ? `، ${line.variant.name}` : ""}{quote?.promotionName && <small className="checkout-promotion-name">{quote.promotionName}</small>}</span><b>{new Intl.NumberFormat("fa-IR").format(line.quantity)} × {quote ? formatToman(quote.unitPriceToman) : line.unitPriceToman ? formatToman(line.unitPriceToman) : "—"}{quote && Number(quote.discountAmountToman) > 0 && <del className="checkout-original-price">{formatToman(quote.originalUnitPriceToman)}</del>}</b></div>; })}</div><dl><div><dt>مجموع پیش از تخفیف</dt><dd>{formatToman(serverQuote.quote?.subtotalBeforeDiscountToman ?? String(cart.totalToman))}</dd></div>{serverQuote.quote && Number(serverQuote.quote.discountTotalToman) > 0 && <div><dt>تخفیف</dt><dd>−{formatToman(serverQuote.quote.discountTotalToman)}</dd></div>}<div className="cart-summary-total"><dt>مبلغ نهایی</dt><dd>{formatToman(displayedTotal)}</dd></div></dl>{serverQuote.loading && <p className="cart-quote-status" role="status">در حال به‌روزرسانی قیمت‌ها…</p>}{serverQuote.error && <p className="form-message error" role="alert">دریافت قیمت نهایی ممکن نشد؛ دوباره تلاش کنید.</p>}<button className="cart-checkout" disabled={busy || !cart.canCheckout || !serverQuote.quote || serverQuote.loading || !enabledDelivery.length}>{busy ? "در حال ثبت…" : "ثبت نهایی سفارش"}</button><a className="checkout-back-cart" href="/cart">بازگشت به سبد خرید</a></aside>
+      <aside className="cart-summary checkout-summary"><div><h2>سفارش شما</h2><p>قیمت‌ها هنگام ثبت سفارش دوباره محاسبه می‌شوند.</p></div><div className="checkout-lines">{cart.resolved.map((line) => { const quote = quotedLine(line.menuItemId, line.variantId); return <div className="checkout-line" key={`${line.menuItemId}:${line.variantId ?? ""}`}><span>{line.item?.name}{line.variant ? `، ${line.variant.name}` : ""}{quote?.promotionName && <small className="checkout-promotion-name">{quote.promotionName}</small>}</span><b>{new Intl.NumberFormat("fa-IR").format(line.quantity)} × {quote ? formatToman(quote.unitPriceToman) : line.unitPriceToman ? formatToman(line.unitPriceToman) : "—"}{quote && Number(quote.discountAmountToman) > 0 && <del className="checkout-original-price">{formatToman(quote.originalUnitPriceToman)}</del>}</b></div>; })}</div><dl><div><dt>مجموع پیش از تخفیف</dt><dd>{formatToman(serverQuote.quote?.subtotalBeforeDiscountToman ?? String(cart.totalToman))}</dd></div>{serverQuote.quote && Number(serverQuote.quote.itemDiscountTotalToman) > 0 && <div><dt>تخفیف محصولات</dt><dd>−{formatToman(serverQuote.quote.itemDiscountTotalToman)}</dd></div>}{serverQuote.quote && Number(serverQuote.quote.orderDiscountToman) > 0 && <div><dt>{serverQuote.quote.couponCode ? `کد ${serverQuote.quote.couponCode}` : serverQuote.quote.orderPromotionName ?? "تخفیف سفارش"}</dt><dd>−{formatToman(serverQuote.quote.orderDiscountToman)}</dd></div>}<div className="cart-summary-total"><dt>مبلغ نهایی</dt><dd>{formatToman(displayedTotal)}</dd></div></dl>{serverQuote.loading && <p className="cart-quote-status" role="status">در حال به‌روزرسانی قیمت‌ها…</p>}{serverQuote.error && <p className="form-message error" role="alert">دریافت قیمت نهایی ممکن نشد؛ دوباره تلاش کنید.</p>}<button className="cart-checkout" disabled={busy || !cart.canCheckout || (!serverQuote.quote && !retryable) || (serverQuote.loading && !retryable) || !enabledDelivery.length}>{busy ? "در حال ثبت…" : "ثبت نهایی سفارش"}</button><a className="checkout-back-cart" href="/cart">بازگشت به سبد خرید</a></aside>
     </form>
     {addressModal && <div className="tenant-modal-backdrop checkout-auth-backdrop" role="presentation" onMouseDown={() => setAddressModal(false)}>
       <div className="checkout-auth-modal checkout-address-modal" role="dialog" aria-modal="true" aria-labelledby="checkout-address-title" ref={dialog} onKeyDown={trapFocus} onMouseDown={(event) => event.stopPropagation()}>

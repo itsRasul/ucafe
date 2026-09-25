@@ -6,7 +6,7 @@ import type { PublicMenu, PublicMenuItem, PublicMenuVariant } from "./tenant-pub
 export type CartLine = { menuItemId: string; variantId: string | null; quantity: number };
 export type CartResolvedLine = CartLine & { item: PublicMenuItem | null; variant: PublicMenuVariant | null; unitPriceToman: string | null; available: boolean; reason: string | null };
 export type CartQuoteItem = { menuItemId: string; variantId: string | null; quantity: number; itemName: string; variantName: string | null; originalUnitPriceToman: string; unitPriceToman: string; discountAmountToman: string; lineTotalToman: string; promotionName: string | null };
-export type CartQuote = { items: CartQuoteItem[]; subtotalBeforeDiscountToman: string; discountTotalToman: string; totalAmountToman: string };
+export type CartQuote = { items: CartQuoteItem[]; subtotalBeforeDiscountToman: string; itemDiscountTotalToman: string; orderDiscountToman: string; discountTotalToman: string; totalAmountToman: string; couponCode: string | null; orderPromotionName: string | null };
 
 const eventName = "ucafe-cart";
 
@@ -76,7 +76,7 @@ export function useResolvedCart(menu: PublicMenu) {
   return { ...cart, resolved, totalToman: resolved.reduce((sum, line) => sum + (line.unitPriceToman ? Number(line.unitPriceToman) * line.quantity : 0), 0), canCheckout: resolved.length > 0 && resolved.every((line) => line.available) };
 }
 
-export function useServerCartQuote(lines: CartLine[]) {
+export function useServerCartQuote(lines: CartLine[], couponCode?: string, authenticatedApi?: <T>(path: string, init?: RequestInit) => Promise<T>) {
   const [quote, setQuote] = useState<CartQuote | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -86,16 +86,20 @@ export function useServerCartQuote(lines: CartLine[]) {
     if (!lines.length) { setQuote(null); setError(""); setLoading(false); return null; }
     setLoading(true); setError("");
     try {
-      const response = await fetch("/api/backend/public/ordering/quote", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ items: lines }) });
-      const body = await response.json() as CartQuote & { message?: string };
-      if (!response.ok) throw new Error(body.message ?? "قیمت سبد دریافت نشد.");
+      let body: CartQuote;
+      if (couponCode && authenticatedApi) body = await authenticatedApi<CartQuote>("/public/ordering/coupon-quote", { method: "POST", body: JSON.stringify({ items: lines, couponCode }) });
+      else {
+        const response = await fetch("/api/backend/public/ordering/quote", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ items: lines }) });
+        body = await response.json() as CartQuote & { message?: string };
+        if (!response.ok) throw new Error((body as CartQuote & { message?: string }).message ?? "قیمت سبد دریافت نشد.");
+      }
       if (latest.current === requestId) setQuote(body);
       return body;
     } catch (reason) {
       if (latest.current === requestId) { setQuote(null); setError((reason as Error).message); }
       return null;
     } finally { if (latest.current === requestId) setLoading(false); }
-  }, [lines]);
+  }, [lines, couponCode, authenticatedApi]);
   useEffect(() => { void refresh(); }, [refresh]);
   return { quote, loading, error, refresh };
 }

@@ -2,6 +2,12 @@
 
 Last updated: 2026-09-25
 
+## Discounts & Promotions Phase 1
+
+Extended the Phase 0 promotion pricing path with entire-order targets, coupon activation, post-item-discount minimums, percentage caps, tenant-scoped code normalization, authenticated coupon quotes, transactional offline-order redemptions, and under-review cancellation release. Migration `1790427600000-AddPromotionCoupons` adds coupon/redemption records and immutable order-stage snapshots. The owner Promotions screen now configures order targets and coupon limits; checkout applies/removes one code and displays item/order discount amounts. Customer and owner order details show the snapshotted breakdown. Subscription Zarinpal billing is separate; customer order payment remains offline only.
+
+Baseline before edits: 111 passed, 13 skipped; workspace typecheck and production build passed. The new migration applied to development PostgreSQL and `migration:show` confirms it. Final full API suite: 111 passed, 15 skipped (the two new database cases run separately); focused PostgreSQL integration: 2/2 passed, covering capped/item/automatic/targeted rewards, minimums, dates, activation, tenant scope, quote/order totals, idempotency, release, and final-use concurrency. Workspace typecheck and production build passed; the live restarted API returned the new quote breakdown and 401 for unauthenticated coupon quotes. The public example tenant's menu/cart were inspected in-browser, but owner and authenticated checkout visuals were unavailable without a session. There is no lint command.
+
 ## Analytics Phase 5: order and channel analytics
 
 Implemented `GET /tenant/analytics/orders` and the **سفارش‌ها و کانال‌ها** tab. The report compares created orders, terminal outcomes, completion/cancellation rates, canceled order value, average items and size buckets, status trends, pickup/courier performance, and source performance. Migration `1790331236284` adds nullable typed source tracking for public-client checkout; existing rows remain `UNKNOWN`.

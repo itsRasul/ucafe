@@ -11,7 +11,7 @@ export function promotionStatus(promotion: { isActive: boolean; startAt: Date | 
   return "RUNNING" as const;
 }
 
-function discountFor(price: bigint, promotion: PricingPromotion) {
+export function discountFor(price: bigint, promotion: PricingPromotion) {
   const value = BigInt(promotion.rewardValue);
   if (promotion.rewardType === PromotionRewardType.Percentage) return (price * value + 50n) / 100n;
   if (promotion.rewardType === PromotionRewardType.FixedAmount) return value < price ? value : price;

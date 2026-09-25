@@ -9,6 +9,8 @@ import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { SubscriptionFeatures } from "../subscriptions/subscription-features";
 import { InventoryService } from "../inventory/inventory.service";
 import { PromotionPricingService } from "../promotions/promotion-pricing.service";
+import { Promotion, PromotionCoupon, PromotionRedemption, RedemptionStatus } from "../promotions/entities";
+import { discountFor, promotionStatus } from "../promotions/promotion-pricing.util";
 import { CheckoutAddressDto, CheckoutLineDto, ClientOrdersQueryDto, CreateOrderDto, OrdersQueryDto, UpdateOnlineOrderingSettingsDto } from "./dto/ordering.dto";
 import { OnlineOrderingSettings, Order, OrderDeliveryMethod, OrderItem, OrderPaymentMethod, OrderSource, OrderStatus } from "./entities";
 import { nextOrderStatuses } from "./order-status.util";
@@ -76,10 +78,8 @@ export class OrderingService {
       const branch = await manager.findOneBy(Branch, { coffeeShopId, isPrimary: true, isActive: true });
       const address = input.deliveryMethod === OrderDeliveryMethod.Courier ? await this.resolveAddress(manager, coffeeShopId, clientId, input.addressId, input.newAddress) : null;
       const pricingTime = new Date();
-      const lines = await this.priceLines(manager, coffeeShopId, input.items, pricingTime);
-      const total = lines.reduce((sum, line) => sum + BigInt(line.lineTotalToman), 0n);
-      const subtotal = lines.reduce((sum, line) => sum + BigInt(line.originalUnitPriceToman) * BigInt(line.quantity), 0n);
-      const discountTotal = subtotal - total;
+      const priced = await this.priceCart(manager, coffeeShopId, input.items, pricingTime, input.couponCode, clientId, true);
+      const { lines, total, subtotal, discountTotal, orderDiscount, promotion, coupon } = priced;
 
       const order = await manager.save(Order, manager.create(Order, {
         coffeeShopId,
@@ -94,10 +94,18 @@ export class OrderingService {
         totalAmountToman: total.toString(),
         subtotalBeforeDiscountToman: subtotal.toString(),
         discountTotalToman: discountTotal.toString(),
+        orderDiscountToman: orderDiscount.toString(),
+        orderPromotionIdSnapshot: promotion?.id ?? null, orderPromotionNameSnapshot: promotion?.name ?? null,
+        orderPromotionRewardTypeSnapshot: promotion?.rewardType ?? null, orderPromotionRewardValueSnapshot: promotion?.rewardValue ?? null,
+        couponCodeSnapshot: coupon?.code ?? null,
         idempotencyKey: input.idempotencyKey,
         customerNote: input.customerNote?.trim() || null,
       }));
       await manager.save(OrderItem, lines.map((line) => manager.create(OrderItem, { ...line, coffeeShopId, orderId: order.id })));
+      if (coupon) await manager.save(PromotionRedemption, manager.create(PromotionRedemption, {
+        coffeeShopId, promotionId: coupon.promotionId, couponId: coupon.id, customerId: clientId, orderId: order.id,
+        discountAmountToman: orderDiscount.toString(), status: RedemptionStatus.Applied,
+      }));
       const cafe = await manager.findOneByOrFail(CoffeeShop, { id: coffeeShopId });
       const orderNumber = displayOrderNumber(order.id);
       const payload = { customerName: client.firstName, orderNumber, cafeName: cafe.name, totalPrice: displayToman(order.totalAmountToman) };
@@ -108,13 +116,13 @@ export class OrderingService {
     });
   }
 
-  async quote(coffeeShopId: string, input: CheckoutLineDto[]) {
-    const lines = await this.priceLines(this.dataSource.manager, coffeeShopId, input, new Date());
-    const subtotal = lines.reduce((sum, line) => sum + BigInt(line.originalUnitPriceToman) * BigInt(line.quantity), 0n);
-    const total = lines.reduce((sum, line) => sum + BigInt(line.lineTotalToman), 0n);
+  async quote(coffeeShopId: string, input: CheckoutLineDto[], couponCode?: string, clientId?: string) {
+    const { lines, subtotal, total, discountTotal, orderDiscount, promotion, coupon } = await this.priceCart(this.dataSource.manager, coffeeShopId, input, new Date(), couponCode, clientId, false);
     return {
       items: lines.map((line) => ({ menuItemId: line.menuItemId, variantId: line.menuItemVariantId, quantity: line.quantity, itemName: line.itemName, variantName: line.variantName, originalUnitPriceToman: line.originalUnitPriceToman, unitPriceToman: line.unitPriceToman, discountAmountToman: line.discountAmountToman, lineTotalToman: line.lineTotalToman, promotionName: line.promotionNameSnapshot })),
-      subtotalBeforeDiscountToman: subtotal.toString(), discountTotalToman: (subtotal - total).toString(), totalAmountToman: total.toString(),
+      subtotalBeforeDiscountToman: subtotal.toString(), itemDiscountTotalToman: (discountTotal - orderDiscount).toString(),
+      orderDiscountToman: orderDiscount.toString(), discountTotalToman: discountTotal.toString(), totalAmountToman: total.toString(),
+      couponCode: coupon?.code ?? null, orderPromotionName: promotion?.name ?? null, deliveryFeeToman: "0",
     };
   }
 
@@ -161,6 +169,9 @@ export class OrderingService {
       if (!this.nextStatuses(order).includes(next)) throw new ConflictException("Invalid order status transition");
       if (order.status === OrderStatus.UnderReview && next === OrderStatus.Preparing) await this.inventory.consumeOrder(manager, coffeeShopId, id, actorUserId);
       if (next === OrderStatus.Canceled) await this.inventory.reverseOrder(manager, coffeeShopId, id, actorUserId);
+      if (next === OrderStatus.Canceled && order.status === OrderStatus.UnderReview) {
+        await manager.update(PromotionRedemption, { coffeeShopId, orderId: id, status: RedemptionStatus.Applied }, { status: RedemptionStatus.Released });
+      }
       order.status = next;
       order.statusChangedAt = new Date();
       order.statusChangedByUserId = actorUserId;
@@ -189,6 +200,60 @@ export class OrderingService {
 
   private addressSnapshot(address: ClientAddress) {
     return { label: address.label, province: address.province, city: address.city, addressLine: address.addressLine, buildingNumber: address.buildingNumber, unit: address.unit, postalCode: address.postalCode };
+  }
+
+  private async priceCart(manager: import("typeorm").EntityManager, coffeeShopId: string, input: CheckoutLineDto[], now: Date, couponCode?: string, clientId?: string, lockCoupon = false) {
+    const normalized = couponCode?.trim().toUpperCase();
+    if (normalized && (!clientId || !/^[A-Z0-9_-]{3,64}$/.test(normalized))) throw new BadRequestException({ code: "COUPON_NOT_FOUND", message: "کد تخفیف یافت نشد." });
+    let coupon: PromotionCoupon | null = null;
+    let couponPromotion: Promotion | null = null;
+    if (normalized) {
+      const query = manager.getRepository(PromotionCoupon).createQueryBuilder("coupon")
+        .where("coupon.coffeeShopId = :coffeeShopId AND coupon.normalizedCode = :normalized", { coffeeShopId, normalized });
+      if (lockCoupon) query.setLock("pessimistic_write");
+      coupon = await query.getOne();
+      if (!coupon) throw new BadRequestException({ code: "COUPON_NOT_FOUND", message: "کد تخفیف یافت نشد." });
+      if (!coupon.isActive) throw new BadRequestException({ code: "COUPON_INACTIVE", message: "کد تخفیف غیرفعال است." });
+      if (coupon.startsAt && coupon.startsAt > now) throw new BadRequestException({ code: "COUPON_NOT_STARTED", message: "زمان استفاده از این کد هنوز شروع نشده است." });
+      if (coupon.expiresAt && coupon.expiresAt <= now) throw new BadRequestException({ code: "COUPON_EXPIRED", message: "مهلت استفاده از این کد پایان یافته است." });
+      couponPromotion = await manager.findOne(Promotion, { where: { id: coupon.promotionId, coffeeShopId }, relations: { targets: true } });
+      if (!couponPromotion || promotionStatus(couponPromotion, now) !== "RUNNING") throw new BadRequestException({ code: "PROMOTION_NOT_APPLICABLE", message: "این تخفیف در حال حاضر قابل استفاده نیست." });
+      const used = await manager.count(PromotionRedemption, { where: { coffeeShopId, couponId: coupon.id, status: RedemptionStatus.Applied } });
+      if (coupon.totalUsageLimit !== null && used >= coupon.totalUsageLimit) throw new BadRequestException({ code: "COUPON_USAGE_LIMIT_REACHED", message: "ظرفیت استفاده از این کد به پایان رسیده است." });
+      const customerUsed = await manager.count(PromotionRedemption, { where: { coffeeShopId, couponId: coupon.id, customerId: clientId!, status: RedemptionStatus.Applied } });
+      if (coupon.perCustomerUsageLimit !== null && customerUsed >= coupon.perCustomerUsageLimit) throw new BadRequestException({ code: "CUSTOMER_USAGE_LIMIT_REACHED", message: "شما قبلاً از این کد استفاده کرده‌اید." });
+    }
+    const lines = await this.priceLines(manager, coffeeShopId, input, now);
+    const subtotal = lines.reduce((sum, line) => sum + BigInt(line.originalUnitPriceToman) * BigInt(line.quantity), 0n);
+    const itemTotal = lines.reduce((sum, line) => sum + BigInt(line.lineTotalToman), 0n);
+    const context = await this.promotionPricing.loadContext(manager, coffeeShopId, now);
+    const candidates = couponPromotion ? [...context.order, couponPromotion] : context.order;
+    let promotion: Promotion | null = null;
+    let orderDiscount = 0n;
+    for (const candidate of candidates) {
+      if (candidate.minimumSubtotalToman !== null && itemTotal < BigInt(candidate.minimumSubtotalToman)) {
+        if (couponPromotion) throw new BadRequestException({ code: "MINIMUM_ORDER_NOT_MET", message: `حداقل مبلغ سفارش برای این کد ${candidate.minimumSubtotalToman} تومان است.` });
+        continue;
+      }
+      const eligible = candidate.entireOrder ? itemTotal : lines.reduce((sum, line) => {
+        const matches = candidate.targets.some((target) => target.menuItemId === line.menuItemId || target.categoryId === line.categoryIdSnapshot);
+        return sum + (matches ? BigInt(line.lineTotalToman) : 0n);
+      }, 0n);
+      const reward = { id: candidate.id, name: candidate.name, priority: candidate.priority, rewardType: candidate.rewardType, rewardValue: candidate.rewardValue };
+      let amount = candidate.entireOrder ? discountFor(eligible, reward) : lines.reduce((sum, line) => {
+        const matches = candidate.targets.some((target) => target.menuItemId === line.menuItemId || target.categoryId === line.categoryIdSnapshot);
+        return sum + (matches ? discountFor(BigInt(line.unitPriceToman), reward) * BigInt(line.quantity) : 0n);
+      }, 0n);
+      if (candidate.maxDiscountToman !== null && amount > BigInt(candidate.maxDiscountToman)) amount = BigInt(candidate.maxDiscountToman);
+      if (amount > eligible) amount = eligible;
+      if (amount > orderDiscount || (amount === orderDiscount && amount > 0n && promotion && (candidate.priority > promotion.priority || (candidate.priority === promotion.priority && candidate.id < promotion.id)))) {
+        promotion = candidate; orderDiscount = amount;
+      }
+    }
+    if (couponPromotion && (!orderDiscount || promotion?.id !== couponPromotion.id)) throw new BadRequestException({ code: "PROMOTION_NOT_APPLICABLE", message: "این کد برای سبد خرید شما تخفیف بهتری ایجاد نمی‌کند؛ کد را حذف کنید." });
+    if (!promotion) coupon = null;
+    const total = itemTotal - orderDiscount;
+    return { lines, subtotal, total, discountTotal: subtotal - total, orderDiscount, promotion, coupon };
   }
 
   private async priceLines(manager: import("typeorm").EntityManager, coffeeShopId: string, input: CheckoutLineDto[], now = new Date()) {
@@ -264,6 +329,8 @@ export class OrderingService {
       totalAmountToman: order.totalAmountToman,
       subtotalBeforeDiscountToman: order.subtotalBeforeDiscountToman,
       discountTotalToman: order.discountTotalToman,
+      itemDiscountTotalToman: (BigInt(order.discountTotalToman ?? "0") - BigInt(order.orderDiscountToman ?? "0")).toString(),
+      orderDiscountToman: order.orderDiscountToman ?? "0", orderPromotionName: order.orderPromotionNameSnapshot ?? null, couponCode: order.couponCodeSnapshot ?? null,
       client: order.client ? { id: order.client.id, firstName: order.client.firstName, lastName: order.client.lastName, phone: order.client.phone } : null,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
@@ -279,6 +346,8 @@ export class OrderingService {
       totalAmountToman: order.totalAmountToman,
       subtotalBeforeDiscountToman: order.subtotalBeforeDiscountToman,
       discountTotalToman: order.discountTotalToman,
+      itemDiscountTotalToman: (BigInt(order.discountTotalToman ?? "0") - BigInt(order.orderDiscountToman ?? "0")).toString(),
+      orderDiscountToman: order.orderDiscountToman ?? "0", orderPromotionName: order.orderPromotionNameSnapshot ?? null, couponCode: order.couponCodeSnapshot ?? null,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
     };

@@ -40,11 +40,14 @@ export class CreateOrderDto {
 
   @IsOptional() @IsString() @MaxLength(500)
   customerNote?: string;
+
+  @IsOptional() @IsString() @MaxLength(64) couponCode?: string;
 }
 
 export class QuoteOrderDto {
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => CheckoutLineDto)
   items!: CheckoutLineDto[];
+  @IsOptional() @IsString() @MaxLength(64) couponCode?: string;
 }
 
 export class UpdateOnlineOrderingSettingsDto {

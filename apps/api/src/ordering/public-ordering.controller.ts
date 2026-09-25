@@ -19,7 +19,13 @@ export class PublicOrderingController {
 
   @Post("public/ordering/quote")
   quote(@Req() request: TenantContextRequest, @Body() input: QuoteOrderDto) {
-    return this.ordering.quote(request[TENANT_CONTEXT]!.coffeeShopId, input.items);
+    return this.ordering.quote(request[TENANT_CONTEXT]!.coffeeShopId, input.items, input.couponCode);
+  }
+
+  @Post("public/ordering/coupon-quote")
+  @UseGuards(ClientAccessTokenGuard)
+  couponQuote(@Req() request: TenantContextRequest & ClientAuthorizedRequest, @Body() input: QuoteOrderDto) {
+    return this.ordering.quote(request[TENANT_CONTEXT]!.coffeeShopId, input.items, input.couponCode, request[CLIENT_PRINCIPAL]!.clientId);
   }
 
   @Post("public/orders")

@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { ArrayMinSize, IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateNested } from "class-validator";
+import { IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, ValidateNested } from "class-validator";
 import { PromotionRewardType } from "../entities";
 
 export class PromotionTargetDto {
@@ -16,7 +16,16 @@ export class CreatePromotionDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(1000000) priority = 0;
   @IsEnum(PromotionRewardType) rewardType!: PromotionRewardType;
   @Type(() => Number) @IsInt() @Min(0) @Max(Number.MAX_SAFE_INTEGER) rewardValue!: number;
-  @IsArray() @ArrayMinSize(1) @ValidateNested({ each: true }) @Type(() => PromotionTargetDto) targets!: PromotionTargetDto[];
+  @IsOptional() @IsBoolean() entireOrder = false;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(Number.MAX_SAFE_INTEGER) minimumSubtotalToman?: number | null;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(Number.MAX_SAFE_INTEGER) maxDiscountToman?: number | null;
+  @IsOptional() @IsString() @Matches(/^[A-Za-z0-9_-]{3,64}$/) couponCode?: string;
+  @IsOptional() @IsBoolean() couponActive?: boolean;
+  @IsOptional() @IsDateString() couponStartsAt?: string | null;
+  @IsOptional() @IsDateString() couponExpiresAt?: string | null;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) totalUsageLimit?: number | null;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) perCustomerUsageLimit?: number | null;
+  @IsArray() @ValidateNested({ each: true }) @Type(() => PromotionTargetDto) targets!: PromotionTargetDto[];
 }
 
 export class UpdatePromotionDto {
@@ -27,5 +36,14 @@ export class UpdatePromotionDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(1000000) priority?: number;
   @IsOptional() @IsEnum(PromotionRewardType) rewardType?: PromotionRewardType;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(Number.MAX_SAFE_INTEGER) rewardValue?: number;
-  @IsOptional() @IsArray() @ArrayMinSize(1) @ValidateNested({ each: true }) @Type(() => PromotionTargetDto) targets?: PromotionTargetDto[];
+  @IsOptional() @IsBoolean() entireOrder?: boolean;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(Number.MAX_SAFE_INTEGER) minimumSubtotalToman?: number | null;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(Number.MAX_SAFE_INTEGER) maxDiscountToman?: number | null;
+  @IsOptional() @IsString() @Matches(/^[A-Za-z0-9_-]{3,64}$/) couponCode?: string;
+  @IsOptional() @IsBoolean() couponActive?: boolean;
+  @IsOptional() @IsDateString() couponStartsAt?: string | null;
+  @IsOptional() @IsDateString() couponExpiresAt?: string | null;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) totalUsageLimit?: number | null;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) perCustomerUsageLimit?: number | null;
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => PromotionTargetDto) targets?: PromotionTargetDto[];
 }
