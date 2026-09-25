@@ -10,17 +10,30 @@ import { InventoryService } from "./inventory.service";
 import { CreateGoodsReceiptDto, CreatePurchaseOrderDto, CreateSupplierDto } from "./purchasing.dto";
 import { PurchasingService } from "./purchasing.service";
 import { RecipesService } from "./recipes.service";
+import { SmartPurchasingService, estimatePurchaseCostToman } from "./smart-purchasing.service";
+import { SupplierItemPreferenceDto } from "./smart-purchasing.dto";
+
+test("purchase cost estimates use decimal arithmetic and whole-toman half-up rounding", () => {
+  assert.equal(estimatePurchaseCostToman("1560.000000", "500"), "780000");
+  assert.equal(estimatePurchaseCostToman("0.5", "1"), "1");
+  assert.equal(estimatePurchaseCostToman("0.49", "1"), "0");
+});
 
 test("supplier, order and receipt DTOs reject malformed prices, quantities and required lines", () => {
   assert.ok(validateSync(plainToInstance(CreateSupplierDto, { name: "   " })).length);
   assert.ok(validateSync(plainToInstance(CreatePurchaseOrderDto, { supplierId: randomUUID(), items: [{ inventoryItemId: randomUUID(), quantity: "1.0000001", unit: "kg", unitPriceToman: "-1" }] })).length);
   assert.ok(validateSync(plainToInstance(CreateGoodsReceiptDto, { supplierId: randomUUID(), items: [] })).length);
+  assert.ok(validateSync(plainToInstance(SupplierItemPreferenceDto, { isPreferred: "true", purchaseUnit: "crate" })).length);
 });
 
 test("purchasing is inventory-feature gated before database access", async () => {
   let queried = false;
   const service = new PurchasingService({ query: async () => { queried = true; return []; } } as never, { requireFeature: async () => { throw new ForbiddenException(); } } as never, {} as never);
   await assert.rejects(service.suppliers("tenant", { page: 1, limit: 50 }), ForbiddenException);
+  assert.equal(queried, false);
+  const smartPurchasing = new SmartPurchasingService({ query: async () => { queried = true; return []; } } as never, { requireFeature: async () => { throw new ForbiddenException(); } } as never, {} as never);
+  queried = false;
+  await assert.rejects(smartPurchasing.replenishment("tenant", { page: 1, limit: 50 }), ForbiddenException);
   assert.equal(queried, false);
 });
 
@@ -55,6 +68,7 @@ test("purchase receipts post stock once, preserve actual cost, allow explicit ov
       const recipes = new RecipesService(adapter, subscriptions as never);
       const inventory = new InventoryService(adapter, subscriptions as never, recipes);
       const purchasing = new PurchasingService(adapter, subscriptions as never, inventory);
+      const smartPurchasing = new SmartPurchasingService(adapter, subscriptions as never, inventory);
       const location = await inventory.createLocation(tenantId, { name: "Main", isDefault: true });
       const [coffee] = await manager.query(`INSERT INTO inventory_items(coffee_shop_id,name,dimension,base_unit) VALUES($1,'Coffee','WEIGHT','g') RETURNING id`, [tenantId]);
       const [milk] = await manager.query(`INSERT INTO inventory_items(coffee_shop_id,name,dimension,base_unit) VALUES($1,'Milk','VOLUME','ml') RETURNING id`, [tenantId]);
@@ -132,6 +146,54 @@ test("purchase receipts post stock once, preserve actual cost, allow explicit ov
       const receiptMovements = await manager.query(`SELECT count(*)::int AS count,sum(quantity_base)::text AS quantity,sum(total_cost_toman)::text AS total FROM inventory_stock_movements WHERE coffee_shop_id=$1 AND source_id=$2 AND type='PURCHASE_RECEIPT' AND batch_id IS NOT NULL`,[tenantId,batchReceipt.id]);
       assert.deepEqual(receiptMovements[0],{count:2,quantity:"2000.000000",total:"200"});
 
+      const openOrder = await purchasing.createPurchaseOrder(tenantId,actor.id,{supplierId:supplier.id,items:[{inventoryItemId:coffee.id,quantity:"5",unit:"kg",unitPriceToman:"1500000"}]});
+      await purchasing.orderPurchaseOrder(tenantId,actor.id,openOrder.id);
+      const openReceipt=await purchasing.createGoodsReceipt(tenantId,actor.id,{purchaseOrderId:openOrder.id,items:[{inventoryItemId:coffee.id,quantity:"1",unit:"kg",unitPriceToman:"1200000"},{inventoryItemId:coffee.id,quantity:"1",unit:"kg",unitPriceToman:"1400000"}]});
+      await purchasing.postGoodsReceipt(tenantId,actor.id,openReceipt.id,false);
+      const latestReceipt=await purchasing.createGoodsReceipt(tenantId,actor.id,{supplierId:supplier.id,items:[{inventoryItemId:coffee.id,quantity:"1",unit:"kg",unitPriceToman:"1500000"}]});
+      await purchasing.postGoodsReceipt(tenantId,actor.id,latestReceipt.id,false);
+      const competitor=await purchasing.createSupplier(tenantId,{name:"Second roaster"});
+      const competitorReceipt=await purchasing.createGoodsReceipt(tenantId,actor.id,{supplierId:competitor.id,items:[{inventoryItemId:coffee.id,quantity:"500",unit:"g",unitPriceToman:"1560"}]});
+      await purchasing.postGoodsReceipt(tenantId,actor.id,competitorReceipt.id,false);
+      await inventory.updateStockSettings(tenantId,coffee.id,{locationId:location.id,unit:"kg",minimumQuantity:"6",parQuantity:"25"});
+      await smartPurchasing.saveSupplierItemPreference(tenantId,supplier.id,coffee.id,{isPreferred:true,purchaseUnit:"kg",minimumOrderQuantity:"4"});
+      const comparison=await smartPurchasing.supplierPrices(tenantId,coffee.id,{page:1,limit:20});
+      const primaryPrices=comparison.items.find((row:{supplierId:string})=>row.supplierId===supplier.id);
+      const competitorPrices=comparison.items.find((row:{supplierId:string})=>row.supplierId===competitor.id);
+      assert.equal(primaryPrices.latestNormalizedPriceTomanPerBaseUnit,"1500.000000");
+      assert.equal(primaryPrices.previousNormalizedPriceTomanPerBaseUnit,"1300.000000");
+      assert.equal(primaryPrices.priceChangePercent,"15.38");
+      assert.equal(primaryPrices.preferred,true);
+      assert.equal(competitorPrices.latestNormalizedPriceTomanPerBaseUnit,"1560.000000");
+      const history=await smartPurchasing.supplierPriceHistory(tenantId,coffee.id,{supplierId:supplier.id,page:1,limit:20});
+      assert.ok(history.items.some((row:{receiptNumber:string})=>row.receiptNumber===latestReceipt.number));
+      const [movementCountBeforeAssistant]=await manager.query(`SELECT count(*)::int AS count FROM inventory_stock_movements WHERE coffee_shop_id=$1`,[tenantId]);
+      const replenishment=await smartPurchasing.replenishment(tenantId,{page:1,limit:20,itemId:coffee.id,locationId:location.id});
+      const recommendation=replenishment.items[0];
+      assert.equal(recommendation.onOrderQuantity,"3");
+      assert.equal(recommendation.projectedQuantity,"23");
+      assert.equal(recommendation.projectedParGap,"2");
+      assert.equal(recommendation.replenishmentGap,"2");
+      assert.equal(recommendation.suggestedPurchaseQuantity,"4");
+      assert.equal(recommendation.suggestedPurchaseUnit,"kg");
+      assert.equal(recommendation.estimatedPurchaseCostToman,"6000000");
+      assert.ok(recommendation.dataWarnings.includes("SUPPLIER_MINIMUM_APPLIED"));
+      const [movementCountAfterAssistant]=await manager.query(`SELECT count(*)::int AS count FROM inventory_stock_movements WHERE coffee_shop_id=$1`,[tenantId]);
+      assert.equal(movementCountAfterAssistant.count,movementCountBeforeAssistant.count,"recommendation reads do not post inventory movements");
+      await assert.rejects(smartPurchasing.supplierPrices(tenantId,otherCoffee.id,{page:1,limit:10}),/Inventory item not found/);
+      await assert.rejects(smartPurchasing.saveSupplierItemPreference(tenantId,competitor.id,coffee.id,{purchaseUnit:"box"}),BadRequestException);
+      await assert.rejects(smartPurchasing.saveSupplierItemPreference(tenantId,competitor.id,coffee.id,{minimumOrderQuantity:"0"}),BadRequestException);
+
+      const expiredItem=await inventory.createItem(tenantId,actor.id,{name:"Expired tea",dimension:InventoryDimension.Weight,baseUnit:"g",locationId:location.id,batchTrackingEnabled:true,expiryTrackingEnabled:true});
+      const expiredReceipt=await purchasing.createGoodsReceipt(tenantId,actor.id,{supplierId:supplier.id,items:[{inventoryItemId:expiredItem.id,quantity:"1000",unit:"g",unitPriceToman:"1000",batches:[{quantity:"1000",expiryDate:"2020-01-01"}]}]});
+      await purchasing.postGoodsReceipt(tenantId,actor.id,expiredReceipt.id,false);
+      await inventory.updateStockSettings(tenantId,expiredItem.id,{locationId:location.id,unit:"g",parQuantity:"5000"});
+      const expiredRecommendation=await smartPurchasing.replenishment(tenantId,{page:1,limit:20,itemId:expiredItem.id,locationId:location.id});
+      assert.equal(expiredRecommendation.items[0].quantity,"1000");
+      assert.equal(expiredRecommendation.items[0].expiredBatchQuantity,"1000");
+      assert.equal(expiredRecommendation.items[0].replenishmentGap,"5000");
+      assert.ok(expiredRecommendation.items[0].dataWarnings.includes("EXPIRED_STOCK_EXCLUDED"));
+
       const secondary = await inventory.createLocation(tenantId, { name: "Cold room" });
       const [firstItem, secondItem] = [coffee, milk].sort((a: { id: string }, b: { id: string }) => a.id.localeCompare(b.id));
       const failed = await purchasing.createGoodsReceipt(tenantId, actor.id, { supplierId: supplier.id, items: [
@@ -150,7 +212,7 @@ test("purchase receipts post stock once, preserve actual cost, allow explicit ov
       await assert.rejects(purchasing.createPurchaseOrder(tenantId, actor.id, { supplierId: supplier.id, items: [{ inventoryItemId: coffee.id, quantity: "1", unit: "kg", unitPriceToman: "100" }] }), /Active supplier not found/);
       assert.equal((await purchasing.goodsReceipt(tenantId, direct.id)).supplierName, "Roaster", "supplier deactivation keeps historical receipt readable");
       const [movementCount] = await manager.query(`SELECT count(*)::int AS count FROM inventory_stock_movements WHERE coffee_shop_id=$1 AND source_type='GOODS_RECEIPT'`, [tenantId]);
-      assert.equal(movementCount.count, 7);
+      assert.equal(movementCount.count, 12);
       throw rollback;
     }), (error) => error === rollback);
   } finally { await db.destroy(); }

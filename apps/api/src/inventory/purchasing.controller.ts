@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req, UseGuards } from "@nestjs/common";
 import { AccessTokenGuard } from "../auth/access-token.guard";
 import { AUTH_PRINCIPAL, AuthorizedRequest } from "../authorization/auth-principal";
 import { RequireTenantPermissions } from "../authorization/authorization.decorators";
@@ -8,12 +8,23 @@ import { TENANT_CONTEXT, TenantContextRequest } from "../tenants/tenant-context"
 import { TenantContextGuard } from "../tenants/tenant-context.guard";
 import { CreateGoodsReceiptDto, CreatePurchaseOrderDto, CreateSupplierDto, PostGoodsReceiptDto, PurchasingListQueryDto, UpdateGoodsReceiptDto, UpdatePurchaseOrderDto, UpdateSupplierDto } from "./purchasing.dto";
 import { PurchasingService } from "./purchasing.service";
+import { ReplenishmentQueryDto, SupplierItemPreferenceDto, SupplierPriceHistoryQueryDto } from "./smart-purchasing.dto";
+import { SmartPurchasingService } from "./smart-purchasing.service";
 
 @Controller("tenant/inventory")
 @UseGuards(AccessTokenGuard, TenantContextGuard, TenantPermissionGuard)
 export class PurchasingController {
-  constructor(private readonly purchasing: PurchasingService) {}
+  constructor(private readonly purchasing: PurchasingService, private readonly smartPurchasing: SmartPurchasingService) {}
   private tenant(req: TenantContextRequest) { return req[TENANT_CONTEXT]!.coffeeShopId; }
+
+  @Get("replenishment") @RequireTenantPermissions(TenantPermissions.InventoryRead)
+  replenishment(@Req() req: TenantContextRequest, @Query() query: ReplenishmentQueryDto) { return this.smartPurchasing.replenishment(this.tenant(req), query); }
+  @Get("items/:itemId/supplier-prices") @RequireTenantPermissions(TenantPermissions.InventoryRead)
+  itemSupplierPrices(@Req() req: TenantContextRequest, @Param("itemId", ParseUUIDPipe) itemId: string, @Query() query: PurchasingListQueryDto) { return this.smartPurchasing.supplierPrices(this.tenant(req), itemId, query); }
+  @Get("items/:itemId/supplier-price-history") @RequireTenantPermissions(TenantPermissions.InventoryRead)
+  itemSupplierPriceHistory(@Req() req: TenantContextRequest, @Param("itemId", ParseUUIDPipe) itemId: string, @Query() query: SupplierPriceHistoryQueryDto) { return this.smartPurchasing.supplierPriceHistory(this.tenant(req), itemId, query); }
+  @Put("items/:itemId/suppliers/:supplierId/preference") @RequireTenantPermissions(TenantPermissions.InventoryManage)
+  supplierItemPreference(@Req() req: TenantContextRequest, @Param("itemId", ParseUUIDPipe) itemId: string, @Param("supplierId", ParseUUIDPipe) supplierId: string, @Body() input: SupplierItemPreferenceDto) { return this.smartPurchasing.saveSupplierItemPreference(this.tenant(req), supplierId, itemId, input); }
 
   @Get("suppliers") @RequireTenantPermissions(TenantPermissions.InventoryRead)
   suppliers(@Req() req: TenantContextRequest, @Query() query: PurchasingListQueryDto) { return this.purchasing.suppliers(this.tenant(req), query); }

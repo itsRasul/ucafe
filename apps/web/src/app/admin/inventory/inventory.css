@@ -1613,3 +1613,36 @@
         flex: 1 1 8rem
     }
 }
+
+.replenishment-workspace { display:grid; gap:1rem }
+.replenishment-filters,.replenishment-preference { display:grid; grid-template-columns:repeat(auto-fit,minmax(12rem,1fr)); gap:.7rem; margin:1rem 0 }
+.replenishment-filters label,.replenishment-preference label { display:grid; gap:.35rem; font-size:.82rem }
+.replenishment-filters input,.replenishment-filters select,.replenishment-preference input,.replenishment-preference select { min-width:0; min-height:2.7rem; padding:.5rem .65rem; border:1px solid #ddd5ca; border-radius:.55rem; background:#fff; color:inherit; font:inherit }
+.replenishment-card { display:grid; gap:.8rem; margin:.75rem 0; padding:.9rem; border:1px solid #e8e1d8; border-radius:.7rem; background:#fff }
+.replenishment-card>header { display:flex; justify-content:space-between; align-items:start; gap:1rem }
+.replenishment-card h3,.replenishment-preference h3 { margin:0; font-size:1rem }
+.replenishment-card header small,.replenishment-source { color:#746b61; font-size:.78rem }
+.replenishment-select { display:flex; align-items:center; gap:.45rem; white-space:nowrap; font-size:.82rem }
+.replenishment-select input { width:1.1rem; height:1.1rem; accent-color:#6b4934 }
+.replenishment-card dl { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.6rem; margin:0 }
+.replenishment-card dl>div,.replenishment-supplier>div { display:grid; gap:.2rem; padding:.55rem; border-radius:.5rem; background:#f8f5f1 }
+.replenishment-card dt,.replenishment-supplier strong { color:#746b61; font-size:.73rem }
+.replenishment-card dd { margin:0; font-size:.88rem; font-weight:650 }
+.replenishment-supplier { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.55rem }
+.replenishment-supplier span { font-size:.82rem; overflow-wrap:anywhere }
+.replenishment-warning,.replenishment-warnings { margin:0; color:#805016; font-size:.8rem }
+.replenishment-warnings { padding-inline-start:1.25rem }
+.replenishment-source { margin:0 }
+.replenishment-comparison { display:grid; gap:.75rem }
+.replenishment-preference { align-items:end; padding-top:.8rem; border-top:1px solid #e8e1d8 }
+.replenishment-preference h3 { grid-column:1/-1 }
+.replenishment-preference button { min-height:2.7rem }
+
+@media(max-width:62rem) {
+  .replenishment-card dl { grid-template-columns:repeat(2,minmax(0,1fr)) }
+}
+@media(max-width:42rem) {
+  .replenishment-card>header { flex-direction:column }
+  .replenishment-card dl,.replenishment-supplier { grid-template-columns:1fr 1fr }
+  .replenishment-card dd { font-size:.82rem }
+}

@@ -12,6 +12,7 @@ import { PurchasingService } from "./purchasing.service";
 import { CostingController } from "./costing.controller";
 import { RecipeCostingService } from "./costing.service";
 import { InventoryVarianceService } from "./variance.service";
+import { SmartPurchasingService } from "./smart-purchasing.service";
 
-@Module({imports:[AuthModule,AuthorizationModule,SubscriptionsModule],controllers:[InventoryController,RecipesController,CostingController,PurchasingController],providers:[InventoryService,RecipesService,RecipeCostingService,PurchasingService,InventoryVarianceService,TenantContextGuard],exports:[InventoryService,InventoryVarianceService]})
+@Module({imports:[AuthModule,AuthorizationModule,SubscriptionsModule],controllers:[InventoryController,RecipesController,CostingController,PurchasingController],providers:[InventoryService,RecipesService,RecipeCostingService,PurchasingService,SmartPurchasingService,InventoryVarianceService,TenantContextGuard],exports:[InventoryService,InventoryVarianceService]})
 export class InventoryModule {}

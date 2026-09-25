@@ -94,3 +94,5 @@ At the end of each analytics phase, update this file with implemented metrics/en
 | 10 | Growth & Comparative Analytics | Not Started |
 | 11 | Automated Insights | Not Started |
 | 12 | Advanced BI / Forecasting | Not Started |
+
+Inventory Phase 9 keeps replenishment gaps, supplier comparison, latest/previous receipt prices, and draft PO assistance inside Inventory. These are operational snapshots of current stock settings and posted Goods Receipts; they require the Inventory entitlement only. Historical purchase-spend, category spend, or long-term supplier price trends remain future Analytics work and must not be inferred from the operational comparison screen.
