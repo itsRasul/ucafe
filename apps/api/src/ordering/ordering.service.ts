@@ -9,6 +9,7 @@ import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { SubscriptionFeatures } from "../subscriptions/subscription-features";
 import { InventoryService } from "../inventory/inventory.service";
 import { PricingContext, PromotionPricingService } from "../promotions/promotion-pricing.service";
+import { PricingUnit } from "../promotions/promotion-advanced.util";
 import { Promotion, PromotionCoupon, PromotionRedemption, RedemptionStatus } from "../promotions/entities";
 import { discountFor, promotionStatus } from "../promotions/promotion-pricing.util";
 import { CheckoutAddressDto, CheckoutLineDto, ClientOrdersQueryDto, CreateOrderDto, OrdersQueryDto, UpdateOnlineOrderingSettingsDto } from "./dto/ordering.dto";
@@ -79,7 +80,7 @@ export class OrderingService {
       const address = input.deliveryMethod === OrderDeliveryMethod.Courier ? await this.resolveAddress(manager, coffeeShopId, clientId, input.addressId, input.newAddress) : null;
       const pricingTime = new Date();
       const priced = await this.priceCart(manager, coffeeShopId, input.items, pricingTime, input.couponCode, clientId, true, tenantTimezone);
-      const { lines, total, subtotal, discountTotal, orderDiscount, promotion, coupon } = priced;
+      const { lines, total, subtotal, discountTotal, orderDiscount, couponDiscount, promotion, coupon } = priced;
 
       const order = await manager.save(Order, manager.create(Order, {
         coffeeShopId,
@@ -95,8 +96,8 @@ export class OrderingService {
         subtotalBeforeDiscountToman: subtotal.toString(),
         discountTotalToman: discountTotal.toString(),
         orderDiscountToman: orderDiscount.toString(),
-        orderPromotionIdSnapshot: promotion?.id ?? null, orderPromotionNameSnapshot: promotion?.name ?? null,
-        orderPromotionRewardTypeSnapshot: promotion?.rewardType ?? null, orderPromotionRewardValueSnapshot: promotion?.rewardValue ?? null,
+        orderPromotionIdSnapshot: orderDiscount > 0n ? promotion?.id ?? null : null, orderPromotionNameSnapshot: orderDiscount > 0n ? promotion?.name ?? null : null,
+        orderPromotionRewardTypeSnapshot: orderDiscount > 0n ? promotion?.rewardType ?? null : null, orderPromotionRewardValueSnapshot: orderDiscount > 0n ? promotion?.rewardValue ?? null : null,
         couponCodeSnapshot: coupon?.code ?? null,
         idempotencyKey: input.idempotencyKey,
         customerNote: input.customerNote?.trim() || null,
@@ -104,7 +105,7 @@ export class OrderingService {
       await manager.save(OrderItem, lines.map((line) => manager.create(OrderItem, { ...line, coffeeShopId, orderId: order.id })));
       if (coupon) await manager.save(PromotionRedemption, manager.create(PromotionRedemption, {
         coffeeShopId, promotionId: coupon.promotionId, couponId: coupon.id, customerId: clientId, orderId: order.id,
-        discountAmountToman: orderDiscount.toString(), status: RedemptionStatus.Applied,
+        discountAmountToman: couponDiscount.toString(), status: RedemptionStatus.Applied,
       }));
       const cafe = await manager.findOneByOrFail(CoffeeShop, { id: coffeeShopId });
       const orderNumber = displayOrderNumber(order.id);
@@ -119,10 +120,10 @@ export class OrderingService {
   async quote(coffeeShopId: string, input: CheckoutLineDto[], couponCode?: string, clientId?: string, tenantTimezone?: string) {
     const { lines, subtotal, total, discountTotal, orderDiscount, promotion, coupon } = await this.priceCart(this.dataSource.manager, coffeeShopId, input, new Date(), couponCode, clientId, false, tenantTimezone);
     return {
-      items: lines.map((line) => ({ menuItemId: line.menuItemId, variantId: line.menuItemVariantId, quantity: line.quantity, itemName: line.itemName, variantName: line.variantName, originalUnitPriceToman: line.originalUnitPriceToman, unitPriceToman: line.unitPriceToman, discountAmountToman: line.discountAmountToman, lineTotalToman: line.lineTotalToman, promotionName: line.promotionNameSnapshot })),
+      items: lines.map((line) => ({ menuItemId: line.menuItemId, variantId: line.menuItemVariantId, quantity: line.quantity, itemName: line.itemName, variantName: line.variantName, originalUnitPriceToman: line.originalUnitPriceToman, unitPriceToman: line.unitPriceToman, discountAmountToman: line.discountAmountToman, lineTotalToman: line.lineTotalToman, promotionName: line.promotionNameSnapshot, promotionType: line.promotionTypeSnapshot, allocationType: line.promotionAllocationTypeSnapshot, ruleSummary: line.promotionRuleSnapshot })),
       subtotalBeforeDiscountToman: subtotal.toString(), itemDiscountTotalToman: (discountTotal - orderDiscount).toString(),
       orderDiscountToman: orderDiscount.toString(), discountTotalToman: discountTotal.toString(), totalAmountToman: total.toString(),
-      couponCode: coupon?.code ?? null, orderPromotionName: promotion?.name ?? null, deliveryFeeToman: "0",
+      couponCode: coupon?.code ?? null, orderPromotionName: orderDiscount > 0n ? promotion?.name ?? null : null, deliveryFeeToman: "0",
     };
   }
 
@@ -221,7 +222,7 @@ export class OrderingService {
       if (!coupon.isActive) throw new BadRequestException({ code: "COUPON_INACTIVE", message: "کد تخفیف غیرفعال است." });
       if (coupon.startsAt && coupon.startsAt > now) throw new BadRequestException({ code: "COUPON_NOT_STARTED", message: "زمان استفاده از این کد هنوز شروع نشده است." });
       if (coupon.expiresAt && coupon.expiresAt <= now) throw new BadRequestException({ code: "COUPON_EXPIRED", message: "مهلت استفاده از این کد پایان یافته است." });
-      couponPromotion = await manager.findOne(Promotion, { where: { id: coupon.promotionId, coffeeShopId }, relations: { targets: true, scheduleWindows: true } });
+      couponPromotion = await manager.findOne(Promotion, { where: { id: coupon.promotionId, coffeeShopId }, relations: { targets: true, scheduleWindows: true, advancedRule: { groups: { targets: true }, tiers: true } } });
       if (!couponPromotion || promotionStatus(couponPromotion, now, tenantTimezone) !== "RUNNING") throw new BadRequestException({ code: "PROMOTION_NOT_APPLICABLE", message: "این تخفیف در حال حاضر قابل استفاده نیست." });
       const used = await manager.count(PromotionRedemption, { where: { coffeeShopId, couponId: coupon.id, status: RedemptionStatus.Applied } });
       if (coupon.totalUsageLimit !== null && used >= coupon.totalUsageLimit) throw new BadRequestException({ code: "COUPON_USAGE_LIMIT_REACHED", message: "ظرفیت استفاده از این کد به پایان رسیده است." });
@@ -229,10 +230,10 @@ export class OrderingService {
       if (coupon.perCustomerUsageLimit !== null && customerUsed >= coupon.perCustomerUsageLimit) throw new BadRequestException({ code: "CUSTOMER_USAGE_LIMIT_REACHED", message: "شما قبلاً از این کد استفاده کرده‌اید." });
     }
     const context = await this.promotionPricing.loadContext(manager, coffeeShopId, now, tenantTimezone);
-    const lines = await this.priceLines(manager, coffeeShopId, input, context);
+    const lines = await this.priceLines(manager, coffeeShopId, input, context, couponPromotion ? [couponPromotion] : []);
     const subtotal = lines.reduce((sum, line) => sum + BigInt(line.originalUnitPriceToman) * BigInt(line.quantity), 0n);
     const itemTotal = lines.reduce((sum, line) => sum + BigInt(line.lineTotalToman), 0n);
-    const candidates = couponPromotion ? [...context.order, couponPromotion] : context.order;
+    const candidates = couponPromotion && !couponPromotion.advancedRule ? [...context.order, couponPromotion] : context.order;
     let promotion: Promotion | null = null;
     let orderDiscount = 0n;
     for (const candidate of candidates) {
@@ -255,27 +256,34 @@ export class OrderingService {
         promotion = candidate; orderDiscount = amount;
       }
     }
-    if (couponPromotion && (!orderDiscount || promotion?.id !== couponPromotion.id)) throw new BadRequestException({ code: "PROMOTION_NOT_APPLICABLE", message: "این کد برای سبد خرید شما تخفیف بهتری ایجاد نمی‌کند؛ کد را حذف کنید." });
-    if (!promotion) coupon = null;
+    let couponDiscount = 0n;
+    if (couponPromotion?.advancedRule) {
+      const applied = lines.some((line) => line.promotionIdSnapshot === couponPromotion!.id);
+      if (!applied) throw new BadRequestException({ code: "PROMOTION_NOT_APPLICABLE", message: "این کد برای سبد خرید شما تخفیف بهتری ایجاد نمی‌کند؛ کد را حذف کنید." });
+      promotion = couponPromotion;
+      couponDiscount = lines.filter((line) => line.promotionIdSnapshot === couponPromotion!.id).reduce((sum, line) => sum + BigInt(line.discountAmountToman) * BigInt(line.quantity), 0n);
+    } else if (couponPromotion && (!orderDiscount || promotion?.id !== couponPromotion.id)) throw new BadRequestException({ code: "PROMOTION_NOT_APPLICABLE", message: "این کد برای سبد خرید شما تخفیف بهتری ایجاد نمی‌کند؛ کد را حذف کنید." });
+    if (!promotion && !couponPromotion?.advancedRule) coupon = null;
     const total = itemTotal - orderDiscount;
-    return { lines, subtotal, total, discountTotal: subtotal - total, orderDiscount, promotion, coupon };
+    if (couponPromotion && !couponDiscount) couponDiscount = orderDiscount;
+    return { lines, subtotal, total, discountTotal: subtotal - total, orderDiscount, couponDiscount, promotion, coupon };
   }
 
-  private async priceLines(manager: import("typeorm").EntityManager, coffeeShopId: string, input: CheckoutLineDto[], pricingContext: PricingContext) {
+  private async priceLines(manager: import("typeorm").EntityManager, coffeeShopId: string, input: CheckoutLineDto[], pricingContext: PricingContext, supplementalPromotions: Promotion[] = []) {
     const merged = new Map<string, CheckoutLineDto>();
     for (const line of input) {
       const key = `${line.menuItemId}:${line.variantId ?? ""}`;
       const current = merged.get(key);
       merged.set(key, current ? { ...line, quantity: current.quantity + line.quantity } : { ...line });
     }
-    const lines = [...merged.values()];
+    const lines = [...merged.values()].sort((a, b) => a.menuItemId.localeCompare(b.menuItemId) || (a.variantId ?? "").localeCompare(b.variantId ?? ""));
     if (!lines.length) throw new BadRequestException("Cart is empty");
     if (lines.reduce((sum, line) => sum + line.quantity, 0) > 50 || lines.some((line) => line.quantity < 1 || line.quantity > 20)) throw new BadRequestException("Invalid cart quantity");
 
     const items = await manager.find(MenuItem, { where: { id: In(lines.map((line) => line.menuItemId)), coffeeShopId, deletedAt: IsNull() }, relations: { variants: true, category: true } });
     const itemById = new Map(items.map((item) => [item.id, item]));
     const unavailable: UnavailableLine[] = [];
-    const priced: Array<Pick<OrderItem, "menuItemId" | "menuItemVariantId" | "itemName" | "variantName" | "categoryIdSnapshot" | "categoryNameSnapshot" | "unitPriceToman" | "originalUnitPriceToman" | "discountAmountToman" | "promotionIdSnapshot" | "promotionNameSnapshot" | "promotionRewardTypeSnapshot" | "promotionRewardValueSnapshot" | "quantity" | "lineTotalToman">> = [];
+    const units: PricingUnit[] = [];
 
     for (const line of lines) {
       const item = itemById.get(line.menuItemId);
@@ -296,19 +304,33 @@ export class OrderingService {
       }
       if (unitPrice === null) { unavailable.push({ menuItemId: item.id, variantId: line.variantId ?? null, reason: "PRICE_UNAVAILABLE", name: item.name }); continue; }
       const result = this.promotionPricing.price(pricingContext, item.id, item.category.id, unitPrice);
-      const lineTotal = BigInt(result.finalPriceToman) * BigInt(line.quantity);
-      priced.push({
-        menuItemId: item.id, menuItemVariantId: variant?.id ?? null, itemName: item.name, variantName: variant?.name ?? null,
-        categoryIdSnapshot: item.category.id, categoryNameSnapshot: item.category.name, unitPriceToman: result.finalPriceToman,
-        originalUnitPriceToman: result.originalPriceToman, discountAmountToman: result.discountAmountToman,
-        promotionIdSnapshot: result.promotion?.id ?? null, promotionNameSnapshot: result.promotion?.name ?? null,
-        promotionRewardTypeSnapshot: result.promotion?.rewardType ?? null, promotionRewardValueSnapshot: result.promotion?.rewardValue ?? null,
-        quantity: line.quantity, lineTotalToman: lineTotal.toString(),
+      for (let unitIndex = 0; unitIndex < line.quantity; unitIndex++) units.push({
+        key: `${item.id}:${variant?.id ?? ""}:${unitIndex}`, menuItemId: item.id, categoryId: item.category.id, variantId: variant?.id ?? null,
+        itemName: item.name, variantName: variant?.name ?? null, unitIndex, originalPriceToman: result.originalPriceToman,
+        unitPriceToman: result.finalPriceToman, discountAmountToman: result.discountAmountToman, promotion: result.promotion,
+        promotionTypeSnapshot: null, promotionAllocationTypeSnapshot: null, promotionRuleSnapshot: null,
       });
     }
 
     if (unavailable.length) throw new ConflictException({ code: "ORDER_ITEM_UNAVAILABLE", message: "Some cart items are no longer available", items: unavailable });
-    return priced;
+    const allocated = this.promotionPricing.priceCart(pricingContext, units, supplementalPromotions);
+    const rows = new Map<string, Pick<OrderItem, "menuItemId" | "menuItemVariantId" | "itemName" | "variantName" | "categoryIdSnapshot" | "categoryNameSnapshot" | "unitPriceToman" | "originalUnitPriceToman" | "discountAmountToman" | "promotionIdSnapshot" | "promotionNameSnapshot" | "promotionRewardTypeSnapshot" | "promotionRewardValueSnapshot" | "promotionTypeSnapshot" | "promotionAllocationTypeSnapshot" | "promotionRuleSnapshot" | "quantity" | "lineTotalToman">>();
+    for (const unit of allocated) {
+      const promotion = unit.promotion;
+      const key = [unit.menuItemId, unit.variantId ?? "", unit.originalPriceToman, unit.unitPriceToman, promotion?.id ?? "", unit.promotionTypeSnapshot ?? "", unit.promotionAllocationTypeSnapshot ?? "", unit.promotionRuleSnapshot ?? ""].join(":");
+      const current = rows.get(key);
+      const quantity = (current?.quantity ?? 0) + 1;
+      rows.set(key, {
+        menuItemId: unit.menuItemId, menuItemVariantId: unit.variantId, itemName: unit.itemName, variantName: unit.variantName,
+        categoryIdSnapshot: unit.categoryId, categoryNameSnapshot: (itemById.get(unit.menuItemId)?.category.name ?? null),
+        unitPriceToman: unit.unitPriceToman, originalUnitPriceToman: unit.originalPriceToman, discountAmountToman: unit.discountAmountToman,
+        promotionIdSnapshot: promotion?.id ?? null, promotionNameSnapshot: promotion?.name ?? null,
+        promotionRewardTypeSnapshot: promotion?.rewardType ?? null, promotionRewardValueSnapshot: promotion?.rewardValue ?? null,
+        promotionTypeSnapshot: unit.promotionTypeSnapshot, promotionAllocationTypeSnapshot: unit.promotionAllocationTypeSnapshot, promotionRuleSnapshot: unit.promotionRuleSnapshot,
+        quantity, lineTotalToman: (BigInt(unit.unitPriceToman) * BigInt(quantity)).toString(),
+      });
+    }
+    return [...rows.values()].sort((a, b) => (a.menuItemId ?? "").localeCompare(b.menuItemId ?? "") || (a.menuItemVariantId ?? "").localeCompare(b.menuItemVariantId ?? "") || a.unitPriceToman.localeCompare(b.unitPriceToman));
   }
 
   private nextStatuses(order: Order) {
@@ -368,6 +390,9 @@ export class OrderingService {
       originalUnitPriceToman: item.originalUnitPriceToman,
       discountAmountToman: item.discountAmountToman,
       promotionName: item.promotionNameSnapshot,
+      promotionType: item.promotionTypeSnapshot,
+      allocationType: item.promotionAllocationTypeSnapshot,
+      ruleSummary: item.promotionRuleSnapshot,
       quantity: item.quantity,
       lineTotalToman: item.lineTotalToman,
     }));

@@ -1,6 +1,6 @@
 import { Type } from "class-transformer";
-import { ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, ValidateNested } from "class-validator";
-import { PromotionRewardType } from "../entities";
+import { ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsDateString, IsEnum, IsIn, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, ValidateNested } from "class-validator";
+import { AdvancedPromotionType, PromotionRewardType } from "../entities";
 import { PROMOTION_WEEKDAYS, PromotionWeekday } from "../promotion-schedule.util";
 
 export class PromotionTargetDto {
@@ -18,6 +18,29 @@ export class PromotionScheduleWindowDto {
 export class PromotionScheduleDto {
   @IsArray() @ArrayMinSize(1) @ValidateNested({ each: true }) @Type(() => PromotionScheduleWindowDto)
   windows!: PromotionScheduleWindowDto[];
+}
+
+export class PromotionRuleGroupDto {
+  @Type(() => Number) @IsInt() @Min(1) @Max(50) quantity!: number;
+  @IsArray() @ArrayMinSize(1) @ValidateNested({ each: true }) @Type(() => PromotionTargetDto)
+  targets!: PromotionTargetDto[];
+}
+
+export class PromotionQuantityTierDto {
+  @Type(() => Number) @IsInt() @Min(1) @Max(50) minimumQuantity!: number;
+  @IsIn([PromotionRewardType.Percentage, PromotionRewardType.FixedAmount])
+  rewardType!: PromotionRewardType.Percentage | PromotionRewardType.FixedAmount;
+  @Type(() => Number) @IsInt() @Min(1) @Max(Number.MAX_SAFE_INTEGER) rewardValue!: number;
+}
+
+export class PromotionAdvancedRuleDto {
+  @IsEnum(AdvancedPromotionType) type!: AdvancedPromotionType;
+  @IsOptional() @IsBoolean() repeatable?: boolean;
+  @IsOptional() @ValidateNested() @Type(() => PromotionRuleGroupDto) buy?: PromotionRuleGroupDto;
+  @IsOptional() @ValidateNested() @Type(() => PromotionRuleGroupDto) get?: PromotionRuleGroupDto;
+  @IsOptional() @IsArray() @ArrayMinSize(2) @ValidateNested({ each: true }) @Type(() => PromotionRuleGroupDto) bundleComponents?: PromotionRuleGroupDto[];
+  @IsOptional() @ValidateNested() @Type(() => PromotionRuleGroupDto) quantityTarget?: PromotionRuleGroupDto;
+  @IsOptional() @IsArray() @ArrayMinSize(1) @ValidateNested({ each: true }) @Type(() => PromotionQuantityTierDto) tiers?: PromotionQuantityTierDto[];
 }
 
 export class CreatePromotionDto {
@@ -40,6 +63,7 @@ export class CreatePromotionDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) totalUsageLimit?: number | null;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) perCustomerUsageLimit?: number | null;
   @IsArray() @ValidateNested({ each: true }) @Type(() => PromotionTargetDto) targets!: PromotionTargetDto[];
+  @IsOptional() @ValidateNested() @Type(() => PromotionAdvancedRuleDto) advancedRule?: PromotionAdvancedRuleDto;
 }
 
 export class UpdatePromotionDto {
@@ -61,4 +85,5 @@ export class UpdatePromotionDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) totalUsageLimit?: number | null;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) perCustomerUsageLimit?: number | null;
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => PromotionTargetDto) targets?: PromotionTargetDto[];
+  @IsOptional() @ValidateNested() @Type(() => PromotionAdvancedRuleDto) advancedRule?: PromotionAdvancedRuleDto | null;
 }

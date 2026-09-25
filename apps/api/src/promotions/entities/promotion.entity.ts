@@ -2,6 +2,7 @@ import { Column, CreateDateColumn, DeleteDateColumn, Entity, Index, OneToMany, O
 import { PromotionTarget } from "./promotion-target.entity";
 import { PromotionCoupon } from "./promotion-coupon.entity";
 import { PromotionScheduleWindow } from "./promotion-schedule-window.entity";
+import { PromotionAdvancedRule } from "./promotion-advanced-rule.entity";
 
 export enum PromotionRewardType {
   Percentage = "PERCENTAGE",
@@ -33,4 +34,5 @@ export class Promotion {
   @OneToMany(() => PromotionTarget, (target) => target.promotion) targets!: PromotionTarget[];
   @OneToOne(() => PromotionCoupon, (coupon) => coupon.promotion) coupon!: PromotionCoupon | null;
   @OneToMany(() => PromotionScheduleWindow, (window) => window.promotion) scheduleWindows!: PromotionScheduleWindow[];
+  @OneToOne(() => PromotionAdvancedRule, (rule) => rule.promotion) advancedRule!: PromotionAdvancedRule | null;
 }

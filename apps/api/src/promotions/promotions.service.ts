@@ -2,8 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import { DataSource, In, IsNull } from "typeorm";
 import { MenuCategory, MenuItem } from "../menu/entities";
 import { CoffeeShop } from "../database/entities";
-import { CreatePromotionDto, PromotionTargetDto, UpdatePromotionDto } from "./dto/promotion.dto";
-import { Promotion, PromotionCoupon, PromotionRewardType, PromotionScheduleWindow, PromotionTarget } from "./entities";
+import { CreatePromotionDto, PromotionAdvancedRuleDto, PromotionRuleGroupDto, PromotionTargetDto, UpdatePromotionDto } from "./dto/promotion.dto";
+import { AdvancedPromotionType, Promotion, PromotionAdvancedRule, PromotionCoupon, PromotionQuantityTier, PromotionRewardType, PromotionRuleGroup, PromotionRuleGroupRole, PromotionRuleTarget, PromotionScheduleWindow, PromotionTarget } from "./entities";
 import { promotionStatus } from "./promotion-pricing.util";
 import { isValidTimeZone, PROMOTION_WEEKDAYS } from "./promotion-schedule.util";
 
@@ -13,13 +13,13 @@ export class PromotionsService {
 
   async list(coffeeShopId: string, timezone?: string) {
     const tenantTimezone = await this.tenantTimezone(coffeeShopId, timezone);
-    const promotions = await this.dataSource.getRepository(Promotion).find({ where: { coffeeShopId }, relations: { targets: true, scheduleWindows: true }, order: { updatedAt: "DESC" }, withDeleted: true });
+    const promotions = await this.dataSource.getRepository(Promotion).find({ where: { coffeeShopId }, relations: { targets: true, scheduleWindows: true, advancedRule: { groups: { targets: true }, tiers: true } }, order: { updatedAt: "DESC" }, withDeleted: true });
     return this.projectMany(coffeeShopId, promotions, tenantTimezone);
   }
 
   async get(coffeeShopId: string, id: string, timezone?: string) {
     const tenantTimezone = await this.tenantTimezone(coffeeShopId, timezone);
-    const promotion = await this.dataSource.getRepository(Promotion).findOne({ where: { id, coffeeShopId }, relations: { targets: true, scheduleWindows: true }, withDeleted: true });
+    const promotion = await this.dataSource.getRepository(Promotion).findOne({ where: { id, coffeeShopId }, relations: { targets: true, scheduleWindows: true, advancedRule: { groups: { targets: true }, tiers: true } }, withDeleted: true });
     if (!promotion) throw new NotFoundException("Promotion not found");
     return (await this.projectMany(coffeeShopId, [promotion], tenantTimezone))[0];
   }
@@ -27,11 +27,13 @@ export class PromotionsService {
   async create(coffeeShopId: string, actorUserId: string, input: CreatePromotionDto, timezone?: string) {
     const tenantTimezone = await this.tenantTimezone(coffeeShopId, timezone);
     this.validateFields(input.rewardType, input.rewardValue, input.startAt, input.endAt, input.name);
+    this.validateAdvancedRule(input.advancedRule, input.entireOrder, input.targets, input.rewardType, input.minimumSubtotalToman, input.maxDiscountToman);
     this.validateSchedule(input.schedule, tenantTimezone);
-    this.validateOrderFields(input.entireOrder, input.rewardType, input.targets, input.maxDiscountToman, Boolean(input.couponCode));
+    this.validateOrderFields(input.entireOrder, input.rewardType, input.targets, input.maxDiscountToman, Boolean(input.couponCode), Boolean(input.advancedRule));
     this.validateCouponDates(input.couponStartsAt, input.couponExpiresAt);
     const id = await this.dataSource.transaction(async (manager) => {
-      if (!input.entireOrder) await this.validateTargets(manager, coffeeShopId, input.targets);
+      if (input.advancedRule) await this.validateAdvancedTargets(manager, coffeeShopId, input.advancedRule);
+      else if (!input.entireOrder) await this.validateTargets(manager, coffeeShopId, input.targets);
       if (input.couponCode && await manager.findOneBy(PromotionCoupon, { coffeeShopId, normalizedCode: input.couponCode.trim().toUpperCase() })) throw new BadRequestException({ code: "COUPON_CODE_IN_USE", message: "این کد تخفیف قبلاً ثبت شده است." });
       const promotion = await manager.save(Promotion, manager.create(Promotion, {
         coffeeShopId, name: input.name.trim(), description: input.description?.trim() || null,
@@ -40,9 +42,10 @@ export class PromotionsService {
         entireOrder: input.entireOrder, minimumSubtotalToman: input.minimumSubtotalToman == null ? null : String(input.minimumSubtotalToman),
         maxDiscountToman: input.maxDiscountToman == null ? null : String(input.maxDiscountToman),
       }));
-      await manager.save(PromotionTarget, input.targets.map((target) => manager.create(PromotionTarget, {
+      if (!input.advancedRule && input.targets.length) await manager.save(PromotionTarget, input.targets.map((target) => manager.create(PromotionTarget, {
         coffeeShopId, promotionId: promotion.id, menuItemId: target.menuItemId ?? null, categoryId: target.categoryId ?? null,
       })));
+      if (input.advancedRule) await this.saveAdvancedRule(manager, coffeeShopId, promotion.id, input.advancedRule);
       if (input.schedule) await this.saveSchedule(manager, coffeeShopId, promotion.id, input.schedule);
       if (input.couponCode) await manager.save(PromotionCoupon, manager.create(PromotionCoupon, {
         coffeeShopId, promotionId: promotion.id, code: input.couponCode.trim().toUpperCase(), normalizedCode: input.couponCode.trim().toUpperCase(),
@@ -58,7 +61,7 @@ export class PromotionsService {
   async update(coffeeShopId: string, id: string, input: UpdatePromotionDto, timezone?: string) {
     const tenantTimezone = await this.tenantTimezone(coffeeShopId, timezone);
     await this.dataSource.transaction(async (manager) => {
-      const promotion = await manager.findOne(Promotion, { where: { id, coffeeShopId }, relations: { targets: true, scheduleWindows: true } });
+      const promotion = await manager.findOne(Promotion, { where: { id, coffeeShopId }, relations: { targets: true, scheduleWindows: true, advancedRule: { groups: { targets: true }, tiers: true } } });
       if (!promotion) throw new NotFoundException("Promotion not found");
       const rewardType = input.rewardType ?? promotion.rewardType;
       const rewardValue = input.rewardValue ?? Number(promotion.rewardValue);
@@ -69,10 +72,13 @@ export class PromotionsService {
       if (input.schedule !== undefined) this.validateSchedule(input.schedule, tenantTimezone);
       const entireOrder = input.entireOrder ?? promotion.entireOrder;
       const targets = input.targets ?? promotion.targets;
+      const advancedRule = input.advancedRule === undefined ? this.ruleDto(promotion.advancedRule) : input.advancedRule ?? undefined;
+      this.validateAdvancedRule(advancedRule, entireOrder, targets, rewardType, input.minimumSubtotalToman === undefined ? (promotion.minimumSubtotalToman ? Number(promotion.minimumSubtotalToman) : null) : input.minimumSubtotalToman, input.maxDiscountToman === undefined ? (promotion.maxDiscountToman ? Number(promotion.maxDiscountToman) : null) : input.maxDiscountToman);
       const currentCoupon = await manager.findOneBy(PromotionCoupon, { coffeeShopId, promotionId: id });
-      this.validateOrderFields(entireOrder, rewardType, targets, input.maxDiscountToman === undefined ? (promotion.maxDiscountToman ? Number(promotion.maxDiscountToman) : null) : input.maxDiscountToman, Boolean(currentCoupon || input.couponCode));
+      this.validateOrderFields(entireOrder, rewardType, targets, input.maxDiscountToman === undefined ? (promotion.maxDiscountToman ? Number(promotion.maxDiscountToman) : null) : input.maxDiscountToman, Boolean(currentCoupon || input.couponCode), Boolean(advancedRule));
       this.validateCouponDates(input.couponStartsAt === undefined ? currentCoupon?.startsAt?.toISOString() : input.couponStartsAt, input.couponExpiresAt === undefined ? currentCoupon?.expiresAt?.toISOString() : input.couponExpiresAt);
-      if (input.targets && !entireOrder) await this.validateTargets(manager, coffeeShopId, input.targets);
+      if (advancedRule) await this.validateAdvancedTargets(manager, coffeeShopId, advancedRule);
+      else if (input.targets && !entireOrder) await this.validateTargets(manager, coffeeShopId, input.targets);
       if (input.name !== undefined) promotion.name = name.trim();
       if (input.description !== undefined) promotion.description = input.description?.trim() || null;
       if (input.startAt !== undefined) promotion.startAt = input.startAt ? new Date(input.startAt) : null;
@@ -86,9 +92,16 @@ export class PromotionsService {
       await manager.save(promotion);
       if (input.targets) {
         await manager.delete(PromotionTarget, { coffeeShopId, promotionId: id });
-        await manager.save(PromotionTarget, input.targets.map((target) => manager.create(PromotionTarget, {
+        if (input.targets.length) await manager.save(PromotionTarget, input.targets.map((target) => manager.create(PromotionTarget, {
           coffeeShopId, promotionId: id, menuItemId: target.menuItemId ?? null, categoryId: target.categoryId ?? null,
         })));
+      }
+      if (input.advancedRule !== undefined) {
+        await manager.delete(PromotionAdvancedRule, { coffeeShopId, promotionId: id });
+        if (input.advancedRule) {
+          await manager.delete(PromotionTarget, { coffeeShopId, promotionId: id });
+          await this.saveAdvancedRule(manager, coffeeShopId, id, input.advancedRule);
+        }
       }
       if (input.schedule !== undefined) await this.saveSchedule(manager, coffeeShopId, id, input.schedule);
       let coupon = currentCoupon;
@@ -131,12 +144,40 @@ export class PromotionsService {
     if (startAt && endAt && new Date(endAt).getTime() <= new Date(startAt).getTime()) throw new BadRequestException("Promotion end time must be after its start time");
   }
 
-  private validateOrderFields(entireOrder: boolean, type: PromotionRewardType, targets: Array<{ menuItemId?: string | null; categoryId?: string | null }>, maxDiscount?: number | null, coupon = false) {
+  private validateOrderFields(entireOrder: boolean, type: PromotionRewardType, targets: Array<{ menuItemId?: string | null; categoryId?: string | null }>, maxDiscount?: number | null, coupon = false, advanced = false) {
+    if (advanced) {
+      if (entireOrder || targets.length || maxDiscount != null) throw new BadRequestException("Advanced promotions use rule targets and cannot use order caps");
+      return;
+    }
     if (entireOrder && targets.length) throw new BadRequestException("Entire-order promotions cannot select products or categories");
     if (!entireOrder && !targets.length) throw new BadRequestException("Select at least one promotion target");
     if (entireOrder && type === PromotionRewardType.FixedPrice) throw new BadRequestException("Fixed promotional price requires a product or category");
     if (maxDiscount != null && type !== PromotionRewardType.Percentage) throw new BadRequestException("Maximum discount requires a percentage reward");
     if (maxDiscount != null && !entireOrder && !coupon) throw new BadRequestException("Maximum discount requires an order promotion or coupon");
+  }
+
+  private validateAdvancedRule(rule: PromotionAdvancedRuleDto | null | undefined, entireOrder: boolean, targets: Array<{ menuItemId?: string | null; categoryId?: string | null }>, rewardType: PromotionRewardType, minimumSubtotal?: number | null, maxDiscount?: number | null) {
+    if (!rule) return;
+    if (entireOrder || targets.length || (minimumSubtotal != null && minimumSubtotal > 0) || maxDiscount != null) throw new BadRequestException("Advanced promotions use rule targets without order minimums or caps");
+    const checkGroup = (group: PromotionRuleGroupDto | undefined) => {
+      if (!group || !Number.isInteger(group.quantity) || group.quantity < 1 || group.quantity > 50 || !Array.isArray(group.targets) || !group.targets.length) throw new BadRequestException("Each advanced rule group needs a positive quantity and at least one product or category");
+    };
+    if (rule.type === AdvancedPromotionType.BuyXGetY) {
+      if (rewardType === PromotionRewardType.FixedPrice || rule.bundleComponents || rule.quantityTarget || rule.tiers) throw new BadRequestException("Buy X Get Y needs a percentage or fixed-amount reward and buy/get groups");
+      checkGroup(rule.buy); checkGroup(rule.get);
+    } else if (rule.type === AdvancedPromotionType.Bundle) {
+      if (rewardType !== PromotionRewardType.FixedPrice || rule.buy || rule.get || rule.quantityTarget || rule.tiers || !rule.bundleComponents || rule.bundleComponents.length < 2) throw new BadRequestException("A bundle needs at least two item groups and a fixed bundle price");
+      rule.bundleComponents.forEach(checkGroup);
+    } else if (rule.type === AdvancedPromotionType.QuantityTier) {
+      if (!rule.quantityTarget || !rule.tiers?.length || rule.buy || rule.get || rule.bundleComponents) throw new BadRequestException("A quantity promotion needs targets and at least one tier");
+      checkGroup(rule.quantityTarget);
+      let previous = 0;
+      for (const tier of rule.tiers) {
+        if (!Number.isInteger(tier.minimumQuantity) || tier.minimumQuantity <= previous || tier.minimumQuantity > 50) throw new BadRequestException("Quantity tiers must have increasing, unique thresholds from 1 to 50");
+        if ((tier.rewardType === PromotionRewardType.Percentage && (tier.rewardValue < 1 || tier.rewardValue > 100)) || (tier.rewardType === PromotionRewardType.FixedAmount && tier.rewardValue < 1)) throw new BadRequestException("Invalid quantity tier reward");
+        previous = tier.minimumQuantity;
+      }
+    } else throw new BadRequestException("Invalid advanced promotion type");
   }
 
   private validateCouponDates(startAt?: string | null, endAt?: string | null) {
@@ -196,10 +237,51 @@ export class PromotionsService {
     if (items.length !== itemIds.length || categories.length !== categoryIds.length) throw new BadRequestException("Promotion targets must belong to this cafe and be available");
   }
 
+  private async validateAdvancedTargets(manager: import("typeorm").EntityManager, coffeeShopId: string, rule: PromotionAdvancedRuleDto) {
+    const groups = [rule.buy, rule.get, ...(rule.bundleComponents ?? []), rule.quantityTarget].filter((group): group is PromotionRuleGroupDto => Boolean(group));
+    for (const group of groups) await this.validateTargets(manager, coffeeShopId, group.targets);
+  }
+
+  private async saveAdvancedRule(manager: import("typeorm").EntityManager, coffeeShopId: string, promotionId: string, input: PromotionAdvancedRuleDto) {
+    const rule = await manager.save(PromotionAdvancedRule, manager.create(PromotionAdvancedRule, {
+      coffeeShopId, promotionId, type: input.type, repeatable: input.repeatable ?? true,
+    }));
+    const saveGroup = async (role: PromotionRuleGroupRole, position: number, value: PromotionRuleGroupDto) => {
+      const group = await manager.save(PromotionRuleGroup, manager.create(PromotionRuleGroup, {
+        coffeeShopId, ruleId: rule.id, role, position, quantity: value.quantity,
+      }));
+      await manager.save(PromotionRuleTarget, value.targets.map((target) => manager.create(PromotionRuleTarget, {
+        coffeeShopId, groupId: group.id, menuItemId: target.menuItemId ?? null, categoryId: target.categoryId ?? null,
+      })));
+    };
+    if (input.type === AdvancedPromotionType.BuyXGetY) {
+      await saveGroup(PromotionRuleGroupRole.Buy, 0, input.buy!);
+      await saveGroup(PromotionRuleGroupRole.Get, 0, input.get!);
+    } else if (input.type === AdvancedPromotionType.Bundle) {
+      for (const [position, component] of input.bundleComponents!.entries()) await saveGroup(PromotionRuleGroupRole.BundleItem, position, component);
+    } else {
+      await saveGroup(PromotionRuleGroupRole.QuantityTarget, 0, input.quantityTarget!);
+      await manager.save(PromotionQuantityTier, input.tiers!.map((tier) => manager.create(PromotionQuantityTier, {
+        coffeeShopId, ruleId: rule.id, minimumQuantity: tier.minimumQuantity, rewardType: tier.rewardType, rewardValue: String(tier.rewardValue),
+      })));
+    }
+  }
+
+  private ruleDto(rule: PromotionAdvancedRule | null | undefined): PromotionAdvancedRuleDto | null {
+    if (!rule) return null;
+    const groupDto = (role: PromotionRuleGroupRole, position = 0) => {
+      const group = rule.groups?.find((candidate) => candidate.role === role && candidate.position === position);
+      return group ? { quantity: group.quantity, targets: group.targets.map(({ menuItemId, categoryId }) => ({ menuItemId: menuItemId ?? undefined, categoryId: categoryId ?? undefined })) } : undefined;
+    };
+    if (rule.type === AdvancedPromotionType.BuyXGetY) return { type: rule.type, repeatable: rule.repeatable, buy: groupDto(PromotionRuleGroupRole.Buy), get: groupDto(PromotionRuleGroupRole.Get) };
+    if (rule.type === AdvancedPromotionType.Bundle) return { type: rule.type, repeatable: rule.repeatable, bundleComponents: [...(rule.groups ?? [])].filter((group) => group.role === PromotionRuleGroupRole.BundleItem).sort((a, b) => a.position - b.position).map((group) => ({ quantity: group.quantity, targets: group.targets.map(({ menuItemId, categoryId }) => ({ menuItemId: menuItemId ?? undefined, categoryId: categoryId ?? undefined })) })) };
+    return { type: rule.type, quantityTarget: groupDto(PromotionRuleGroupRole.QuantityTarget), tiers: [...(rule.tiers ?? [])].sort((a, b) => a.minimumQuantity - b.minimumQuantity).map(({ minimumQuantity, rewardType, rewardValue }) => ({ minimumQuantity, rewardType, rewardValue: Number(rewardValue) })) };
+  }
+
   private async projectMany(coffeeShopId: string, promotions: Promotion[], timezone: string) {
     const coupons = promotions.length ? await this.dataSource.getRepository(PromotionCoupon).find({ where: { coffeeShopId, promotionId: In(promotions.map((promotion) => promotion.id)) } }) : [];
     const couponByPromotion = new Map(coupons.map((coupon) => [coupon.promotionId, coupon]));
-    const targetRows = promotions.flatMap((promotion) => promotion.targets);
+    const targetRows = promotions.flatMap((promotion) => [...promotion.targets, ...(promotion.advancedRule?.groups.flatMap((group) => group.targets) ?? [])]);
     const itemIds = [...new Set(targetRows.map((target) => target.menuItemId).filter((id): id is string => Boolean(id)))];
     const categoryIds = [...new Set(targetRows.map((target) => target.categoryId).filter((id): id is string => Boolean(id)))];
     const [items, categories] = await Promise.all([
@@ -219,6 +301,7 @@ export class PromotionsService {
       targets: promotion.targets.map((target) => target.menuItemId
         ? { type: "PRODUCT" as const, id: target.menuItemId, name: itemById.get(target.menuItemId) ?? null }
         : { type: "CATEGORY" as const, id: target.categoryId!, name: categoryById.get(target.categoryId!) ?? null }),
+      advancedRule: this.ruleDto(promotion.advancedRule),
       createdAt: promotion.createdAt, updatedAt: promotion.updatedAt,
     }));
   }

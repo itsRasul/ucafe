@@ -11,7 +11,7 @@ import { Picture, formatToman, type PublicMenu, type PublicOrderingState } from 
 export function CartPageClient({ menu, ordering, cafeName, logoUrl }: { menu: PublicMenu; ordering: PublicOrderingState | null; cafeName: string; logoUrl?: string }) {
   const cart = useResolvedCart(menu);
   const serverQuote = useServerCartQuote(cart.lines);
-  const quotedLine = (menuItemId: string, variantId: string | null) => serverQuote.quote?.items.find((item) => item.menuItemId === menuItemId && item.variantId === variantId) ?? null;
+  const quotedLines = (menuItemId: string, variantId: string | null) => serverQuote.quote?.items.filter((item) => item.menuItemId === menuItemId && item.variantId === variantId) ?? [];
   const displayedTotal = serverQuote.quote?.totalAmountToman ?? String(cart.totalToman);
   const session = useClientSession();
   const router = useRouter();
@@ -51,7 +51,12 @@ export function CartPageClient({ menu, ordering, cafeName, logoUrl }: { menu: Pu
       <div className="cart-section-heading"><div><h2>محصولات انتخاب‌شده</h2><p>تعداد هر محصول را تغییر دهید یا آن را از سبد حذف کنید.</p></div><button className="cart-clear" type="button" onClick={cart.clear}><TrashIcon />حذف همه</button></div>
       <div className="cart-layout">
         <div className="cart-lines">
-          {cart.resolved.map((line) => <article className={`cart-line${line.available ? "" : " invalid"}`} key={`${line.menuItemId}:${line.variantId ?? ""}`}>
+          {cart.resolved.map((line) => {
+            const quotes = quotedLines(line.menuItemId, line.variantId);
+            const final = quotes.reduce((sum, item) => sum + BigInt(item.lineTotalToman), BigInt(0));
+            const original = quotes.length ? BigInt(quotes[0]!.originalUnitPriceToman) * BigInt(line.quantity) : BigInt(0);
+            const promotions = [...new Set(quotes.map((item) => item.ruleSummary ?? item.promotionName).filter((name): name is string => Boolean(name)))];
+            return <article className={`cart-line${line.available ? "" : " invalid"}`} key={`${line.menuItemId}:${line.variantId ?? ""}`}>
             <Picture asset={line.item?.image} fallback="menu" alt={line.item?.image ? line.item.name : "تصویر جایگزین محصول"} className="cart-line-image" />
             <div className="cart-line-copy">
               <h2>{line.item?.name ?? "آیتم حذف‌شده"}</h2>
@@ -59,11 +64,12 @@ export function CartPageClient({ menu, ordering, cafeName, logoUrl }: { menu: Pu
               {line.reason && <strong>{line.reason}</strong>}
             </div>
             <div className="cart-line-price">
-              <span><small>قیمت واحد</small><b>{quotedLine(line.menuItemId, line.variantId)?.discountAmountToman !== "0" && quotedLine(line.menuItemId, line.variantId) ? <><del>{formatToman(quotedLine(line.menuItemId, line.variantId)!.originalUnitPriceToman)}</del> {formatToman(quotedLine(line.menuItemId, line.variantId)!.unitPriceToman)}</> : line.unitPriceToman ? formatToman(line.unitPriceToman) : "نامشخص"}</b>{quotedLine(line.menuItemId, line.variantId)?.promotionName && <small>{quotedLine(line.menuItemId, line.variantId)!.promotionName}</small>}</span>
-              <span><small>قیمت نهایی</small><b>{quotedLine(line.menuItemId, line.variantId) ? formatToman(quotedLine(line.menuItemId, line.variantId)!.lineTotalToman) : line.unitPriceToman ? formatToman(String(Number(line.unitPriceToman) * line.quantity)) : "—"}</b></span>
+              <span><small>{quotes.length > 1 ? "جزئیات قیمت" : "قیمت واحد"}</small><b>{quotes.length === 1 ? <>{quotes[0]!.discountAmountToman !== "0" && <del>{formatToman(quotes[0]!.originalUnitPriceToman)}</del>} {formatToman(quotes[0]!.unitPriceToman)}</> : line.unitPriceToman ? formatToman(line.unitPriceToman) : "نامشخص"}</b>{quotes.length > 1 && <small>{quotes.map((quote, index) => <span key={`${quote.unitPriceToman}:${index}`}>{quote.quantity} × {quote.allocationType === "GET" && quote.unitPriceToman === "0" ? "رایگان" : formatToman(quote.unitPriceToman)}{index < quotes.length - 1 ? " · " : ""}</span>)}</small>}{promotions.map((name) => <small key={name}>{name}</small>)}</span>
+              <span><small>قیمت نهایی</small><b>{quotes.length ? formatToman(final.toString()) : line.unitPriceToman ? formatToman((BigInt(line.unitPriceToman) * BigInt(line.quantity)).toString()) : "—"}</b>{quotes.length > 1 && <small><del>{formatToman(original.toString())}</del></small>}</span>
             </div>
             <CartQuantityControl quantity={line.quantity} itemName={line.item?.name ?? "محصول"} onIncrease={() => cart.setQuantity(line.menuItemId, line.variantId, line.quantity + 1)} onDecrease={() => cart.setQuantity(line.menuItemId, line.variantId, line.quantity - 1)} onRemove={() => cart.remove(line.menuItemId, line.variantId)} />
-          </article>)}
+            </article>;
+          })}
         </div>
         <aside className="cart-summary">
           <div><h2>خلاصه سفارش</h2><p>قیمت نهایی با نرخ فعلی محاسبه می‌شود؛ تخفیف‌های زمان‌دار فقط در بازه خود فعال‌اند.</p></div>

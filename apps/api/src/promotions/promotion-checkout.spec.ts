@@ -6,7 +6,7 @@ import dataSource from "../database/data-source";
 import { OrderDeliveryMethod, OrderPaymentMethod, OrderStatus } from "../ordering/entities";
 import { OrderingService } from "../ordering/ordering.service";
 import { MenuService } from "../menu/menu.service";
-import { PromotionRewardType } from "./entities";
+import { AdvancedPromotionType, PromotionRewardType } from "./entities";
 import { PromotionsService } from "./promotions.service";
 import { PromotionWeekday } from "./promotion-schedule.util";
 
@@ -123,6 +123,97 @@ test("coupon quote, checkout, limit, cancellation and tenant isolation share aut
       const [snapshot] = await manager.query(`SELECT o.total_amount_toman, i.promotion_name_snapshot FROM orders o JOIN order_items i ON i.order_id=o.id WHERE o.id=$1`, [scheduledOrder.id]);
       assert.equal(snapshot.total_amount_toman, "540000");
       assert.equal(snapshot.promotion_name_snapshot, "Scheduled Latte");
+
+      await promotions.setActive(tenants[0], automatic.id, false);
+      const advancedLines = [{ menuItemId: item.id, quantity: 6 }];
+      const bogo = await promotions.create(tenants[0], actor.id, {
+        name: "Buy 2 Get 1", isActive: true, priority: 10, rewardType: PromotionRewardType.Percentage, rewardValue: 100,
+        entireOrder: false, targets: [], couponCode: "BOGO6", totalUsageLimit: 1,
+        advancedRule: { type: AdvancedPromotionType.BuyXGetY, repeatable: true,
+          buy: { quantity: 2, targets: [{ categoryId: category.id }] },
+          get: { quantity: 1, targets: [{ menuItemId: item.id }] } },
+      });
+      assert.ok(bogo);
+      assert.equal((await ordering.quote(tenants[0], advancedLines)).totalAmountToman, "6000000");
+      const bogoQuote = await ordering.quote(tenants[0], advancedLines, "BOGO6", client.id);
+      assert.equal(bogoQuote.totalAmountToman, "4000000");
+      assert.equal(bogoQuote.itemDiscountTotalToman, "2000000");
+      assert.equal(bogoQuote.couponCode, "BOGO6");
+      assert.equal(bogoQuote.items.reduce((sum, line) => sum + line.quantity, 0), 6);
+      assert.equal(bogoQuote.items.filter((line) => line.allocationType === "GET").reduce((sum, line) => sum + line.quantity, 0), 2);
+      const bogoOrder = await ordering.createOrder(tenants[0], client.id, {
+        items: advancedLines, paymentMethod: OrderPaymentMethod.Offline, deliveryMethod: OrderDeliveryMethod.Pickup,
+        idempotencyKey: randomUUID(), couponCode: "BOGO6",
+      });
+      assert.equal(bogoOrder.totalAmountToman, bogoQuote.totalAmountToman);
+      assert.equal(bogoOrder.items.reduce((sum, line) => sum + line.quantity, 0), 6);
+      await assert.rejects(ordering.quote(tenants[0], advancedLines, "BOGO6", client.id), (error: { response?: { code?: string } }) => error.response?.code === "COUPON_USAGE_LIMIT_REACHED");
+      const [bogoRedemption] = await manager.query(`SELECT discount_amount_toman FROM promotion_redemptions WHERE promotion_id=$1 AND order_id=$2`, [bogo.id, bogoOrder.id]);
+      assert.equal(bogoRedemption.discount_amount_toman, "2000000");
+      const [bogoSnapshot] = await manager.query(`SELECT i.promotion_type_snapshot, i.promotion_allocation_type_snapshot, i.promotion_rule_snapshot FROM order_items i WHERE i.order_id=$1 AND i.promotion_type_snapshot='BUY_X_GET_Y'`, [bogoOrder.id]);
+      assert.equal(bogoSnapshot.promotion_allocation_type_snapshot, "GET");
+      assert.match(bogoSnapshot.promotion_rule_snapshot, /2/);
+      await promotions.archive(tenants[0], bogo.id);
+      assert.equal((await ordering.clientDetail(tenants[0], client.id, bogoOrder.id)).totalAmountToman, "4000000");
+
+      const crossTarget = await promotions.create(tenants[0], actor.id, {
+        name: "Burger with dessert", isActive: true, priority: 0, rewardType: PromotionRewardType.Percentage, rewardValue: 50,
+        entireOrder: false, targets: [], advancedRule: { type: AdvancedPromotionType.BuyXGetY, repeatable: false,
+          buy: { quantity: 1, targets: [{ menuItemId: item.id }] }, get: { quantity: 1, targets: [{ menuItemId: cake.id }] } },
+      });
+      assert.ok(crossTarget);
+      const crossQuote = await ordering.quote(tenants[0], [{ menuItemId: item.id, quantity: 1 }, { menuItemId: cake.id, quantity: 1 }]);
+      assert.equal(crossQuote.totalAmountToman, "1050000");
+      assert.equal(crossQuote.items.find((line) => line.menuItemId === cake.id)?.allocationType, "GET");
+      await promotions.archive(tenants[0], crossTarget.id);
+
+      const bundle = await promotions.create(tenants[0], actor.id, {
+        name: "Latte and cake", isActive: true, priority: 0, rewardType: PromotionRewardType.FixedPrice, rewardValue: 1050000,
+        entireOrder: false, targets: [], advancedRule: { type: AdvancedPromotionType.Bundle, repeatable: true, bundleComponents: [
+          { quantity: 1, targets: [{ menuItemId: item.id }] }, { quantity: 1, targets: [{ menuItemId: cake.id }] },
+        ] },
+      });
+      assert.ok(bundle);
+      const bundleLines = [{ menuItemId: item.id, quantity: 1 }, { menuItemId: cake.id, quantity: 1 }];
+      const bundleQuote = await ordering.quote(tenants[0], bundleLines);
+      assert.equal(bundleQuote.totalAmountToman, "1050000");
+      assert.equal(bundleQuote.items.reduce((sum, line) => sum + BigInt(line.discountAmountToman) * BigInt(line.quantity), BigInt(0)).toString(), "50000");
+      const bundleOrder = await ordering.createOrder(tenants[0], client.id, { items: bundleLines, paymentMethod: OrderPaymentMethod.Offline, deliveryMethod: OrderDeliveryMethod.Pickup, idempotencyKey: randomUUID() });
+      assert.equal(bundleOrder.totalAmountToman, bundleQuote.totalAmountToman);
+      assert.equal(bundleOrder.items.reduce((sum, line) => sum + BigInt(line.lineTotalToman), BigInt(0)).toString(), "1050000");
+      await promotions.archive(tenants[0], bundle.id);
+      assert.equal((await ordering.clientDetail(tenants[0], client.id, bundleOrder.id)).totalAmountToman, "1050000");
+
+      const quantity = await promotions.create(tenants[0], actor.id, {
+        name: "Cold drink tiers", isActive: true, priority: 0, rewardType: PromotionRewardType.Percentage, rewardValue: 15,
+        entireOrder: false, targets: [], advancedRule: { type: AdvancedPromotionType.QuantityTier, quantityTarget: { quantity: 1, targets: [{ categoryId: category.id }] },
+          tiers: [{ minimumQuantity: 3, rewardType: PromotionRewardType.Percentage, rewardValue: 10 }, { minimumQuantity: 5, rewardType: PromotionRewardType.Percentage, rewardValue: 15 }] },
+      });
+      assert.ok(quantity);
+      const quantityQuote = await ordering.quote(tenants[0], [{ menuItemId: item.id, quantity: 4 }]);
+      assert.equal(quantityQuote.totalAmountToman, "3600000");
+      assert.equal(quantityQuote.items.reduce((sum, line) => sum + line.quantity, 0), 4);
+      const quantityOrder = await ordering.createOrder(tenants[0], client.id, { items: [{ menuItemId: item.id, quantity: 4 }], paymentMethod: OrderPaymentMethod.Offline, deliveryMethod: OrderDeliveryMethod.Pickup, idempotencyKey: randomUUID() });
+      assert.equal(quantityOrder.totalAmountToman, quantityQuote.totalAmountToman);
+      await promotions.archive(tenants[0], quantity.id);
+      assert.equal((await ordering.clientDetail(tenants[0], client.id, quantityOrder.id)).totalAmountToman, "3600000");
+
+      const [foreignCategory] = await manager.query(`INSERT INTO menu_categories(coffee_shop_id,name) VALUES($1,'Foreign') RETURNING id`, [tenants[1]]);
+      const [foreignItem] = await manager.query(`INSERT INTO menu_items(coffee_shop_id,category_id,name,base_price_toman) VALUES($1,$2,'Foreign item',1000) RETURNING id`, [tenants[1], foreignCategory.id]);
+      await assert.rejects(promotions.create(tenants[0], actor.id, {
+        name: "Foreign target", isActive: true, priority: 0, rewardType: PromotionRewardType.Percentage, rewardValue: 10,
+        entireOrder: false, targets: [], advancedRule: { type: AdvancedPromotionType.BuyXGetY, buy: { quantity: 1, targets: [{ menuItemId: foreignItem.id }] }, get: { quantity: 1, targets: [{ menuItemId: item.id }] } },
+      }));
+      const scoped = await promotions.create(tenants[0], actor.id, {
+        name: "Scoped rule", isActive: true, priority: 0, rewardType: PromotionRewardType.Percentage, rewardValue: 10,
+        entireOrder: false, targets: [], advancedRule: { type: AdvancedPromotionType.BuyXGetY, buy: { quantity: 1, targets: [{ menuItemId: item.id }] }, get: { quantity: 1, targets: [{ menuItemId: item.id }] } },
+      });
+      assert.ok(scoped);
+      const [buyGroup] = await manager.query(`SELECT g.id FROM promotion_advanced_rules r JOIN promotion_rule_groups g ON g.coffee_shop_id=r.coffee_shop_id AND g.rule_id=r.id WHERE r.promotion_id=$1 AND g.role='BUY'`, [scoped.id]);
+      await manager.query("SAVEPOINT advanced_tenant_scope");
+      await assert.rejects(manager.query(`INSERT INTO promotion_rule_targets(coffee_shop_id,group_id,menu_item_id) VALUES($1,$2,$3)`, [tenants[0], buyGroup.id, foreignItem.id]));
+      await manager.query("ROLLBACK TO SAVEPOINT advanced_tenant_scope");
+      await promotions.archive(tenants[0], scoped.id);
       throw rollback;
     }), (error: Error) => error === rollback);
   } finally { await dataSource.destroy(); }

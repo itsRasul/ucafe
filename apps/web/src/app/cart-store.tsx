@@ -5,7 +5,7 @@ import type { PublicMenu, PublicMenuItem, PublicMenuVariant } from "./tenant-pub
 
 export type CartLine = { menuItemId: string; variantId: string | null; quantity: number };
 export type CartResolvedLine = CartLine & { item: PublicMenuItem | null; variant: PublicMenuVariant | null; unitPriceToman: string | null; available: boolean; reason: string | null };
-export type CartQuoteItem = { menuItemId: string; variantId: string | null; quantity: number; itemName: string; variantName: string | null; originalUnitPriceToman: string; unitPriceToman: string; discountAmountToman: string; lineTotalToman: string; promotionName: string | null };
+export type CartQuoteItem = { menuItemId: string; variantId: string | null; quantity: number; itemName: string; variantName: string | null; originalUnitPriceToman: string; unitPriceToman: string; discountAmountToman: string; lineTotalToman: string; promotionName: string | null; promotionType?: string | null; allocationType?: string | null; ruleSummary?: string | null };
 export type CartQuote = { items: CartQuoteItem[]; subtotalBeforeDiscountToman: string; itemDiscountTotalToman: string; orderDiscountToman: string; discountTotalToman: string; totalAmountToman: string; couponCode: string | null; orderPromotionName: string | null };
 
 const eventName = "ucafe-cart";

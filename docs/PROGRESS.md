@@ -2,6 +2,12 @@
 
 Last updated: 2026-09-25
 
+## Discounts & Promotions Phase 3
+
+Added typed Buy X Get Y (including BOGO), fixed-price bundles, and quantity tiers to the existing promotion pricing and checkout path. Rules use tenant-scoped normalized groups and targets; deterministic unit allocation keeps BUY and GET quantities distinct, selects GET units by ascending original price, repeats only complete sets when enabled, and proportionally allocates bundle savings with stable integer-toman remainders. Cart quote and checkout recalculate from current menu availability and promotion state. Order-item snapshots preserve advanced type, allocation role, and rule summary while physical quantities continue into Inventory. Migration `1790434800000-AdvancedPromotionRules` is applied; `migration:show` lists it executed.
+
+Verification: baseline full suite was 115 passed/15 skipped; final `npm test` passed (122 passed, 15 database-only skips), and the focused promotion PostgreSQL integration passed 2/2, including advanced coupon use, limits, order snapshots, tenant target guards, bundle totals, and historical orders. The final cheapest-reward regression passed (5/5 focused utility tests); workspace typecheck, API build, and root production build passed. API readiness and `/admin/promotions` returned HTTP 200; authenticated owner visual review was unavailable without a tenant-admin session. There is no lint command. No pre-existing Phase 0–2 issue required correction.
+
 ## Discounts & Promotions Phase 2
 
 Added optional weekly windows to the existing Promotion eligibility path, used by public menu pricing, cart/checkout pricing, and coupon validation. Windows support canonical weekdays, multiple and overlapping ranges, overnight periods, and explicit all-day windows in the tenant's café timezone. Existing UTC campaign dates, Phase 0/1 promotions without schedules, minimums, usage limits, redemption transactions, conflict resolution, and order snapshots remain in the existing engine. Owners configure schedules in the current Promotions form; no activation job or shared resolved-price cache was added.

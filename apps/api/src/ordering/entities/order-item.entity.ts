@@ -57,6 +57,15 @@ export class OrderItem {
   @Column({ name: "promotion_reward_value_snapshot", type: "bigint", nullable: true })
   promotionRewardValueSnapshot!: string | null;
 
+  @Column({ name: "promotion_type_snapshot", type: "varchar", length: 30, nullable: true })
+  promotionTypeSnapshot!: string | null;
+
+  @Column({ name: "promotion_allocation_type_snapshot", type: "varchar", length: 30, nullable: true })
+  promotionAllocationTypeSnapshot!: string | null;
+
+  @Column({ name: "promotion_rule_snapshot", type: "varchar", length: 500, nullable: true })
+  promotionRuleSnapshot!: string | null;
+
   @Column({ type: "smallint" })
   quantity!: number;
 
