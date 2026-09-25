@@ -27,7 +27,7 @@ The product is aimed at independent cafes that need a professional storefront, e
 ### Menu and content
 
 - Owners manage approved site identity, story, theme, contact, location, opening hours, logo, hero, gallery, categories, items, variants, prices, availability, featured state, and menu-item images.
-- Owners with menu-management permission can run scheduled, tenant-scoped product/category and order promotions, coupons, Buy X Get Y/BOGO, fixed-price bundles, and quantity-tier discounts. Cart quotes and order creation use one server-side pricing flow; orders retain immutable price and promotion-allocation snapshots.
+- Owners with menu-management permission can run scheduled, tenant-scoped product/category and order promotions, coupons, Buy X Get Y/BOGO, fixed-price bundles, quantity-tier discounts, and customer eligibility rules for first order, order history, spend, registration/inactivity age, or manual customer segments. Cart quotes and order creation use one server-side pricing flow; orders retain immutable price, customer-condition, and promotion-allocation snapshots. Customer groups remain a small capability of the existing Clients domain; UCafe has no CRM module.
 - Media is decoded and transformed into fixed AVIF/WebP variants. The object bucket is private; public bytes are streamed through the tenant-aware API.
 
 ### Ordering

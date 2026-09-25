@@ -1,6 +1,7 @@
 import { Type } from "class-transformer";
-import { ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsDateString, IsEnum, IsIn, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, ValidateNested } from "class-validator";
+import { ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsDateString, IsEnum, IsIn, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, ValidateNested } from "class-validator";
 import { AdvancedPromotionType, PromotionRewardType } from "../entities";
+import { PromotionCustomerConditionOperator, PromotionCustomerConditionType } from "../entities";
 import { PROMOTION_WEEKDAYS, PromotionWeekday } from "../promotion-schedule.util";
 
 export class PromotionTargetDto {
@@ -43,6 +44,13 @@ export class PromotionAdvancedRuleDto {
   @IsOptional() @IsArray() @ArrayMinSize(1) @ValidateNested({ each: true }) @Type(() => PromotionQuantityTierDto) tiers?: PromotionQuantityTierDto[];
 }
 
+export class PromotionCustomerConditionDto {
+  @IsEnum(PromotionCustomerConditionType) type!: PromotionCustomerConditionType;
+  @IsOptional() @IsEnum(PromotionCustomerConditionOperator) operator?: PromotionCustomerConditionOperator;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(Number.MAX_SAFE_INTEGER) value?: number;
+  @IsOptional() @IsUUID() customerSegmentId?: string;
+}
+
 export class CreatePromotionDto {
   @IsString() @MaxLength(120) name!: string;
   @IsOptional() @IsString() @MaxLength(500) description?: string | null;
@@ -64,6 +72,7 @@ export class CreatePromotionDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) perCustomerUsageLimit?: number | null;
   @IsArray() @ValidateNested({ each: true }) @Type(() => PromotionTargetDto) targets!: PromotionTargetDto[];
   @IsOptional() @ValidateNested() @Type(() => PromotionAdvancedRuleDto) advancedRule?: PromotionAdvancedRuleDto;
+  @IsOptional() @IsArray() @ArrayMaxSize(6) @ValidateNested({ each: true }) @Type(() => PromotionCustomerConditionDto) customerConditions?: PromotionCustomerConditionDto[];
 }
 
 export class UpdatePromotionDto {
@@ -86,4 +95,5 @@ export class UpdatePromotionDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) perCustomerUsageLimit?: number | null;
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => PromotionTargetDto) targets?: PromotionTargetDto[];
   @IsOptional() @ValidateNested() @Type(() => PromotionAdvancedRuleDto) advancedRule?: PromotionAdvancedRuleDto | null;
+  @IsOptional() @IsArray() @ArrayMaxSize(6) @ValidateNested({ each: true }) @Type(() => PromotionCustomerConditionDto) customerConditions?: PromotionCustomerConditionDto[];
 }

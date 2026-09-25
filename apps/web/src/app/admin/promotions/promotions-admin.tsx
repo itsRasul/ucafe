@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useAdminSession } from "../admin-session";
 
 type RewardType = "PERCENTAGE" | "FIXED_AMOUNT" | "FIXED_PRICE";
@@ -12,18 +13,21 @@ type ScheduleWindow = { daysOfWeek: Weekday[]; startTime: string; endTime: strin
 type RuleGroup = { quantity: number; targets: Array<{ menuItemId?: string; categoryId?: string }> };
 type RuleTier = { minimumQuantity: number; rewardType: AdvancedRewardType; rewardValue: number };
 type AdvancedRule = { type: AdvancedType; repeatable?: boolean; buy?: RuleGroup; get?: RuleGroup; bundleComponents?: RuleGroup[]; quantityTarget?: RuleGroup; tiers?: RuleTier[] };
-type Promotion = { id: string; name: string; description: string | null; isActive: boolean; status: string; startAt: string | null; endAt: string | null; priority: number; rewardType: RewardType; rewardValue: string; targets: Target[]; entireOrder: boolean; minimumSubtotalToman: string | null; maxDiscountToman: string | null; advancedRule: AdvancedRule | null; schedule: { windows: Array<{ daysOfWeek: Weekday[]; startTime: string | null; endTime: string | null; isAllDay: boolean }> } | null; coupon: { code: string; isActive: boolean; startsAt: string | null; expiresAt: string | null; totalUsageLimit: number | null; perCustomerUsageLimit: number | null } | null };
+type CustomerConditionType = "FIRST_ORDER" | "ORDER_COUNT" | "TOTAL_SPENT" | "LAST_ORDER_AGE" | "REGISTRATION_AGE" | "CUSTOMER_SEGMENT";
+type CustomerCondition = { type: CustomerConditionType; operator: "AT_LEAST" | "AT_MOST" | "EXACTLY" | "WITHIN_LAST" | null; value: string | null; customerSegmentId: string | null; customerSegmentName: string | null };
+type CustomerSegment = { id: string; name: string; description: string | null; isActive: boolean; archived: boolean; memberCount: number };
+type Promotion = { id: string; name: string; description: string | null; isActive: boolean; status: string; startAt: string | null; endAt: string | null; priority: number; rewardType: RewardType; rewardValue: string; targets: Target[]; entireOrder: boolean; minimumSubtotalToman: string | null; maxDiscountToman: string | null; advancedRule: AdvancedRule | null; customerConditions: CustomerCondition[]; schedule: { windows: Array<{ daysOfWeek: Weekday[]; startTime: string | null; endTime: string | null; isAllDay: boolean }> } | null; coupon: { code: string; isActive: boolean; startsAt: string | null; expiresAt: string | null; totalUsageLimit: number | null; perCustomerUsageLimit: number | null } | null };
 type MenuItem = { id: string; name: string; isAvailable: boolean };
 type Category = { id: string; name: string; isActive: boolean; items: MenuItem[] };
 type GroupForm = { quantity: string; targetKeys: string[] };
 type TierForm = { minimumQuantity: string; rewardType: AdvancedRewardType; rewardValue: string };
-type FormState = { id?: string; name: string; description: string; rewardType: RewardType; rewardValue: string; priority: number; startAt: string; endAt: string; isActive: boolean; targetKeys: string[]; entireOrder: boolean; advancedType: AdvancedType | "SIMPLE"; buy: GroupForm; get: GroupForm; repeatable: boolean; bundleComponents: GroupForm[]; quantityTarget: GroupForm; tiers: TierForm[]; couponMode: boolean; couponCode: string; couponActive: boolean; couponStartsAt: string; couponExpiresAt: string; minimumSubtotalToman: string; maxDiscountToman: string; totalUsageLimit: string; perCustomerUsageLimit: string; scheduleEnabled: boolean; scheduleWindows: ScheduleWindow[] };
+type FormState = { id?: string; name: string; description: string; rewardType: RewardType; rewardValue: string; priority: number; startAt: string; endAt: string; isActive: boolean; targetKeys: string[]; entireOrder: boolean; advancedType: AdvancedType | "SIMPLE"; buy: GroupForm; get: GroupForm; repeatable: boolean; bundleComponents: GroupForm[]; quantityTarget: GroupForm; tiers: TierForm[]; couponMode: boolean; couponCode: string; couponActive: boolean; couponStartsAt: string; couponExpiresAt: string; minimumSubtotalToman: string; maxDiscountToman: string; totalUsageLimit: string; perCustomerUsageLimit: string; scheduleEnabled: boolean; scheduleWindows: ScheduleWindow[]; firstOrder: boolean; orderCountOperator: "AT_LEAST" | "AT_MOST" | "EXACTLY"; orderCountValue: string; totalSpentValue: string; lastOrderAge: string; registrationAgeOperator: "" | "AT_LEAST" | "WITHIN_LAST"; registrationAgeValue: string; customerSegmentId: string };
 
 const emptyWindow = (): ScheduleWindow => ({ daysOfWeek: [], startTime: "16:00", endTime: "19:00", isAllDay: false });
 const weekdays: Array<{ value: Weekday; label: string }> = [{ value: "SATURDAY", label: "شنبه" }, { value: "SUNDAY", label: "یکشنبه" }, { value: "MONDAY", label: "دوشنبه" }, { value: "TUESDAY", label: "سه‌شنبه" }, { value: "WEDNESDAY", label: "چهارشنبه" }, { value: "THURSDAY", label: "پنجشنبه" }, { value: "FRIDAY", label: "جمعه" }];
 const weekdayLabels = Object.fromEntries(weekdays.map(({ value, label }) => [value, label])) as Record<Weekday, string>;
 const emptyGroup = (): GroupForm => ({ quantity: "1", targetKeys: [] });
-const emptyForm = (): FormState => ({ name: "", description: "", rewardType: "PERCENTAGE", rewardValue: "20", priority: 0, startAt: "", endAt: "", isActive: false, targetKeys: [], entireOrder: false, advancedType: "SIMPLE", buy: emptyGroup(), get: emptyGroup(), repeatable: true, bundleComponents: [emptyGroup(), emptyGroup()], quantityTarget: emptyGroup(), tiers: [{ minimumQuantity: "3", rewardType: "PERCENTAGE", rewardValue: "10" }, { minimumQuantity: "5", rewardType: "PERCENTAGE", rewardValue: "15" }], couponMode: false, couponCode: "", couponActive: true, couponStartsAt: "", couponExpiresAt: "", minimumSubtotalToman: "", maxDiscountToman: "", totalUsageLimit: "", perCustomerUsageLimit: "", scheduleEnabled: false, scheduleWindows: [] });
+const emptyForm = (): FormState => ({ name: "", description: "", rewardType: "PERCENTAGE", rewardValue: "20", priority: 0, startAt: "", endAt: "", isActive: false, targetKeys: [], entireOrder: false, advancedType: "SIMPLE", buy: emptyGroup(), get: emptyGroup(), repeatable: true, bundleComponents: [emptyGroup(), emptyGroup()], quantityTarget: emptyGroup(), tiers: [{ minimumQuantity: "3", rewardType: "PERCENTAGE", rewardValue: "10" }, { minimumQuantity: "5", rewardType: "PERCENTAGE", rewardValue: "15" }], couponMode: false, couponCode: "", couponActive: true, couponStartsAt: "", couponExpiresAt: "", minimumSubtotalToman: "", maxDiscountToman: "", totalUsageLimit: "", perCustomerUsageLimit: "", scheduleEnabled: false, scheduleWindows: [], firstOrder: false, orderCountOperator: "AT_LEAST", orderCountValue: "", totalSpentValue: "", lastOrderAge: "", registrationAgeOperator: "", registrationAgeValue: "", customerSegmentId: "" });
 const rewardNames: Record<RewardType, string> = { PERCENTAGE: "درصدی", FIXED_AMOUNT: "مبلغ ثابت", FIXED_PRICE: "قیمت ویژه" };
 const statusNames: Record<string, string> = { INACTIVE: "غیرفعال", UPCOMING: "در انتظار شروع", RUNNING: "فعال الآن", OUTSIDE_SCHEDULE: "خارج از ساعت تخفیف", EXPIRED: "پایان‌یافته", ARCHIVED: "بایگانی‌شده" };
 const toman = new Intl.NumberFormat("fa-IR");
@@ -46,6 +50,7 @@ export function PromotionsAdmin() {
   const canManage = access.permissions.includes("menu.manage");
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [segments, setSegments] = useState<CustomerSegment[]>([]);
   const [form, setForm] = useState<FormState | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -54,9 +59,10 @@ export function PromotionsAdmin() {
   const timeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "منطقه زمانی دستگاه", []);
 
   const load = useCallback(async () => {
-    const [rows, menu] = await Promise.all([api<Promotion[]>("/tenant/promotions"), api<Category[]>("/tenant/menu")]);
+    const [rows, menu, customerSegments] = await Promise.all([api<Promotion[]>("/tenant/promotions"), api<Category[]>("/tenant/menu"), api<CustomerSegment[]>("/tenant/customer-segments")]);
     setPromotions(rows);
     setCategories(menu);
+    setSegments(customerSegments);
   }, [api]);
 
   useEffect(() => {
@@ -66,6 +72,7 @@ export function PromotionsAdmin() {
 
   function edit(promotion?: Promotion) {
     setError(""); setNotice("");
+    const condition = (type: CustomerConditionType) => promotion?.customerConditions?.find((current) => current.type === type);
     setForm(promotion ? {
       id: promotion.id, name: promotion.name, description: promotion.description ?? "", rewardType: promotion.rewardType,
       rewardValue: promotion.rewardValue, priority: promotion.priority, startAt: toLocalInput(promotion.startAt), endAt: toLocalInput(promotion.endAt),
@@ -79,6 +86,14 @@ export function PromotionsAdmin() {
       minimumSubtotalToman: promotion.minimumSubtotalToman ?? "", maxDiscountToman: promotion.maxDiscountToman ?? "",
       totalUsageLimit: String(promotion.coupon?.totalUsageLimit ?? ""), perCustomerUsageLimit: String(promotion.coupon?.perCustomerUsageLimit ?? ""),
       scheduleEnabled: Boolean(promotion.schedule), scheduleWindows: promotion.schedule?.windows.map((window) => ({ ...window, startTime: window.startTime ?? "", endTime: window.endTime ?? "" })) ?? [],
+      firstOrder: Boolean(condition("FIRST_ORDER")),
+      orderCountOperator: (condition("ORDER_COUNT")?.operator as FormState["orderCountOperator"] | undefined) ?? "AT_LEAST",
+      orderCountValue: condition("ORDER_COUNT")?.value ?? "",
+      totalSpentValue: condition("TOTAL_SPENT")?.value ?? "",
+      lastOrderAge: condition("LAST_ORDER_AGE")?.value ?? "",
+      registrationAgeOperator: (condition("REGISTRATION_AGE")?.operator as FormState["registrationAgeOperator"] | undefined) ?? "",
+      registrationAgeValue: condition("REGISTRATION_AGE")?.value ?? "",
+      customerSegmentId: condition("CUSTOMER_SEGMENT")?.customerSegmentId ?? "",
     } : emptyForm());
   }
 
@@ -97,6 +112,13 @@ export function PromotionsAdmin() {
       const selectedTier = form.tiers.at(-1);
       const rewardType = form.advancedType === "BUNDLE" ? "FIXED_PRICE" : form.advancedType === "QUANTITY_TIER" ? selectedTier?.rewardType ?? "PERCENTAGE" : form.rewardType;
       const rewardValue = form.advancedType === "BUNDLE" ? Number(form.rewardValue) : form.advancedType === "QUANTITY_TIER" ? Number(selectedTier?.rewardValue || 1) : Number(form.rewardValue);
+      const customerConditions: Array<{ type: CustomerConditionType; operator?: string; value?: number; customerSegmentId?: string }> = [];
+      if (form.firstOrder) customerConditions.push({ type: "FIRST_ORDER" });
+      if (form.orderCountValue !== "") customerConditions.push({ type: "ORDER_COUNT", operator: form.orderCountOperator, value: Number(form.orderCountValue) });
+      if (form.totalSpentValue !== "") customerConditions.push({ type: "TOTAL_SPENT", operator: "AT_LEAST", value: Number(form.totalSpentValue) });
+      if (form.lastOrderAge !== "") customerConditions.push({ type: "LAST_ORDER_AGE", operator: "AT_LEAST", value: Number(form.lastOrderAge) });
+      if (form.registrationAgeOperator && form.registrationAgeValue !== "") customerConditions.push({ type: "REGISTRATION_AGE", operator: form.registrationAgeOperator, value: Number(form.registrationAgeValue) });
+      if (form.customerSegmentId) customerConditions.push({ type: "CUSTOMER_SEGMENT", customerSegmentId: form.customerSegmentId });
       await api(form.id ? `/tenant/promotions/${form.id}` : "/tenant/promotions", {
         method: form.id ? "PATCH" : "POST",
         body: JSON.stringify({ name: form.name.trim(), description: form.description.trim() || null, rewardType, rewardValue, priority: Number(form.priority), startAt: fromLocalInput(form.startAt), endAt: fromLocalInput(form.endAt), entireOrder: form.advancedType === "SIMPLE" && form.entireOrder, targets: form.advancedType !== "SIMPLE" || form.entireOrder ? [] : ruleTargets(form.targetKeys),
@@ -104,6 +126,7 @@ export function PromotionsAdmin() {
           maxDiscountToman: form.advancedType === "SIMPLE" && form.maxDiscountToman && rewardType === "PERCENTAGE" ? Number(form.maxDiscountToman) : null,
           ...(form.couponMode ? { couponCode: form.couponCode.trim(), couponActive: form.couponActive, couponStartsAt: fromLocalInput(form.couponStartsAt), couponExpiresAt: fromLocalInput(form.couponExpiresAt), totalUsageLimit: form.totalUsageLimit ? Number(form.totalUsageLimit) : null, perCustomerUsageLimit: form.perCustomerUsageLimit ? Number(form.perCustomerUsageLimit) : null } : {}),
           schedule: form.scheduleEnabled ? { windows: form.scheduleWindows.map((window) => window.isAllDay ? { daysOfWeek: window.daysOfWeek, isAllDay: true } : window) } : null,
+          customerConditions,
           ...(!form.id ? { isActive: form.isActive } : {}) }),
       });
       await load(); setForm(null); setNotice(form.id ? "تخفیف ویرایش شد." : "تخفیف ساخته شد.");
@@ -164,6 +187,19 @@ export function PromotionsAdmin() {
     }).join("؛ ");
   }
 
+  function customerSummary(promotion: Promotion) {
+    if (!promotion.customerConditions?.length) return "همه مشتریان";
+    return promotion.customerConditions.map((condition) => {
+      const value = Number(condition.value ?? 0);
+      if (condition.type === "FIRST_ORDER") return "اولین سفارش";
+      if (condition.type === "ORDER_COUNT") return `${condition.operator === "AT_MOST" ? "حداکثر" : condition.operator === "EXACTLY" ? "دقیقاً" : "حداقل"} ${toman.format(value)} سفارش`;
+      if (condition.type === "TOTAL_SPENT") return `حداقل ${toman.format(value)} تومان خرید`;
+      if (condition.type === "LAST_ORDER_AGE") return `بدون سفارش موفق طی ${toman.format(value)} روز`;
+      if (condition.type === "REGISTRATION_AGE") return condition.operator === "WITHIN_LAST" ? `ثبت‌نام در ${toman.format(value)} روز اخیر` : `ثبت‌نام حداقل ${toman.format(value)} روز قبل`;
+      return `گروه ${condition.customerSegmentName ?? "بایگانی‌شده"}`;
+    }).join(" + ");
+  }
+
   const invalidSchedule = Boolean(form?.scheduleEnabled && (!form.scheduleWindows.length || form.scheduleWindows.some((window) => !window.daysOfWeek.length || (!window.isAllDay && (!window.startTime || !window.endTime || window.startTime === window.endTime)))));
   const validGroup = (group: GroupForm) => Number.isInteger(Number(group.quantity)) && Number(group.quantity) >= 1 && Number(group.quantity) <= 50 && group.targetKeys.length > 0;
   const invalidRule = Boolean(form && (form.advancedType === "BUY_X_GET_Y" && (!validGroup(form.buy) || !validGroup(form.get)
@@ -187,7 +223,7 @@ export function PromotionsAdmin() {
   if (!canRead) return <section className="admin-section-state"><p className="eyebrow">دسترسی محدود</p><h1>تخفیف‌ها</h1><p>نقش شما اجازه مشاهده تخفیف‌ها را ندارد.</p></section>;
 
   return <section className="admin-promotions" aria-labelledby="promotions-title">
-    <header className="admin-page-heading"><div><p className="eyebrow">منو و قیمت‌گذاری</p><h1 id="promotions-title">تخفیف‌ها</h1><p>برای محصولات یا دسته‌بندی‌های منو، قیمت ویژه تعریف کنید.</p></div>{canManage && !form && <button type="button" onClick={() => edit()}>ایجاد تخفیف</button>}</header>
+    <header className="admin-page-heading"><div><p className="eyebrow">منو و قیمت‌گذاری</p><h1 id="promotions-title">تخفیف‌ها</h1><p>برای محصولات یا دسته‌بندی‌های منو، قیمت ویژه تعریف کنید.</p></div><div className="promotion-form-actions"><Link className="promotion-secondary" href="/admin/promotions/segments">گروه‌های مشتریان</Link>{canManage && !form && <button type="button" onClick={() => edit()}>ایجاد تخفیف</button>}</div></header>
     {error && <p className="admin-message error" role="alert">{error}</p>}{notice && <p className="admin-message success" role="status">{notice}</p>}
     {form && <form className="promotion-form" onSubmit={(event) => void save(event)}>
       <div className="promotion-form-heading"><div><h2>{form.id ? "ویرایش تخفیف" : "تخفیف جدید"}</h2><p>قیمت اصلی منو تغییر نمی‌کند؛ بازه تاریخ و زمان‌بندی هفتگی با هم اعمال می‌شوند.</p></div><button type="button" className="promotion-cancel" onClick={() => setForm(null)}>بستن</button></div>
@@ -212,6 +248,16 @@ export function PromotionsAdmin() {
           {!window.isAllDay && <div className="promotion-schedule-times"><label>از ساعت<input type="time" dir="ltr" required value={window.startTime} onChange={(event) => updateScheduleWindow(index, { startTime: event.target.value })} /></label><label>تا ساعت<input type="time" dir="ltr" required value={window.endTime} onChange={(event) => updateScheduleWindow(index, { endTime: event.target.value })} /></label><small>زمان پایان شامل نمی‌شود؛ ساعت زودتر یعنی بازه تا روز بعد ادامه دارد.</small></div>}
         </div>)}<button type="button" className="promotion-secondary" onClick={() => setForm({ ...form, scheduleWindows: [...form.scheduleWindows, { ...emptyWindow(), startTime: "08:00", endTime: "11:00" }] })}>+ افزودن بازه زمانی</button></>}
       </fieldset>
+      <fieldset className="promotion-schedule"><legend>شرایط مشتری</legend><p>هر شرط انتخاب‌شده باید برقرار باشد. گروه‌ها فقط برای مشتریانی بررسی می‌شوند که وارد حساب شده‌اند.</p>
+        <label className="promotion-schedule-toggle"><input type="checkbox" checked={form.firstOrder} onChange={(event) => setForm({ ...form, firstOrder: event.target.checked })} />فقط اولین سفارش موفق</label>
+        <div className="promotion-form-grid">
+          <label>تعداد سفارش‌های موفق<select value={form.orderCountValue ? form.orderCountOperator : ""} onChange={(event) => setForm({ ...form, orderCountOperator: (event.target.value || "AT_LEAST") as FormState["orderCountOperator"], orderCountValue: event.target.value ? form.orderCountValue || "10" : "" })}><option value="">بدون شرط</option><option value="AT_LEAST">حداقل</option><option value="AT_MOST">حداکثر</option><option value="EXACTLY">دقیقاً</option></select><input type="number" min={0} step={1} value={form.orderCountValue} onChange={(event) => setForm({ ...form, orderCountValue: event.target.value })} /></label>
+          <label>حداقل مجموع خرید (تومان)<input type="number" min={0} step={1} value={form.totalSpentValue} onChange={(event) => setForm({ ...form, totalSpentValue: event.target.value })} /><small>بر اساس سفارش‌های تحویل‌شده همین کافه</small></label>
+          <label>آخرین سفارش موفق حداقل چند روز قبل<input type="number" min={1} max={36500} step={1} value={form.lastOrderAge} onChange={(event) => setForm({ ...form, lastOrderAge: event.target.value })} /><small>مشتری بدون سفارش قبلی شامل این شرط نمی‌شود.</small></label>
+          <label>مدت از ثبت‌نام<select value={form.registrationAgeOperator} onChange={(event) => setForm({ ...form, registrationAgeOperator: event.target.value as FormState["registrationAgeOperator"] })}><option value="">بدون شرط</option><option value="WITHIN_LAST">ثبت‌نام در روزهای اخیر</option><option value="AT_LEAST">ثبت‌نام حداقل چند روز قبل</option></select><input type="number" min={1} max={36500} step={1} disabled={!form.registrationAgeOperator} value={form.registrationAgeValue} onChange={(event) => setForm({ ...form, registrationAgeValue: event.target.value })} /></label>
+          <label>گروه مشتریان<select value={form.customerSegmentId} onChange={(event) => setForm({ ...form, customerSegmentId: event.target.value })}><option value="">بدون شرط گروه</option>{segments.find((segment) => segment.id === form.customerSegmentId && (!segment.isActive || segment.archived)) && <option value={form.customerSegmentId}>{segments.find((segment) => segment.id === form.customerSegmentId)?.name} · غیرفعال</option>}{segments.filter((segment) => segment.isActive && !segment.archived).map((segment) => <option value={segment.id} key={segment.id}>{segment.name} · {toman.format(segment.memberCount)} عضو</option>)}</select></label>
+        </div>
+      </fieldset>
       {invalidSchedule && <p className="admin-message error" role="alert">برای هر بازه، دست‌کم یک روز و ساعت معتبر انتخاب کنید.</p>}
       {form.advancedType === "SIMPLE" && !form.entireOrder && targetPicker("اعمال روی محصولات یا دسته‌بندی‌ها", form.targetKeys, toggleTarget)}
       {form.advancedType === "BUY_X_GET_Y" && <><section className="promotion-schedule-window"><label>تعداد خرید<input type="number" min={1} max={50} required value={form.buy.quantity} onChange={(event) => updateGroup("buy", { quantity: event.target.value })} /></label>{targetPicker("خرید از این محصولات یا دسته‌بندی‌ها", form.buy.targetKeys, (key) => toggleGroupTarget("buy", key))}</section><section className="promotion-schedule-window"><label>تعداد پاداش<input type="number" min={1} max={50} required value={form.get.quantity} onChange={(event) => updateGroup("get", { quantity: event.target.value })} /></label>{targetPicker("پاداش از این محصولات یا دسته‌بندی‌ها", form.get.targetKeys, (key) => toggleGroupTarget("get", key))}</section><label className="promotion-activate"><input type="checkbox" checked={form.repeatable} onChange={(event) => setForm({ ...form, repeatable: event.target.checked })} />تکرار بر اساس تعداد خرید</label></>}
@@ -222,6 +268,6 @@ export function PromotionsAdmin() {
       {!form.id && <label className="promotion-activate"><input type="checkbox" checked={form.isActive} onChange={(event) => setForm({ ...form, isActive: event.target.checked })} />از همین حالا فعال باشد</label>}
       <div className="promotion-form-actions"><button disabled={busy || !canManage || (form.advancedType === "SIMPLE" && !form.entireOrder && !form.targetKeys.length) || invalidSchedule || invalidRule}>{busy ? "در حال ذخیره…" : "ذخیره تخفیف"}</button><button type="button" className="promotion-cancel" onClick={() => setForm(null)}>انصراف</button></div>
     </form>}
-    {loading ? <p className="admin-inline-loading" role="status">در حال دریافت تخفیف‌ها…</p> : promotions.length ? <div className="promotion-list">{promotions.map((promotion) => <article className="promotion-card" key={promotion.id}><div className="promotion-card-heading"><div><h2>{promotion.name}</h2>{promotion.description && <p>{promotion.description}</p>}</div><span className={`promotion-status promotion-status-${promotion.status.toLowerCase()}`}>{statusNames[promotion.status] ?? promotion.status}</span></div><dl><div><dt>نوع</dt><dd>{promotionTypeNames[promotion.advancedRule?.type ?? "SIMPLE"]}</dd></div><div><dt>پاداش</dt><dd>{rewardNames[promotion.rewardType]} · {promotion.rewardType === "PERCENTAGE" ? `${toman.format(Number(promotion.rewardValue))}٪` : `${toman.format(Number(promotion.rewardValue))} تومان`}</dd></div><div><dt>روش</dt><dd>{promotion.coupon ? `کد ${promotion.coupon.code}${promotion.coupon.isActive ? "" : " (غیرفعال)"}` : "خودکار"}</dd></div><div><dt>حداقل سفارش</dt><dd>{promotion.minimumSubtotalToman ? `${toman.format(Number(promotion.minimumSubtotalToman))} تومان` : "ندارد"}</dd></div><div><dt>سقف تخفیف</dt><dd>{promotion.maxDiscountToman ? `${toman.format(Number(promotion.maxDiscountToman))} تومان` : "ندارد"}</dd></div><div><dt>اولویت</dt><dd>{toman.format(promotion.priority)}</dd></div><div><dt>شروع</dt><dd>{localTime(promotion.startAt)}</dd></div><div><dt>پایان</dt><dd>{localTime(promotion.endAt)}</dd></div><div className="promotion-target-summary"><dt>قانون</dt><dd>{promotion.advancedRule ? advancedSummary(promotion) : promotion.entireOrder ? "کل سفارش" : promotion.targets.map((target) => `${target.type === "CATEGORY" ? "دسته" : "محصول"}: ${target.name ?? "حذف‌شده"}`).join("، ")}</dd></div><div className="promotion-target-summary"><dt>زمان‌بندی</dt><dd>{scheduleSummary(promotion)}{promotion.schedule && <small> · <bdi dir="ltr">{access.tenant.timezone}</bdi></small>}</dd></div></dl><div className="promotion-card-actions">{canManage && promotion.status !== "ARCHIVED" && <><button type="button" className="promotion-secondary" onClick={() => edit(promotion)}>ویرایش</button>{promotion.isActive ? <button type="button" className="promotion-secondary" disabled={busy} onClick={() => void run(promotion.id, "deactivate")}>غیرفعال‌سازی</button> : <button type="button" disabled={busy} onClick={() => void run(promotion.id, "activate")}>فعال‌سازی</button>}<button type="button" className="promotion-danger" disabled={busy} onClick={() => void run(promotion.id, "archive")}>بایگانی</button></>}</div></article>)}</div> : <div className="admin-empty"><strong>هنوز تخفیفی نساخته‌اید</strong><p>محصول یا دسته‌بندی موردنظر را انتخاب و قیمت تخفیف‌دار را مشخص کنید.</p></div>}
+    {loading ? <p className="admin-inline-loading" role="status">در حال دریافت تخفیف‌ها…</p> : promotions.length ? <div className="promotion-list">{promotions.map((promotion) => <article className="promotion-card" key={promotion.id}><div className="promotion-card-heading"><div><h2>{promotion.name}</h2>{promotion.description && <p>{promotion.description}</p>}</div><span className={`promotion-status promotion-status-${promotion.status.toLowerCase()}`}>{statusNames[promotion.status] ?? promotion.status}</span></div><dl><div><dt>نوع</dt><dd>{promotionTypeNames[promotion.advancedRule?.type ?? "SIMPLE"]}</dd></div><div><dt>پاداش</dt><dd>{rewardNames[promotion.rewardType]} · {promotion.rewardType === "PERCENTAGE" ? `${toman.format(Number(promotion.rewardValue))}٪` : `${toman.format(Number(promotion.rewardValue))} تومان`}</dd></div><div><dt>روش</dt><dd>{promotion.coupon ? `کد ${promotion.coupon.code}${promotion.coupon.isActive ? "" : " (غیرفعال)"}` : "خودکار"}</dd></div><div><dt>شرایط مشتری</dt><dd>{customerSummary(promotion)}</dd></div><div><dt>حداقل سفارش</dt><dd>{promotion.minimumSubtotalToman ? `${toman.format(Number(promotion.minimumSubtotalToman))} تومان` : "ندارد"}</dd></div><div><dt>سقف تخفیف</dt><dd>{promotion.maxDiscountToman ? `${toman.format(Number(promotion.maxDiscountToman))} تومان` : "ندارد"}</dd></div><div><dt>اولویت</dt><dd>{toman.format(promotion.priority)}</dd></div><div><dt>شروع</dt><dd>{localTime(promotion.startAt)}</dd></div><div><dt>پایان</dt><dd>{localTime(promotion.endAt)}</dd></div><div className="promotion-target-summary"><dt>قانون</dt><dd>{promotion.advancedRule ? advancedSummary(promotion) : promotion.entireOrder ? "کل سفارش" : promotion.targets.map((target) => `${target.type === "CATEGORY" ? "دسته" : "محصول"}: ${target.name ?? "حذف‌شده"}`).join("، ")}</dd></div><div className="promotion-target-summary"><dt>زمان‌بندی</dt><dd>{scheduleSummary(promotion)}{promotion.schedule && <small> · <bdi dir="ltr">{access.tenant.timezone}</bdi></small>}</dd></div></dl><div className="promotion-card-actions">{canManage && promotion.status !== "ARCHIVED" && <><button type="button" className="promotion-secondary" onClick={() => edit(promotion)}>ویرایش</button>{promotion.isActive ? <button type="button" className="promotion-secondary" disabled={busy} onClick={() => void run(promotion.id, "deactivate")}>غیرفعال‌سازی</button> : <button type="button" disabled={busy} onClick={() => void run(promotion.id, "activate")}>فعال‌سازی</button>}<button type="button" className="promotion-danger" disabled={busy} onClick={() => void run(promotion.id, "archive")}>بایگانی</button></>}</div></article>)}</div> : <div className="admin-empty"><strong>هنوز تخفیفی نساخته‌اید</strong><p>محصول یا دسته‌بندی موردنظر را انتخاب و قیمت تخفیف‌دار را مشخص کنید.</p></div>}
   </section>;
 }

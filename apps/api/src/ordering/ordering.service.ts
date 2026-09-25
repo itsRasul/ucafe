@@ -10,7 +10,7 @@ import { SubscriptionFeatures } from "../subscriptions/subscription-features";
 import { InventoryService } from "../inventory/inventory.service";
 import { PricingContext, PromotionPricingService } from "../promotions/promotion-pricing.service";
 import { PricingUnit } from "../promotions/promotion-advanced.util";
-import { Promotion, PromotionCoupon, PromotionRedemption, RedemptionStatus } from "../promotions/entities";
+import { Promotion, PromotionCoupon, PromotionCustomerConditionType, PromotionRedemption, RedemptionStatus } from "../promotions/entities";
 import { discountFor, promotionStatus } from "../promotions/promotion-pricing.util";
 import { CheckoutAddressDto, CheckoutLineDto, ClientOrdersQueryDto, CreateOrderDto, OrdersQueryDto, UpdateOnlineOrderingSettingsDto } from "./dto/ordering.dto";
 import { OnlineOrderingSettings, Order, OrderDeliveryMethod, OrderItem, OrderPaymentMethod, OrderSource, OrderStatus } from "./entities";
@@ -76,11 +76,14 @@ export class OrderingService {
       const client = await manager.findOneBy(Client, { id: clientId, coffeeShopId });
       if (!client) throw new NotFoundException("Client not found");
 
+      // ponytail: serialize this client's checkouts for first-order claims; use per-promotion locks only if checkout throughput warrants it.
+      await manager.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`promotion-customer:${coffeeShopId}:${clientId}`]);
+
       const branch = await manager.findOneBy(Branch, { coffeeShopId, isPrimary: true, isActive: true });
       const address = input.deliveryMethod === OrderDeliveryMethod.Courier ? await this.resolveAddress(manager, coffeeShopId, clientId, input.addressId, input.newAddress) : null;
       const pricingTime = new Date();
       const priced = await this.priceCart(manager, coffeeShopId, input.items, pricingTime, input.couponCode, clientId, true, tenantTimezone);
-      const { lines, total, subtotal, discountTotal, orderDiscount, couponDiscount, promotion, coupon } = priced;
+      const { lines, total, subtotal, discountTotal, orderDiscount, couponDiscount, promotion, coupon, customerPromotionSnapshot, firstOrderClaims } = priced;
 
       const order = await manager.save(Order, manager.create(Order, {
         coffeeShopId,
@@ -98,6 +101,7 @@ export class OrderingService {
         orderDiscountToman: orderDiscount.toString(),
         orderPromotionIdSnapshot: orderDiscount > 0n ? promotion?.id ?? null : null, orderPromotionNameSnapshot: orderDiscount > 0n ? promotion?.name ?? null : null,
         orderPromotionRewardTypeSnapshot: orderDiscount > 0n ? promotion?.rewardType ?? null : null, orderPromotionRewardValueSnapshot: orderDiscount > 0n ? promotion?.rewardValue ?? null : null,
+        customerPromotionSnapshot,
         couponCodeSnapshot: coupon?.code ?? null,
         idempotencyKey: input.idempotencyKey,
         customerNote: input.customerNote?.trim() || null,
@@ -106,7 +110,13 @@ export class OrderingService {
       if (coupon) await manager.save(PromotionRedemption, manager.create(PromotionRedemption, {
         coffeeShopId, promotionId: coupon.promotionId, couponId: coupon.id, customerId: clientId, orderId: order.id,
         discountAmountToman: couponDiscount.toString(), status: RedemptionStatus.Applied,
+        isFirstOrderClaim: Boolean(priced.eligiblePromotions.get(coupon.promotionId)?.customerConditions?.some((condition) => condition.type === PromotionCustomerConditionType.FirstOrder)),
       }));
+      const automaticClaims = firstOrderClaims.filter((claim) => claim.promotionId !== coupon?.promotionId);
+      if (automaticClaims.length) await manager.save(PromotionRedemption, automaticClaims.map((claim) => manager.create(PromotionRedemption, {
+        coffeeShopId, promotionId: claim.promotionId, couponId: null, customerId: clientId, orderId: order.id,
+        discountAmountToman: claim.discountAmountToman, status: RedemptionStatus.Applied, isFirstOrderClaim: true,
+      })));
       const cafe = await manager.findOneByOrFail(CoffeeShop, { id: coffeeShopId });
       const orderNumber = displayOrderNumber(order.id);
       const payload = { customerName: client.firstName, orderNumber, cafeName: cafe.name, totalPrice: displayToman(order.totalAmountToman) };
@@ -222,14 +232,18 @@ export class OrderingService {
       if (!coupon.isActive) throw new BadRequestException({ code: "COUPON_INACTIVE", message: "کد تخفیف غیرفعال است." });
       if (coupon.startsAt && coupon.startsAt > now) throw new BadRequestException({ code: "COUPON_NOT_STARTED", message: "زمان استفاده از این کد هنوز شروع نشده است." });
       if (coupon.expiresAt && coupon.expiresAt <= now) throw new BadRequestException({ code: "COUPON_EXPIRED", message: "مهلت استفاده از این کد پایان یافته است." });
-      couponPromotion = await manager.findOne(Promotion, { where: { id: coupon.promotionId, coffeeShopId }, relations: { targets: true, scheduleWindows: true, advancedRule: { groups: { targets: true }, tiers: true } } });
+      couponPromotion = await manager.findOne(Promotion, { where: { id: coupon.promotionId, coffeeShopId }, relations: { targets: true, scheduleWindows: true, advancedRule: { groups: { targets: true }, tiers: true }, customerConditions: true } });
       if (!couponPromotion || promotionStatus(couponPromotion, now, tenantTimezone) !== "RUNNING") throw new BadRequestException({ code: "PROMOTION_NOT_APPLICABLE", message: "این تخفیف در حال حاضر قابل استفاده نیست." });
       const used = await manager.count(PromotionRedemption, { where: { coffeeShopId, couponId: coupon.id, status: RedemptionStatus.Applied } });
       if (coupon.totalUsageLimit !== null && used >= coupon.totalUsageLimit) throw new BadRequestException({ code: "COUPON_USAGE_LIMIT_REACHED", message: "ظرفیت استفاده از این کد به پایان رسیده است." });
       const customerUsed = await manager.count(PromotionRedemption, { where: { coffeeShopId, couponId: coupon.id, customerId: clientId!, status: RedemptionStatus.Applied } });
       if (coupon.perCustomerUsageLimit !== null && customerUsed >= coupon.perCustomerUsageLimit) throw new BadRequestException({ code: "CUSTOMER_USAGE_LIMIT_REACHED", message: "شما قبلاً از این کد استفاده کرده‌اید." });
     }
-    const context = await this.promotionPricing.loadContext(manager, coffeeShopId, now, tenantTimezone);
+    const context = await this.promotionPricing.loadContext(manager, coffeeShopId, now, tenantTimezone, clientId);
+    if (couponPromotion) {
+      const failure = this.promotionPricing.customerFailure(couponPromotion, context, now);
+      if (failure) throw new BadRequestException({ code: failure, message: this.customerEligibilityMessage(failure) });
+    }
     const lines = await this.priceLines(manager, coffeeShopId, input, context, couponPromotion ? [couponPromotion] : []);
     const subtotal = lines.reduce((sum, line) => sum + BigInt(line.originalUnitPriceToman) * BigInt(line.quantity), 0n);
     const itemTotal = lines.reduce((sum, line) => sum + BigInt(line.lineTotalToman), 0n);
@@ -266,7 +280,35 @@ export class OrderingService {
     if (!promotion && !couponPromotion?.advancedRule) coupon = null;
     const total = itemTotal - orderDiscount;
     if (couponPromotion && !couponDiscount) couponDiscount = orderDiscount;
-    return { lines, subtotal, total, discountTotal: subtotal - total, orderDiscount, couponDiscount, promotion, coupon };
+    const appliedAmounts = new Map<string, bigint>();
+    for (const line of lines) if (line.promotionIdSnapshot && BigInt(line.discountAmountToman) > 0n) {
+      appliedAmounts.set(line.promotionIdSnapshot, (appliedAmounts.get(line.promotionIdSnapshot) ?? 0n) + BigInt(line.discountAmountToman) * BigInt(line.quantity));
+    }
+    if (promotion && orderDiscount > 0n) appliedAmounts.set(promotion.id, (appliedAmounts.get(promotion.id) ?? 0n) + orderDiscount);
+    const customerPromotionSnapshot = [...appliedAmounts.keys()].flatMap((promotionId) => {
+      const appliedPromotion = context.eligiblePromotions.get(promotionId);
+      if (!appliedPromotion?.customerConditions?.length) return [];
+      return [{
+        promotionId, promotionName: appliedPromotion.name,
+        conditions: appliedPromotion.customerConditions.map((condition) => ({ type: condition.type, operator: condition.operator, value: condition.value, segmentId: condition.customerSegmentId, segmentName: condition.customerSegmentName ?? null })),
+      }];
+    });
+    const firstOrderClaims = [...appliedAmounts].flatMap(([promotionId, amount]) => {
+      const appliedPromotion = context.eligiblePromotions.get(promotionId);
+      return appliedPromotion?.customerConditions?.some((condition) => condition.type === PromotionCustomerConditionType.FirstOrder)
+        ? [{ promotionId, discountAmountToman: amount.toString() }] : [];
+    });
+    return { lines, subtotal, total, discountTotal: subtotal - total, orderDiscount, couponDiscount, promotion, coupon, customerPromotionSnapshot: customerPromotionSnapshot.length ? customerPromotionSnapshot : null, firstOrderClaims, eligiblePromotions: context.eligiblePromotions };
+  }
+
+  private customerEligibilityMessage(code: string) {
+    if (code === "FIRST_ORDER_REQUIRED") return "این کد فقط برای اولین سفارش قابل استفاده است.";
+    if (code === "ORDER_COUNT_NOT_MET") return "این تخفیف با تعداد سفارش‌های ثبت‌شده شما سازگار نیست.";
+    if (code === "MIN_TOTAL_SPEND_NOT_MET") return "این تخفیف در حال حاضر برای سفارش شما قابل استفاده نیست.";
+    if (code === "INACTIVITY_PERIOD_NOT_MET") return "این تخفیف برای مشتریانی است که مدتی سفارش نداده‌اند.";
+    if (code === "REGISTRATION_AGE_NOT_MET") return "این تخفیف در بازه فعلی حساب مشتری قابل استفاده نیست.";
+    if (code === "CUSTOMER_NOT_IN_REQUIRED_SEGMENT") return "این کد برای این مشتری قابل استفاده نیست.";
+    return "برای استفاده از این تخفیف وارد حساب مشتری شوید.";
   }
 
   private async priceLines(manager: import("typeorm").EntityManager, coffeeShopId: string, input: CheckoutLineDto[], pricingContext: PricingContext, supplementalPromotions: Promotion[] = []) {
@@ -413,6 +455,7 @@ export class OrderingService {
       ...this.summary(order),
       deliveryAddressSnapshot: order.deliveryAddressSnapshot,
       customerNote: order.customerNote,
+      customerPromotionSnapshot: order.customerPromotionSnapshot,
       statusChangedAt: order.statusChangedAt,
       items: this.orderItems(order),
       nextStatuses: this.nextStatuses(order),

@@ -78,6 +78,7 @@ export class Order {
   @Column({ name: "order_promotion_reward_type_snapshot", type: "varchar", length: 20, nullable: true }) orderPromotionRewardTypeSnapshot!: string | null;
   @Column({ name: "order_promotion_reward_value_snapshot", type: "bigint", nullable: true }) orderPromotionRewardValueSnapshot!: string | null;
   @Column({ name: "coupon_code_snapshot", type: "varchar", length: 64, nullable: true }) couponCodeSnapshot!: string | null;
+  @Column({ name: "customer_promotion_snapshot", type: "jsonb", nullable: true }) customerPromotionSnapshot!: Array<{ promotionId: string; promotionName: string; conditions: Array<{ type: string; operator: string | null; value: string | null; segmentId: string | null; segmentName: string | null }> }> | null;
 
   @Column({ name: "idempotency_key", type: "varchar", length: 80 })
   idempotencyKey!: string;

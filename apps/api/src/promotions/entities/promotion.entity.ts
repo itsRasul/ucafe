@@ -3,6 +3,7 @@ import { PromotionTarget } from "./promotion-target.entity";
 import { PromotionCoupon } from "./promotion-coupon.entity";
 import { PromotionScheduleWindow } from "./promotion-schedule-window.entity";
 import { PromotionAdvancedRule } from "./promotion-advanced-rule.entity";
+import { PromotionCustomerCondition } from "./promotion-customer-condition.entity";
 
 export enum PromotionRewardType {
   Percentage = "PERCENTAGE",
@@ -35,4 +36,5 @@ export class Promotion {
   @OneToOne(() => PromotionCoupon, (coupon) => coupon.promotion) coupon!: PromotionCoupon | null;
   @OneToMany(() => PromotionScheduleWindow, (window) => window.promotion) scheduleWindows!: PromotionScheduleWindow[];
   @OneToOne(() => PromotionAdvancedRule, (rule) => rule.promotion) advancedRule!: PromotionAdvancedRule | null;
+  @OneToMany(() => PromotionCustomerCondition, (condition) => condition.promotion) customerConditions!: PromotionCustomerCondition[];
 }

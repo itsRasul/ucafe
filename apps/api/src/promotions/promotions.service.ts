@@ -1,9 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import { DataSource, In, IsNull } from "typeorm";
+import { DataSource, EntityManager, In, IsNull } from "typeorm";
+import { CustomerSegment } from "../clients/entities";
 import { MenuCategory, MenuItem } from "../menu/entities";
 import { CoffeeShop } from "../database/entities";
-import { CreatePromotionDto, PromotionAdvancedRuleDto, PromotionRuleGroupDto, PromotionTargetDto, UpdatePromotionDto } from "./dto/promotion.dto";
-import { AdvancedPromotionType, Promotion, PromotionAdvancedRule, PromotionCoupon, PromotionQuantityTier, PromotionRewardType, PromotionRuleGroup, PromotionRuleGroupRole, PromotionRuleTarget, PromotionScheduleWindow, PromotionTarget } from "./entities";
+import { CreatePromotionDto, PromotionAdvancedRuleDto, PromotionCustomerConditionDto, PromotionRuleGroupDto, PromotionTargetDto, UpdatePromotionDto } from "./dto/promotion.dto";
+import { AdvancedPromotionType, Promotion, PromotionAdvancedRule, PromotionCoupon, PromotionCustomerCondition, PromotionCustomerConditionOperator, PromotionCustomerConditionType, PromotionQuantityTier, PromotionRewardType, PromotionRuleGroup, PromotionRuleGroupRole, PromotionRuleTarget, PromotionScheduleWindow, PromotionTarget } from "./entities";
 import { promotionStatus } from "./promotion-pricing.util";
 import { isValidTimeZone, PROMOTION_WEEKDAYS } from "./promotion-schedule.util";
 
@@ -13,13 +14,13 @@ export class PromotionsService {
 
   async list(coffeeShopId: string, timezone?: string) {
     const tenantTimezone = await this.tenantTimezone(coffeeShopId, timezone);
-    const promotions = await this.dataSource.getRepository(Promotion).find({ where: { coffeeShopId }, relations: { targets: true, scheduleWindows: true, advancedRule: { groups: { targets: true }, tiers: true } }, order: { updatedAt: "DESC" }, withDeleted: true });
+    const promotions = await this.dataSource.getRepository(Promotion).find({ where: { coffeeShopId }, relations: { targets: true, scheduleWindows: true, advancedRule: { groups: { targets: true }, tiers: true }, customerConditions: true }, order: { updatedAt: "DESC" }, withDeleted: true });
     return this.projectMany(coffeeShopId, promotions, tenantTimezone);
   }
 
   async get(coffeeShopId: string, id: string, timezone?: string) {
     const tenantTimezone = await this.tenantTimezone(coffeeShopId, timezone);
-    const promotion = await this.dataSource.getRepository(Promotion).findOne({ where: { id, coffeeShopId }, relations: { targets: true, scheduleWindows: true, advancedRule: { groups: { targets: true }, tiers: true } }, withDeleted: true });
+    const promotion = await this.dataSource.getRepository(Promotion).findOne({ where: { id, coffeeShopId }, relations: { targets: true, scheduleWindows: true, advancedRule: { groups: { targets: true }, tiers: true }, customerConditions: true }, withDeleted: true });
     if (!promotion) throw new NotFoundException("Promotion not found");
     return (await this.projectMany(coffeeShopId, [promotion], tenantTimezone))[0];
   }
@@ -28,12 +29,14 @@ export class PromotionsService {
     const tenantTimezone = await this.tenantTimezone(coffeeShopId, timezone);
     this.validateFields(input.rewardType, input.rewardValue, input.startAt, input.endAt, input.name);
     this.validateAdvancedRule(input.advancedRule, input.entireOrder, input.targets, input.rewardType, input.minimumSubtotalToman, input.maxDiscountToman);
+    this.validateCustomerConditions(input.customerConditions ?? []);
     this.validateSchedule(input.schedule, tenantTimezone);
     this.validateOrderFields(input.entireOrder, input.rewardType, input.targets, input.maxDiscountToman, Boolean(input.couponCode), Boolean(input.advancedRule));
     this.validateCouponDates(input.couponStartsAt, input.couponExpiresAt);
     const id = await this.dataSource.transaction(async (manager) => {
       if (input.advancedRule) await this.validateAdvancedTargets(manager, coffeeShopId, input.advancedRule);
       else if (!input.entireOrder) await this.validateTargets(manager, coffeeShopId, input.targets);
+      await this.validateCustomerSegments(manager, coffeeShopId, input.customerConditions ?? []);
       if (input.couponCode && await manager.findOneBy(PromotionCoupon, { coffeeShopId, normalizedCode: input.couponCode.trim().toUpperCase() })) throw new BadRequestException({ code: "COUPON_CODE_IN_USE", message: "این کد تخفیف قبلاً ثبت شده است." });
       const promotion = await manager.save(Promotion, manager.create(Promotion, {
         coffeeShopId, name: input.name.trim(), description: input.description?.trim() || null,
@@ -46,6 +49,7 @@ export class PromotionsService {
         coffeeShopId, promotionId: promotion.id, menuItemId: target.menuItemId ?? null, categoryId: target.categoryId ?? null,
       })));
       if (input.advancedRule) await this.saveAdvancedRule(manager, coffeeShopId, promotion.id, input.advancedRule);
+      if (input.customerConditions?.length) await this.saveCustomerConditions(manager, coffeeShopId, promotion.id, input.customerConditions);
       if (input.schedule) await this.saveSchedule(manager, coffeeShopId, promotion.id, input.schedule);
       if (input.couponCode) await manager.save(PromotionCoupon, manager.create(PromotionCoupon, {
         coffeeShopId, promotionId: promotion.id, code: input.couponCode.trim().toUpperCase(), normalizedCode: input.couponCode.trim().toUpperCase(),
@@ -61,7 +65,7 @@ export class PromotionsService {
   async update(coffeeShopId: string, id: string, input: UpdatePromotionDto, timezone?: string) {
     const tenantTimezone = await this.tenantTimezone(coffeeShopId, timezone);
     await this.dataSource.transaction(async (manager) => {
-      const promotion = await manager.findOne(Promotion, { where: { id, coffeeShopId }, relations: { targets: true, scheduleWindows: true, advancedRule: { groups: { targets: true }, tiers: true } } });
+      const promotion = await manager.findOne(Promotion, { where: { id, coffeeShopId }, relations: { targets: true, scheduleWindows: true, advancedRule: { groups: { targets: true }, tiers: true }, customerConditions: true } });
       if (!promotion) throw new NotFoundException("Promotion not found");
       const rewardType = input.rewardType ?? promotion.rewardType;
       const rewardValue = input.rewardValue ?? Number(promotion.rewardValue);
@@ -73,12 +77,14 @@ export class PromotionsService {
       const entireOrder = input.entireOrder ?? promotion.entireOrder;
       const targets = input.targets ?? promotion.targets;
       const advancedRule = input.advancedRule === undefined ? this.ruleDto(promotion.advancedRule) : input.advancedRule ?? undefined;
+      if (input.customerConditions !== undefined) this.validateCustomerConditions(input.customerConditions);
       this.validateAdvancedRule(advancedRule, entireOrder, targets, rewardType, input.minimumSubtotalToman === undefined ? (promotion.minimumSubtotalToman ? Number(promotion.minimumSubtotalToman) : null) : input.minimumSubtotalToman, input.maxDiscountToman === undefined ? (promotion.maxDiscountToman ? Number(promotion.maxDiscountToman) : null) : input.maxDiscountToman);
       const currentCoupon = await manager.findOneBy(PromotionCoupon, { coffeeShopId, promotionId: id });
       this.validateOrderFields(entireOrder, rewardType, targets, input.maxDiscountToman === undefined ? (promotion.maxDiscountToman ? Number(promotion.maxDiscountToman) : null) : input.maxDiscountToman, Boolean(currentCoupon || input.couponCode), Boolean(advancedRule));
       this.validateCouponDates(input.couponStartsAt === undefined ? currentCoupon?.startsAt?.toISOString() : input.couponStartsAt, input.couponExpiresAt === undefined ? currentCoupon?.expiresAt?.toISOString() : input.couponExpiresAt);
       if (advancedRule) await this.validateAdvancedTargets(manager, coffeeShopId, advancedRule);
       else if (input.targets && !entireOrder) await this.validateTargets(manager, coffeeShopId, input.targets);
+      if (input.customerConditions !== undefined) await this.validateCustomerSegments(manager, coffeeShopId, input.customerConditions, (promotion.customerConditions ?? []).map((condition) => condition.customerSegmentId).filter((id): id is string => Boolean(id)));
       if (input.name !== undefined) promotion.name = name.trim();
       if (input.description !== undefined) promotion.description = input.description?.trim() || null;
       if (input.startAt !== undefined) promotion.startAt = input.startAt ? new Date(input.startAt) : null;
@@ -102,6 +108,10 @@ export class PromotionsService {
           await manager.delete(PromotionTarget, { coffeeShopId, promotionId: id });
           await this.saveAdvancedRule(manager, coffeeShopId, id, input.advancedRule);
         }
+      }
+      if (input.customerConditions !== undefined) {
+        await manager.delete(PromotionCustomerCondition, { coffeeShopId, promotionId: id });
+        if (input.customerConditions.length) await this.saveCustomerConditions(manager, coffeeShopId, id, input.customerConditions);
       }
       if (input.schedule !== undefined) await this.saveSchedule(manager, coffeeShopId, id, input.schedule);
       let coupon = currentCoupon;
@@ -182,6 +192,42 @@ export class PromotionsService {
 
   private validateCouponDates(startAt?: string | null, endAt?: string | null) {
     if (startAt && endAt && new Date(endAt) <= new Date(startAt)) throw new BadRequestException("Coupon end time must be after its start time");
+  }
+
+  private validateCustomerConditions(conditions: PromotionCustomerConditionDto[]) {
+    if (!Array.isArray(conditions) || conditions.length > 6 || new Set(conditions.map((condition) => condition.type)).size !== conditions.length) throw new BadRequestException("Customer conditions must contain at most one of each supported condition");
+    for (const condition of conditions) {
+      const hasOperator = condition.operator !== undefined;
+      const hasValue = condition.value !== undefined;
+      const hasSegment = condition.customerSegmentId !== undefined;
+      if (condition.type === PromotionCustomerConditionType.FirstOrder) {
+        if (hasOperator || hasValue || hasSegment) throw new BadRequestException("First-order condition takes no value");
+      } else if (condition.type === PromotionCustomerConditionType.OrderCount) {
+        if (![PromotionCustomerConditionOperator.AtLeast, PromotionCustomerConditionOperator.AtMost, PromotionCustomerConditionOperator.Exactly].includes(condition.operator!) || !Number.isSafeInteger(condition.value) || condition.value! < 0 || hasSegment) throw new BadRequestException("Order-count condition needs a comparison and non-negative order count");
+      } else if (condition.type === PromotionCustomerConditionType.TotalSpent) {
+        if (condition.operator !== PromotionCustomerConditionOperator.AtLeast || !Number.isSafeInteger(condition.value) || condition.value! < 0 || hasSegment) throw new BadRequestException("Total-spend condition needs a non-negative minimum");
+      } else if (condition.type === PromotionCustomerConditionType.LastOrderAge) {
+        if (condition.operator !== PromotionCustomerConditionOperator.AtLeast || !Number.isInteger(condition.value) || condition.value! < 1 || condition.value! > 36500 || hasSegment) throw new BadRequestException("Last-order age needs a day threshold from 1 to 36500");
+      } else if (condition.type === PromotionCustomerConditionType.RegistrationAge) {
+        if (![PromotionCustomerConditionOperator.AtLeast, PromotionCustomerConditionOperator.WithinLast].includes(condition.operator!) || !Number.isInteger(condition.value) || condition.value! < 1 || condition.value! > 36500 || hasSegment) throw new BadRequestException("Registration age needs a day threshold from 1 to 36500");
+      } else if (condition.type === PromotionCustomerConditionType.CustomerSegment) {
+        if (hasOperator || hasValue || !hasSegment) throw new BadRequestException("Customer segment condition needs one segment");
+      }
+    }
+  }
+
+  private async validateCustomerSegments(manager: EntityManager, coffeeShopId: string, conditions: PromotionCustomerConditionDto[], allowInactiveIds: string[] = []) {
+    const ids = conditions.filter((condition) => condition.type === PromotionCustomerConditionType.CustomerSegment).map((condition) => condition.customerSegmentId!);
+    if (!ids.length) return;
+    const segments = await manager.getRepository(CustomerSegment).find({ where: { coffeeShopId, id: In(ids) }, withDeleted: true });
+    if (segments.length !== ids.length || segments.some((segment) => (!segment.isActive || segment.deletedAt) && !allowInactiveIds.includes(segment.id))) throw new BadRequestException({ code: "CUSTOMER_SEGMENT_NOT_FOUND", message: "گروه انتخاب‌شده فعال و متعلق به همین کافه نیست." });
+  }
+
+  private saveCustomerConditions(manager: EntityManager, coffeeShopId: string, promotionId: string, conditions: PromotionCustomerConditionDto[]) {
+    return manager.save(PromotionCustomerCondition, conditions.map((condition) => manager.create(PromotionCustomerCondition, {
+      coffeeShopId, promotionId, type: condition.type, operator: condition.operator ?? null,
+      value: condition.value === undefined ? null : String(condition.value), customerSegmentId: condition.customerSegmentId ?? null,
+    })));
   }
 
   private validateSchedule(schedule: CreatePromotionDto["schedule"] | UpdatePromotionDto["schedule"], timezone: string) {
@@ -290,6 +336,9 @@ export class PromotionsService {
     ]);
     const itemById = new Map(items.map((item) => [item.id, item.name]));
     const categoryById = new Map(categories.map((category) => [category.id, category.name]));
+    const segmentIds = [...new Set(promotions.flatMap((promotion) => (promotion.customerConditions ?? []).map((condition) => condition.customerSegmentId).filter((id): id is string => Boolean(id))))];
+    const segments = segmentIds.length ? await this.dataSource.getRepository(CustomerSegment).find({ where: { coffeeShopId, id: In(segmentIds) }, withDeleted: true }) : [];
+    const segmentById = new Map(segments.map((segment) => [segment.id, segment.name]));
     const now = new Date();
     return promotions.map((promotion) => ({
       id: promotion.id, name: promotion.name, description: promotion.description, isActive: promotion.isActive,
@@ -302,6 +351,7 @@ export class PromotionsService {
         ? { type: "PRODUCT" as const, id: target.menuItemId, name: itemById.get(target.menuItemId) ?? null }
         : { type: "CATEGORY" as const, id: target.categoryId!, name: categoryById.get(target.categoryId!) ?? null }),
       advancedRule: this.ruleDto(promotion.advancedRule),
+      customerConditions: (promotion.customerConditions ?? []).map((condition) => ({ type: condition.type, operator: condition.operator, value: condition.value, customerSegmentId: condition.customerSegmentId, customerSegmentName: condition.customerSegmentId ? segmentById.get(condition.customerSegmentId) ?? null : null })),
       createdAt: promotion.createdAt, updatedAt: promotion.updatedAt,
     }));
   }

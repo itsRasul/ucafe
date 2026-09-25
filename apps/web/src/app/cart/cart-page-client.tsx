@@ -10,10 +10,10 @@ import { Picture, formatToman, type PublicMenu, type PublicOrderingState } from 
 
 export function CartPageClient({ menu, ordering, cafeName, logoUrl }: { menu: PublicMenu; ordering: PublicOrderingState | null; cafeName: string; logoUrl?: string }) {
   const cart = useResolvedCart(menu);
-  const serverQuote = useServerCartQuote(cart.lines);
+  const session = useClientSession();
+  const serverQuote = useServerCartQuote(cart.lines, undefined, session.client ? session.api : undefined);
   const quotedLines = (menuItemId: string, variantId: string | null) => serverQuote.quote?.items.filter((item) => item.menuItemId === menuItemId && item.variantId === variantId) ?? [];
   const displayedTotal = serverQuote.quote?.totalAmountToman ?? String(cart.totalToman);
-  const session = useClientSession();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [disabledModal, setDisabledModal] = useState("");

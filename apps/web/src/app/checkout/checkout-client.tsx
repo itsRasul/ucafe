@@ -30,7 +30,7 @@ export function CheckoutClient({ menu, ordering }: { menu: PublicMenu; ordering:
   const session = useClientSession();
   const [couponInput, setCouponInput] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState("");
-  const serverQuote = useServerCartQuote(cart.lines, appliedCoupon, session.api);
+  const serverQuote = useServerCartQuote(cart.lines, appliedCoupon, session.client ? session.api : undefined);
   const quotedLines = (menuItemId: string, variantId: string | null) => serverQuote.quote?.items.filter((item) => item.menuItemId === menuItemId && item.variantId === variantId) ?? [];
   const displayedTotal = serverQuote.quote?.totalAmountToman ?? String(cart.totalToman);
   const enabledDelivery = useMemo(() => ordering?.deliveryMethods.filter((method) => method.enabled) ?? [], [ordering]);

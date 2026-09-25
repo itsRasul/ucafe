@@ -3,10 +3,11 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { DataSource, EntityManager } from "typeorm";
 import dataSource from "../database/data-source";
+import { CustomerSegmentsService } from "../clients/customer-segments.service";
 import { OrderDeliveryMethod, OrderPaymentMethod, OrderStatus } from "../ordering/entities";
 import { OrderingService } from "../ordering/ordering.service";
 import { MenuService } from "../menu/menu.service";
-import { AdvancedPromotionType, PromotionRewardType } from "./entities";
+import { AdvancedPromotionType, PromotionCustomerConditionOperator, PromotionCustomerConditionType, PromotionRewardType } from "./entities";
 import { PromotionsService } from "./promotions.service";
 import { PromotionWeekday } from "./promotion-schedule.util";
 
@@ -17,6 +18,7 @@ test("coupon quote, checkout, limit, cancellation and tenant isolation share aut
     await assert.rejects(dataSource.transaction(async (manager) => {
       const adapter = {
         manager, getRepository: manager.getRepository.bind(manager),
+        query: manager.query.bind(manager),
         transaction: <T>(work: (m: EntityManager) => Promise<T>) => work(manager),
       } as unknown as DataSource;
       const tenants: [string, string] = [randomUUID(), randomUUID()];
@@ -24,6 +26,8 @@ test("coupon quote, checkout, limit, cancellation and tenant isolation share aut
       const [actor] = await manager.query(`SELECT id FROM users LIMIT 1`);
       assert.ok(actor?.id);
       const [client] = await manager.query(`INSERT INTO clients(coffee_shop_id,first_name,last_name,phone) VALUES($1,'Coupon','Client','+989120000001') RETURNING id`, [tenants[0]]);
+      const [nonMember] = await manager.query(`INSERT INTO clients(coffee_shop_id,first_name,last_name,phone) VALUES($1,'Other','Client','+989120000002') RETURNING id`, [tenants[0]]);
+      const [foreignClient] = await manager.query(`INSERT INTO clients(coffee_shop_id,first_name,last_name,phone) VALUES($1,'Foreign','Client','+989120000003') RETURNING id`, [tenants[1]]);
       const [category] = await manager.query(`INSERT INTO menu_categories(coffee_shop_id,name) VALUES($1,'Coffee') RETURNING id`, [tenants[0]]);
       const [item] = await manager.query(`INSERT INTO menu_items(coffee_shop_id,category_id,name,base_price_toman) VALUES($1,$2,'Latte',1000000) RETURNING id`, [tenants[0], category.id]);
       const promotions = new PromotionsService(adapter);
@@ -67,6 +71,39 @@ test("coupon quote, checkout, limit, cancellation and tenant isolation share aut
       await assert.rejects(ordering.quote(tenants[0], lines, "WELCOME20", client.id), (error: { response?: { code?: string } }) => error.response?.code === "COUPON_USAGE_LIMIT_REACHED");
       const redemptions = await manager.query(`SELECT status::text FROM promotion_redemptions WHERE promotion_id=$1 ORDER BY created_at`, [coupon.id]);
       assert.deepEqual(redemptions.map((row: { status: string }) => row.status).sort(), ["APPLIED", "RELEASED"]);
+
+      await promotions.setActive(tenants[0], latteSale.id, false);
+      const segments = new CustomerSegmentsService(adapter);
+      const vip = await segments.create(tenants[0], { name: "VIP" });
+      await segments.addMember(tenants[0], vip.id, client.id, actor.id);
+      assert.equal((await segments.list(tenants[0])).find((segment) => segment.id === vip.id)?.memberCount, 1);
+      await manager.query("SAVEPOINT segment_tenant_scope");
+      await assert.rejects(manager.query(`INSERT INTO customer_segment_memberships(coffee_shop_id,segment_id,client_id) VALUES($1,$2,$3)`, [tenants[1], vip.id, foreignClient.id]), (error: { code?: string }) => error.code === "23503");
+      await manager.query("ROLLBACK TO SAVEPOINT segment_tenant_scope");
+      await assert.rejects(segments.addMember(tenants[1], vip.id, foreignClient.id, actor.id));
+      await assert.rejects(promotions.create(tenants[1], actor.id, { name: "Foreign segment", isActive: true, priority: 0, rewardType: PromotionRewardType.Percentage, rewardValue: 30, targets: [], entireOrder: true, customerConditions: [{ type: PromotionCustomerConditionType.CustomerSegment, customerSegmentId: vip.id }] }));
+      await manager.query(`INSERT INTO orders(coffee_shop_id,client_id,status,payment_method,delivery_method,total_amount_toman,subtotal_before_discount_toman,discount_total_toman,order_discount_toman,order_source,idempotency_key,status_changed_at) VALUES($1,$2,'DELIVERED','OFFLINE','PICKUP',10000000,10000000,0,0,'PUBLIC_CLIENT',$3,now()-interval '60 days')`, [tenants[1], foreignClient.id, randomUUID()]);
+      await promotions.create(tenants[0], actor.id, { name: "Tenant spend guard", isActive: true, priority: 1, rewardType: PromotionRewardType.Percentage, rewardValue: 10, targets: [], entireOrder: true, customerConditions: [{ type: PromotionCustomerConditionType.TotalSpent, operator: PromotionCustomerConditionOperator.AtLeast, value: 5000000 }] });
+      assert.equal((await ordering.quote(tenants[0], lines, undefined, foreignClient.id)).totalAmountToman, "1000000");
+      await manager.query(`UPDATE orders SET status='DELIVERED', status_changed_at=now()-interval '40 days' WHERE id=$1`, [order.id]);
+      const vipPromotion = await promotions.create(tenants[0], actor.id, { name: "VIP sale", isActive: true, priority: 0, rewardType: PromotionRewardType.Percentage, rewardValue: 30, targets: [], entireOrder: true, customerConditions: [
+        { type: PromotionCustomerConditionType.CustomerSegment, customerSegmentId: vip.id },
+        { type: PromotionCustomerConditionType.OrderCount, operator: PromotionCustomerConditionOperator.AtLeast, value: 1 },
+        { type: PromotionCustomerConditionType.TotalSpent, operator: PromotionCustomerConditionOperator.AtLeast, value: 650000 },
+        { type: PromotionCustomerConditionType.LastOrderAge, operator: PromotionCustomerConditionOperator.AtLeast, value: 30 },
+      ] });
+      assert.ok(vipPromotion);
+      assert.equal((await ordering.quote(tenants[0], lines, undefined, client.id)).totalAmountToman, "700000");
+      assert.equal((await ordering.quote(tenants[0], lines, undefined, nonMember.id)).totalAmountToman, "1000000");
+      const vipOrder = await ordering.createOrder(tenants[0], client.id, { ...input, idempotencyKey: randomUUID(), couponCode: undefined });
+      assert.equal(vipOrder.totalAmountToman, "700000");
+      const [vipSnapshot] = await manager.query(`SELECT customer_promotion_snapshot FROM orders WHERE id=$1`, [vipOrder.id]);
+      assert.equal(vipSnapshot.customer_promotion_snapshot[0].promotionId, vipPromotion.id);
+      await segments.archive(tenants[0], vip.id);
+      assert.equal((await ordering.quote(tenants[0], lines, undefined, client.id)).totalAmountToman, "1000000");
+      assert.equal((await segments.list(tenants[0])).find((segment) => segment.id === vip.id)?.archived, true);
+
+      await promotions.setActive(tenants[0], latteSale.id, true);
       const automatic = await promotions.create(tenants[0], actor.id, { name: "Automatic order", isActive: true, priority: 0, rewardType: PromotionRewardType.FixedAmount, rewardValue: 900000, targets: [], entireOrder: true });
       assert.ok(automatic);
       assert.equal((await ordering.quote(tenants[0], lines)).totalAmountToman, "0");
@@ -237,7 +274,7 @@ test("the last coupon use and a per-customer use cannot be spent twice", { skip:
     await promotions.create(tenant, actor.id, { name: "One total", isActive: true, priority: 0, rewardType: PromotionRewardType.Percentage, rewardValue: 10, targets: [], entireOrder: true, couponCode: "LASTONE", totalUsageLimit: 1 });
     await promotions.create(tenant, actor.id, { name: "One per customer", isActive: true, priority: 0, rewardType: PromotionRewardType.Percentage, rewardValue: 10, targets: [], entireOrder: true, couponCode: "ONEEACH", perCustomerUsageLimit: 1 });
     const ordering = new OrderingService(dataSource, { requireFeature: async () => undefined } as never, { enqueue: async () => undefined, enqueueOwners: async () => undefined } as never, { reverseOrder: async () => undefined } as never);
-    const checkout = (clientId: string, couponCode: string) => ordering.createOrder(tenant, clientId, { items: [{ menuItemId: item.id, quantity: 1 }], paymentMethod: OrderPaymentMethod.Offline, deliveryMethod: OrderDeliveryMethod.Pickup, couponCode, idempotencyKey: randomUUID() });
+    const checkout = (clientId: string, couponCode?: string) => ordering.createOrder(tenant, clientId, { items: [{ menuItemId: item.id, quantity: 1 }], paymentMethod: OrderPaymentMethod.Offline, deliveryMethod: OrderDeliveryMethod.Pickup, ...(couponCode ? { couponCode } : {}), idempotencyKey: randomUUID() });
     const totalRace = await Promise.allSettled([checkout(clients[0]!, "LASTONE"), checkout(clients[1]!, "LASTONE")]);
     assert.equal(totalRace.filter((result) => result.status === "fulfilled").length, 1);
     assert.equal(totalRace.filter((result) => result.status === "rejected").length, 1);
@@ -246,6 +283,26 @@ test("the last coupon use and a per-customer use cannot be spent twice", { skip:
     assert.equal(customerRace.filter((result) => result.status === "rejected").length, 1);
     const [count] = await dataSource.query(`SELECT count(*)::int AS count FROM promotion_redemptions WHERE coffee_shop_id=$1 AND status='APPLIED'`, [tenant]);
     assert.equal(count.count, 2);
+
+    await promotions.create(tenant, actor.id, { name: "First order automatic", isActive: true, priority: 1, rewardType: PromotionRewardType.Percentage, rewardValue: 10, targets: [], entireOrder: true, customerConditions: [{ type: PromotionCustomerConditionType.FirstOrder }] });
+    const firstOrderRace = await Promise.allSettled([checkout(clients[0]!), checkout(clients[0]!)]);
+    const firstOrderResults = firstOrderRace.filter((result): result is PromiseFulfilledResult<Awaited<ReturnType<typeof checkout>>> => result.status === "fulfilled");
+    assert.equal(firstOrderResults.length, 2);
+    assert.deepEqual(firstOrderResults.map((result) => result.value.totalAmountToman).sort((a, b) => Number(a) - Number(b)), ["90000", "100000"]);
+    const [firstOrderClaimCount] = await dataSource.query(`SELECT count(*)::int AS count FROM promotion_redemptions WHERE coffee_shop_id=$1 AND coupon_id IS NULL AND is_first_order_claim AND status='APPLIED'`, [tenant]);
+    assert.equal(firstOrderClaimCount.count, 1);
+    const discountedFirstOrder = firstOrderResults.find((result) => result.value.totalAmountToman === "90000")!.value;
+    await ordering.updateStatus(tenant, discountedFirstOrder.id, actor.id, OrderStatus.Canceled);
+    assert.equal((await ordering.quote(tenant, [{ menuItemId: item.id, quantity: 1 }], undefined, clients[0])).totalAmountToman, "90000");
+
+    const firstOrderCoupon = await promotions.create(tenant, actor.id, { name: "First order code", isActive: true, priority: 2, rewardType: PromotionRewardType.Percentage, rewardValue: 20, targets: [], entireOrder: true, couponCode: "FIRSTONLY", customerConditions: [{ type: PromotionCustomerConditionType.FirstOrder }] });
+    assert.ok(firstOrderCoupon);
+    const firstCouponOrder = await checkout(clients[1]!, "FIRSTONLY");
+    assert.equal(firstCouponOrder.totalAmountToman, "80000");
+    await assert.rejects(ordering.quote(tenant, [{ menuItemId: item.id, quantity: 1 }], "FIRSTONLY", clients[1]), (error: { response?: { code?: string } }) => error.response?.code === "FIRST_ORDER_REQUIRED");
+    await promotions.update(tenant, firstOrderCoupon.id, { customerConditions: [] });
+    await ordering.updateStatus(tenant, firstCouponOrder.id, actor.id, OrderStatus.Canceled);
+    assert.equal((await ordering.quote(tenant, [{ menuItemId: item.id, quantity: 1 }], "FIRSTONLY", clients[1])).totalAmountToman, "80000");
   } finally {
     await dataSource.transaction(async (manager) => {
       await manager.query(`DELETE FROM promotion_redemptions WHERE coffee_shop_id=$1`, [tenant]);

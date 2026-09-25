@@ -50,6 +50,7 @@ coffee_shops
   -> website_settings / media_assets / menu_categories -> menu_items -> variants
   -> memberships -> membership_roles -> roles -> permissions
   -> clients -> client_sessions / addresses / orders / reservations
+       -> customer_segments -> customer_segment_memberships
   -> subscription -> plan / subscription_payments
   -> payment_intents
   -> notification_deliveries
@@ -64,7 +65,7 @@ See [DATABASE.md](DATABASE.md) for important constraints without duplicating the
 
 - **Tenant request:** host → domain → effective subscription/cafe status → tenant context → public or authenticated guard → tenant-scoped service query.
 - **Client action:** cafe-scoped OTP/session → client JWT tied to resolved cafe → owned resource query.
-- **Order:** feature/settings checks → server-side simple and advanced item allocation plus order-promotion eligibility (including tenant-local schedule) → coupon row lock and usage recheck when applicable → transaction/financial snapshots and redemption → outbox. Buy/Get, Bundle, and Quantity use the same PromotionPricingService path and order-item snapshots.
+- **Order:** feature/settings checks → tenant/client checkout lock → server-side simple and advanced item allocation plus order-promotion eligibility (including customer conditions and tenant-local schedule) → coupon row lock and usage recheck when applicable → transaction/financial snapshots and redemption → outbox. Buy/Get, Bundle, Quantity, and customer eligibility use the same PromotionPricingService path. Promotions depend on Clients and Orders data, not CRM or Analytics.
 - **Inventory variance:** authenticated Analytics page → tenant count interval → one grouped movement/count query → paginated signed variance and source drill-down; no operational stock write.
 - **Reservation:** feature/slot checks → branch/date advisory lock → capacity recheck → transaction/outbox.
 - **Renewal:** owner permission → immutable payment intent → public authority callback → provider verification → idempotent subscription payment/reactivation.

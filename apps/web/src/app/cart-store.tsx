@@ -87,7 +87,7 @@ export function useServerCartQuote(lines: CartLine[], couponCode?: string, authe
     setLoading(true); setError("");
     try {
       let body: CartQuote;
-      if (couponCode && authenticatedApi) body = await authenticatedApi<CartQuote>("/public/ordering/coupon-quote", { method: "POST", body: JSON.stringify({ items: lines, couponCode }) });
+      if (authenticatedApi) body = await authenticatedApi<CartQuote>("/public/ordering/coupon-quote", { method: "POST", body: JSON.stringify({ items: lines, ...(couponCode ? { couponCode } : {}) }) });
       else {
         const response = await fetch("/api/backend/public/ordering/quote", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ items: lines }) });
         body = await response.json() as CartQuote & { message?: string };
