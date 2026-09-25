@@ -312,3 +312,99 @@ test("SQL customer analytics uses tenant-local identity, first-purchase classifi
     }), (error: unknown) => error === rollback);
   } finally { await db.destroy(); }
 });
+
+test("direct order analytics access stops before SQL when analytics is not entitled", async () => {
+  let queried = false;
+  const service = new AnalyticsService({ query: async () => { queried = true; return []; } } as unknown as DataSource, { requireFeature: async () => { throw new ForbiddenException({ code: "FEATURE_UNAVAILABLE" }); } } as never);
+  await assert.rejects(service.orders("tenant-a", "UTC", { period: "today" }), ForbiddenException);
+  assert.equal(queried, false);
+});
+
+test("SQL order analytics separates created orders, terminal outcomes, delivery and sources without multiplying revenue", { skip: !process.env.ANALYTICS_INTEGRATION_DATABASE_URL }, async () => {
+  const db = new DataSource({ type: "postgres", url: process.env.ANALYTICS_INTEGRATION_DATABASE_URL });
+  await db.initialize();
+  const rollback = new Error("rollback order analytics fixture");
+  try {
+    await assert.rejects(db.transaction(async (manager) => {
+      const tenantA = randomUUID(), tenantB = randomUUID(), clientA = randomUUID(), clientB = randomUUID();
+      for (const id of [tenantA, tenantB]) await manager.query(`INSERT INTO coffee_shops(id,name,slug,status) VALUES($1,'Order Analytics Test',$2,'ACTIVE')`, [id, `order-analytics-${id}`]);
+      await manager.query(`INSERT INTO clients(id,coffee_shop_id,first_name,last_name,phone) VALUES($1,$2,'Test','A','+989130000001'),($3,$4,'Test','B','+989130000002')`, [clientA, tenantA, clientB, tenantB]);
+      const addOrder = async (tenant: string, client: string, status: string, delivery: string, source: string | null, total: string, created: string, changed: string | null) => {
+        const rows = await manager.query(
+          `INSERT INTO orders(coffee_shop_id,client_id,status,payment_method,delivery_method,order_source,total_amount_toman,idempotency_key,created_at,status_changed_at)
+           VALUES($1,$2,$3::order_status,'OFFLINE',$4::order_delivery_method,$5::order_source,$6,$7,$8,$9) RETURNING id`,
+          [tenant, client, status, delivery, source, total, randomUUID(), created, changed],
+        );
+        return rows[0].id as string;
+      };
+      const addItem = (tenant: string, orderId: string, unit: string, quantity: number) => manager.query(
+        `INSERT INTO order_items(coffee_shop_id,order_id,item_name,unit_price_toman,quantity,line_total_toman) VALUES($1,$2,'Test item',$3,$4,$5)`,
+        [tenant, orderId, unit, quantity, (BigInt(unit) * BigInt(quantity)).toString()],
+      );
+      const publicSource = "PUBLIC_CLIENT";
+      const first = await addOrder(tenantA, clientA, "DELIVERED", "PICKUP", publicSource, "500", "2026-01-02T04:00:00Z", "2026-01-02T04:30:00Z");
+      await addItem(tenantA, first, "200", 1);
+      await addItem(tenantA, first, "150", 2);
+      const second = await addOrder(tenantA, clientA, "DELIVERED", "COURIER", publicSource, "300", "2026-01-02T05:00:00Z", "2026-01-02T05:30:00Z");
+      await addItem(tenantA, second, "150", 2);
+      const canceled = await addOrder(tenantA, clientA, "CANCELED", "PICKUP", publicSource, "100", "2026-01-02T06:00:00Z", "2026-01-02T06:30:00Z");
+      await addItem(tenantA, canceled, "100", 1);
+      await addOrder(tenantA, clientA, "UNDER_REVIEW", "PICKUP", publicSource, "50", "2026-01-02T07:00:00Z", null);
+      const createdEarlier = await addOrder(tenantA, clientA, "DELIVERED", "PICKUP", publicSource, "150", "2026-01-01T22:00:00Z", "2026-01-02T08:00:00Z");
+      await addItem(tenantA, createdEarlier, "150", 1);
+      const oldUnknown = await addOrder(tenantA, clientA, "DELIVERED", "PICKUP", null, "200", "2026-01-01T02:00:00Z", "2026-01-01T02:30:00Z");
+      await addItem(tenantA, oldUnknown, "200", 1);
+      const foreign = await addOrder(tenantB, clientB, "DELIVERED", "COURIER", publicSource, "9000", "2026-01-02T04:00:00Z", "2026-01-02T04:30:00Z");
+      await addItem(tenantB, foreign, "9000", 1);
+
+      const service = new AnalyticsService({ query: (sql: string, parameters: unknown[]) => manager.query(sql, parameters) } as DataSource, { requireFeature: async () => undefined } as never);
+      const query = { period: "custom" as const, start: "2026-01-02", end: "2026-01-02" };
+      const report = await service.orders(tenantA, "UTC", query);
+      assert.equal(report.metrics.totalOrdersCreated.value, "4");
+      assert.equal(report.metrics.completedOrders.value, "3");
+      assert.equal(report.metrics.cancelledOrders.value, "1");
+      assert.equal(report.metrics.completionRate.value, "75.00");
+      assert.equal(report.metrics.cancellationRate.value, "25.00");
+      assert.equal(report.metrics.cancelledOrderValueToman.value, "100");
+      assert.equal(report.metrics.averageItemsPerOrder.value, "2.00");
+      assert.equal(report.metrics.averageItemsPerOrder.previousValue, "1.00");
+      assert.equal(report.statusBreakdown.find((row) => row.status === "UNDER_REVIEW")?.orderCount, "1");
+      assert.equal(report.statusBreakdown.find((row) => row.status === "DELIVERED")?.orderCount, "2");
+      assert.equal(report.statusBreakdown.some((row) => String(row.status) === "REJECTED"), false);
+      assert.equal(report.outcomeTrend.find((series) => series.key === "DELIVERED")?.points.reduce((sum, point) => sum + BigInt(point.value), 0n), 3n);
+      assert.equal(report.outcomeTrend.find((series) => series.key === "CANCELED")?.points.reduce((sum, point) => sum + BigInt(point.value), 0n), 1n);
+      assert.equal(report.fulfillment.find((row) => row.fulfillmentType === "PICKUP")?.revenueToman.value, "650");
+      assert.equal(report.fulfillment.find((row) => row.fulfillmentType === "PICKUP")?.totalOrders.value, "3");
+      assert.equal(report.fulfillment.find((row) => row.fulfillmentType === "PICKUP")?.orderSharePercent, "75.00");
+      assert.equal(report.fulfillment.find((row) => row.fulfillmentType === "PICKUP")?.completedOrders.value, "2");
+      assert.equal(report.fulfillment.find((row) => row.fulfillmentType === "PICKUP")?.completedOrderSharePercent, "66.66");
+      assert.equal(report.fulfillment.find((row) => row.fulfillmentType === "COURIER")?.revenueToman.value, "300");
+      assert.equal(report.fulfillment.find((row) => row.fulfillmentType === "PICKUP")?.averageOrderValueToman.value, "325");
+      assert.equal(report.sources.find((row) => row.source === "PUBLIC_CLIENT")?.revenueToman.value, "950");
+      assert.equal(report.sources.find((row) => row.source === "PUBLIC_CLIENT")?.totalOrders.value, "4");
+      assert.equal(report.sources[0]?.source, "PUBLIC_CLIENT");
+      assert.equal(report.sources.find((row) => row.source === "UNKNOWN")?.revenueToman.previousValue, "200");
+      assert.equal(report.orderSizeDistribution.find((row) => row.key === "threeToFour")?.orders, "1");
+      assert.equal(report.orderSizeDistribution.find((row) => row.key === "two")?.orders, "1");
+      assert.equal(report.orderSizeDistribution.find((row) => row.key === "one")?.orders, "1");
+      assert.equal(report.fulfillment.reduce((sum, row) => sum + BigInt(row.revenueToman.value ?? "0"), 0n), 950n);
+      const other = await service.orders(tenantB, "UTC", query);
+      assert.equal(other.metrics.completedOrders.value, "1");
+      assert.equal(other.fulfillment.find((row) => row.fulfillmentType === "COURIER")?.revenueToman.value, "9000");
+      await addOrder(tenantA, clientA, "UNDER_REVIEW", "PICKUP", publicSource, "40", "2026-01-03T01:00:00Z", null);
+      const activeOnly = await service.orders(tenantA, "UTC", { period: "custom", start: "2026-01-03", end: "2026-01-03" });
+      assert.equal(activeOnly.metrics.totalOrdersCreated.value, "1");
+      assert.equal(activeOnly.metrics.completedOrders.value, "0");
+      assert.equal(activeOnly.metrics.completionRate.value, null);
+      assert.equal(activeOnly.metrics.cancellationRate.value, null);
+      assert.equal(activeOnly.fulfillment[0]?.completedOrders.value, "0");
+      assert.equal(activeOnly.outcomeTrend.every((series) => series.points.every((point) => point.value === "0")), true);
+      const empty = await service.orders(tenantA, "UTC", { period: "custom", start: "2026-01-04", end: "2026-01-04" });
+      assert.equal(empty.metrics.totalOrdersCreated.value, "0");
+      assert.equal(empty.metrics.averageItemsPerOrder.value, "0.00");
+      assert.equal(empty.sources.find((row) => row.source === "PUBLIC_CLIENT")?.totalOrders.value, "0");
+      assert.equal(empty.sources.find((row) => row.source === "PUBLIC_CLIENT")?.totalOrders.previousValue, "1");
+      throw rollback;
+    }), (error: unknown) => error === rollback);
+  } finally { await db.destroy(); }
+});

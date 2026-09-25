@@ -1466,3 +1466,39 @@
     .variance-summary,
     .variance-breakdown dl { grid-template-columns: 1fr }
 }
+
+.order-analytics { min-width: 0 }
+.order-kpis { grid-template-columns: repeat(5, minmax(0, 1fr)) }
+.order-two-column { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; min-width: 0 }
+.order-two-column>.analytics-time-panel,
+.order-analytics>.analytics-time-panel { min-width: 0; padding: 1.1rem; border: 1px solid #dfe7ed; border-radius: .8rem; background: #fff }
+.order-analytics .analytics-time-panel h2 { margin: 0; font-size: 1rem; line-height: 1.6 }
+.order-analytics .analytics-time-panel>p { margin: .25rem 0 .8rem; color: #697d8f; font-size: .75rem; line-height: 1.8 }
+.order-status-list { display: grid; gap: .55rem }
+.order-status-row { display: grid; grid-template-columns: minmax(7.5rem, 1fr) minmax(4rem, 1.2fr) 3rem 4.4rem; align-items: center; gap: .55rem; color: #52677c; font-size: .75rem }
+.order-status-row>strong { color: #1f354b; text-align: left; font-variant-numeric: tabular-nums }
+.order-status-row>small { color: #75879a; text-align: left }
+.order-status-track { height: .45rem; overflow: hidden; border-radius: 99px; background: #edf2f4 }
+.order-status-track i { display: block; height: 100%; border-radius: inherit; background: #18859a }
+.order-cancel-value { display: block; margin: .8rem 0 .25rem; color: #a04a3a; font-size: clamp(1.4rem, 2.2vw, 2rem); font-variant-numeric: tabular-nums }
+.order-two-column .analytics-time-panel>small { color: #718398; font-size: .72rem }
+.order-size-list { display: grid; gap: .35rem }
+.order-size-list>div { display: flex; justify-content: space-between; gap: .8rem; padding: .55rem .65rem; border-radius: .45rem; background: #f7fafb; color: #53687c; font-size: .78rem }
+.order-size-list strong { color: #1d5262; font-variant-numeric: tabular-nums }
+.order-outcome-trend .completed-series .analytics-line { stroke: #16839a }
+.order-outcome-trend .completed-series .analytics-dot { fill: #16839a }
+.order-outcome-trend .cancelled-series .analytics-line { stroke: #c16c52; stroke-dasharray: 5 4 }
+.order-outcome-trend .cancelled-series .analytics-dot { fill: #c16c52 }
+.order-trend-legend { display: flex; flex-wrap: wrap; gap: .85rem; color: #64788b; font-size: .75rem }
+.order-trend-legend span::before { display: inline-block; width: .55rem; height: .55rem; margin-inline-end: .35rem; border-radius: 50%; content: ""; background: #16839a }
+.order-trend-legend .cancelled-key::before { background: #c16c52 }
+
+@media(max-width:60rem) {
+    .order-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)) }
+}
+
+@media(max-width:40rem) {
+    .order-kpis,
+    .order-two-column { grid-template-columns: 1fr }
+    .order-status-row { grid-template-columns: minmax(6.5rem, 1fr) minmax(2.7rem, .8fr) 2.5rem 3.8rem; gap: .35rem; font-size: .69rem }
+}

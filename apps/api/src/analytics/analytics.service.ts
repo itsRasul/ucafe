@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { DataSource } from "typeorm";
 import { CANCELLED_ORDER_STATUS, COMPLETED_ORDER_STATUS } from "../ordering/order-status.util";
+import { OrderDeliveryMethod, OrderSource, OrderStatus } from "../ordering/entities";
 import { SubscriptionFeatures } from "../subscriptions/subscription-features";
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { AnalyticsQueryDto, compareMetric, percentOf, ProductAnalyticsQueryDto, CustomerAnalyticsQueryDto } from "./analytics.dto";
@@ -15,6 +16,19 @@ interface AggregateRow {
 }
 interface SeriesRow { bucket: string; revenue: string; orders: string }
 interface TimeRow { date: string; hour: number; revenue: string; orders: string }
+interface OrderSummaryRow {
+  created: string; previousCreated: string; completed: string; previousCompleted: string;
+  cancelled: string; previousCancelled: string; cancelledValue: string; previousCancelledValue: string;
+}
+interface OrderStatusRow { status: OrderStatus; orders: string }
+interface OrderOutcomeRow { bucket: string; status: OrderStatus; orders: string }
+interface OrderItemsRow { period: "current" | "previous"; bucket: string; completedOrders: string; totalItems: string }
+interface OrderDimensionRow {
+  dimension: "fulfillment" | "source"; key: string;
+  created: string; previousCreated: string; completed: string; previousCompleted: string;
+  revenue: string; previousRevenue: string;
+}
+export interface OrderRateMetric { value: string | null; previousValue: string | null; change: string | null; changePercent: string | null }
 interface ProductRow {
   key: string; productId: string | null; name: string; status: "active" | "unavailable" | "archived" | "deleted";
   currentRevenue: string; currentQuantity: string; currentOrders: string;
@@ -59,6 +73,32 @@ const peak = <T extends TimeBucket>(buckets: T[], metric: keyof TimeBucket): T[]
   return max === 0n ? [] : buckets.filter((bucket) => BigInt(bucket[metric]) === max);
 };
 const compareBigInt = (left: bigint, right: bigint) => left < right ? -1 : left > right ? 1 : 0;
+
+function fixed(value: bigint) {
+  const absolute = value < 0n ? -value : value;
+  return `${value < 0n ? "-" : ""}${absolute / 100n}.${String(absolute % 100n).padStart(2, "0")}`;
+}
+
+function fixedMetric(value: bigint, previousValue: bigint): OrderRateMetric {
+  const change = value - previousValue;
+  const absolute = change < 0n ? -change : change;
+  const relative = previousValue === 0n ? null : absolute * 10000n / previousValue;
+  return {
+    value: fixed(value), previousValue: fixed(previousValue), change: fixed(change),
+    changePercent: relative === null ? null : `${change < 0n ? "-" : ""}${fixed(relative)}`,
+  };
+}
+
+function rateMetric(numerator: bigint, denominator: bigint, previousNumerator: bigint, previousDenominator: bigint): OrderRateMetric {
+  if (denominator === 0n || previousDenominator === 0n) {
+    return {
+      value: denominator === 0n ? null : fixed(numerator * 10000n / denominator),
+      previousValue: previousDenominator === 0n ? null : fixed(previousNumerator * 10000n / previousDenominator),
+      change: null, changePercent: null,
+    };
+  }
+  return fixedMetric(numerator * 10000n / denominator, previousNumerator * 10000n / previousDenominator);
+}
 
 const EMPTY: Omit<AggregateRow, "period"> = { revenue: "0", completedOrders: "0", cancelledOrders: "0", uniqueCustomers: "0" };
 
@@ -164,6 +204,193 @@ export class AnalyticsService {
         revenueDates: peak(dates, "revenue"), orderDates: peak(dates, "completedOrders"),
         lowestActiveRevenueDates: lowestRevenue === null ? [] : activeDates.filter((date) => BigInt(date.revenue) === lowestRevenue),
       },
+    };
+  }
+
+  async orders(coffeeShopId: string, timezone: string, query: AnalyticsQueryDto) {
+    await this.subscriptions.requireFeature(coffeeShopId, SubscriptionFeatures.Analytics);
+    const ranges = this.ranges(timezone, query);
+    const granularity = analyticsGranularity(ranges.current);
+    const params = [coffeeShopId, ranges.previous.start, ranges.current.start, ranges.current.endExclusive, timezone, COMPLETED_ORDER_STATUS, CANCELLED_ORDER_STATUS];
+    const trendParams = [coffeeShopId, ranges.current.start, ranges.current.endExclusive, COMPLETED_ORDER_STATUS, timezone, CANCELLED_ORDER_STATUS];
+    const { slots, bucket, textBucket } = this.seriesParts(granularity);
+    const [summaryRows, statusRows, outcomeRows, itemRows, dimensionRows] = await Promise.all([
+      this.dataSource.query<OrderSummaryRow[]>(`
+        WITH bounds AS (
+          SELECT $2::timestamp AT TIME ZONE $5 AS previous_start,
+                 $3::timestamp AT TIME ZONE $5 AS current_start,
+                 $4::timestamp AT TIME ZONE $5 AS current_end
+        )
+        SELECT COUNT(*) FILTER (WHERE o.created_at >= b.current_start AND o.created_at < b.current_end)::text AS created,
+               COUNT(*) FILTER (WHERE o.created_at >= b.previous_start AND o.created_at < b.current_start)::text AS "previousCreated",
+               COUNT(*) FILTER (WHERE o.status = $6::order_status AND o.status_changed_at >= b.current_start AND o.status_changed_at < b.current_end)::text AS completed,
+               COUNT(*) FILTER (WHERE o.status = $6::order_status AND o.status_changed_at >= b.previous_start AND o.status_changed_at < b.current_start)::text AS "previousCompleted",
+               COUNT(*) FILTER (WHERE o.status = $7::order_status AND o.status_changed_at >= b.current_start AND o.status_changed_at < b.current_end)::text AS cancelled,
+               COUNT(*) FILTER (WHERE o.status = $7::order_status AND o.status_changed_at >= b.previous_start AND o.status_changed_at < b.current_start)::text AS "previousCancelled",
+               COALESCE(SUM(o.total_amount_toman) FILTER (WHERE o.status = $7::order_status AND o.status_changed_at >= b.current_start AND o.status_changed_at < b.current_end), 0)::text AS "cancelledValue",
+               COALESCE(SUM(o.total_amount_toman) FILTER (WHERE o.status = $7::order_status AND o.status_changed_at >= b.previous_start AND o.status_changed_at < b.current_start), 0)::text AS "previousCancelledValue"
+        FROM orders o CROSS JOIN bounds b
+        WHERE o.coffee_shop_id = $1 AND (
+          (o.created_at >= b.previous_start AND o.created_at < b.current_end) OR
+          (o.status IN ($6::order_status, $7::order_status) AND o.status_changed_at >= b.previous_start AND o.status_changed_at < b.current_end)
+        )
+      `, params),
+      this.dataSource.query<OrderStatusRow[]>(`
+        WITH bounds AS (SELECT $2::timestamp AT TIME ZONE $4 AS start_at, $3::timestamp AT TIME ZONE $4 AS end_at)
+        SELECT o.status, COUNT(*)::text AS orders
+        FROM orders o CROSS JOIN bounds b
+        WHERE o.coffee_shop_id = $1 AND o.created_at >= b.start_at AND o.created_at < b.end_at
+        GROUP BY o.status
+      `, [coffeeShopId, ranges.current.start, ranges.current.endExclusive, timezone]),
+      this.dataSource.query<OrderOutcomeRow[]>(`
+        WITH bounds AS (
+          SELECT $2::date AS local_start, $3::date AS local_end,
+                 $2::timestamp AT TIME ZONE $5 AS current_start,
+                 $3::timestamp AT TIME ZONE $5 AS current_end
+        ), slots AS (${slots}), outcomes AS (
+          SELECT * FROM (VALUES ($4::order_status), ($6::order_status)) AS outcome(status)
+        ), totals AS (
+          SELECT ${bucket} AS bucket, o.status, COUNT(*)::text AS orders
+          FROM orders o CROSS JOIN bounds b
+          WHERE o.coffee_shop_id = $1 AND o.status IN ($4::order_status, $6::order_status)
+            AND o.status_changed_at >= b.current_start AND o.status_changed_at < b.current_end
+          GROUP BY 1, 2
+        )
+        SELECT ${textBucket} AS bucket, outcome.status, COALESCE(t.orders, '0') AS orders
+        FROM slots s CROSS JOIN outcomes outcome
+        LEFT JOIN totals t ON t.bucket = s.bucket AND t.status = outcome.status
+        ORDER BY s.bucket, outcome.status
+      `, trendParams),
+      this.dataSource.query<OrderItemsRow[]>(`
+        WITH bounds AS (
+          SELECT $2::timestamp AT TIME ZONE $5 AS previous_start,
+                 $3::timestamp AT TIME ZONE $5 AS current_start,
+                 $4::timestamp AT TIME ZONE $5 AS current_end
+        ), per_order AS (
+          SELECT CASE WHEN o.status_changed_at < b.current_start THEN 'previous' ELSE 'current' END AS period,
+                 o.id,
+                 COALESCE(SUM(oi.quantity), 0)::bigint AS item_quantity
+          FROM orders o CROSS JOIN bounds b
+          LEFT JOIN order_items oi ON oi.order_id = o.id AND oi.coffee_shop_id = o.coffee_shop_id
+          WHERE o.coffee_shop_id = $1 AND o.status = $6::order_status
+            AND o.status_changed_at >= b.previous_start AND o.status_changed_at < b.current_end
+          GROUP BY o.id, o.status_changed_at, b.current_start
+        ), bucketed AS (
+          SELECT period, item_quantity,
+                 CASE WHEN item_quantity = 0 THEN 'zero' WHEN item_quantity = 1 THEN 'one'
+                      WHEN item_quantity = 2 THEN 'two' WHEN item_quantity BETWEEN 3 AND 4 THEN 'threeToFour'
+                      WHEN item_quantity BETWEEN 5 AND 7 THEN 'fiveToSeven' ELSE 'eightPlus' END AS bucket
+          FROM per_order
+        )
+        SELECT period, CASE WHEN GROUPING(bucket) = 1 THEN 'ALL' ELSE bucket END AS bucket,
+               COUNT(*)::text AS "completedOrders", COALESCE(SUM(item_quantity), 0)::text AS "totalItems"
+        FROM bucketed
+        GROUP BY GROUPING SETS ((period), (period, bucket))
+      `, params.slice(0, 6)),
+      this.dataSource.query<OrderDimensionRow[]>(`
+        WITH bounds AS (
+          SELECT $2::timestamp AT TIME ZONE $5 AS previous_start,
+                 $3::timestamp AT TIME ZONE $5 AS current_start,
+                 $4::timestamp AT TIME ZONE $5 AS current_end
+        ), scoped AS (
+          SELECT o.delivery_method, o.order_source, o.status, o.total_amount_toman,
+                 o.created_at >= b.current_start AND o.created_at < b.current_end AS created_current,
+                 o.created_at >= b.previous_start AND o.created_at < b.current_start AS created_previous,
+                 o.status = $6::order_status AND o.status_changed_at >= b.current_start AND o.status_changed_at < b.current_end AS completed_current,
+                 o.status = $6::order_status AND o.status_changed_at >= b.previous_start AND o.status_changed_at < b.current_start AS completed_previous
+          FROM orders o CROSS JOIN bounds b
+          WHERE o.coffee_shop_id = $1 AND (
+            (o.created_at >= b.previous_start AND o.created_at < b.current_end) OR
+            (o.status = $6::order_status AND o.status_changed_at >= b.previous_start AND o.status_changed_at < b.current_end)
+          )
+        )
+        SELECT CASE WHEN GROUPING(delivery_method) = 0 THEN 'fulfillment' ELSE 'source' END AS dimension,
+               CASE WHEN GROUPING(delivery_method) = 0 THEN COALESCE(delivery_method::text, 'UNKNOWN')
+                    ELSE COALESCE(order_source::text, 'UNKNOWN') END AS key,
+               COUNT(*) FILTER (WHERE created_current)::text AS created,
+               COUNT(*) FILTER (WHERE created_previous)::text AS "previousCreated",
+               COUNT(*) FILTER (WHERE completed_current)::text AS completed,
+               COUNT(*) FILTER (WHERE completed_previous)::text AS "previousCompleted",
+               COALESCE(SUM(total_amount_toman) FILTER (WHERE completed_current), 0)::text AS revenue,
+               COALESCE(SUM(total_amount_toman) FILTER (WHERE completed_previous), 0)::text AS "previousRevenue"
+        FROM scoped
+        GROUP BY GROUPING SETS ((delivery_method), (order_source))
+      `, params.slice(0, 6)),
+    ]);
+
+    const summary = summaryRows[0]!;
+    const currentCreated = BigInt(summary.created), previousCreated = BigInt(summary.previousCreated);
+    const currentCompleted = BigInt(summary.completed), previousCompleted = BigInt(summary.previousCompleted);
+    const currentCancelled = BigInt(summary.cancelled), previousCancelled = BigInt(summary.previousCancelled);
+    const currentTerminal = currentCompleted + currentCancelled, previousTerminal = previousCompleted + previousCancelled;
+    const allCurrentItems = itemRows.find((row) => row.period === "current" && row.bucket === "ALL");
+    const allPreviousItems = itemRows.find((row) => row.period === "previous" && row.bucket === "ALL");
+    const averageItems = (row: OrderItemsRow | undefined) => {
+      const count = BigInt(row?.completedOrders ?? "0");
+      return count === 0n ? 0n : (BigInt(row?.totalItems ?? "0") * 100n + count / 2n) / count;
+    };
+    const metric = (name: "fulfillment" | "source") => dimensionRows.filter((row) => row.dimension === name);
+    const totalRevenue = (rows: OrderDimensionRow[], field: "revenue" | "previousRevenue") => rows.reduce((sum, row) => sum + BigInt(row[field]), 0n);
+    const dimension = (row: OrderDimensionRow, kind: "fulfillment" | "source", rows: OrderDimensionRow[]) => {
+      const completed = BigInt(row.completed), previousCompletedCount = BigInt(row.previousCompleted);
+      const revenue = BigInt(row.revenue), previousRevenue = BigInt(row.previousRevenue);
+      return {
+        [kind === "fulfillment" ? "fulfillmentType" : "source"]: row.key,
+        totalOrders: compareMetric(BigInt(row.created), BigInt(row.previousCreated)),
+        completedOrders: compareMetric(completed, previousCompletedCount),
+        revenueToman: compareMetric(revenue, previousRevenue),
+        averageOrderValueToman: compareMetric(
+          completed === 0n ? 0n : (revenue + completed / 2n) / completed,
+          previousCompletedCount === 0n ? 0n : (previousRevenue + previousCompletedCount / 2n) / previousCompletedCount,
+        ),
+        orderSharePercent: percentOf(BigInt(row.created), currentCreated),
+        previousOrderSharePercent: percentOf(BigInt(row.previousCreated), previousCreated),
+        completedOrderSharePercent: percentOf(completed, currentCompleted),
+        previousCompletedOrderSharePercent: percentOf(previousCompletedCount, previousCompleted),
+        revenueSharePercent: percentOf(revenue, totalRevenue(rows, "revenue")),
+        previousRevenueSharePercent: percentOf(previousRevenue, totalRevenue(rows, "previousRevenue")),
+      };
+    };
+    const fulfillmentRows = metric("fulfillment");
+    const sourceRows = metric("source");
+    const statuses = Object.values(OrderStatus);
+    const statusCounts = new Map(statusRows.map((row) => [row.status, BigInt(row.orders)]));
+    const createdStatusTotal = [...statusCounts.values()].reduce((sum, count) => sum + count, 0n);
+    const outcomeSeries = (status: OrderStatus) => ({
+      key: status, label: status,
+      points: outcomeRows.filter((row) => row.status === status).map((row) => ({ bucket: row.bucket, label: row.bucket, value: row.orders })),
+    });
+    const sizeBuckets = ["zero", "one", "two", "threeToFour", "fiveToSeven", "eightPlus"] as const;
+
+    return {
+      period: query.period, timezone, current: ranges.current, previous: ranges.previous, granularity,
+      metrics: {
+        totalOrdersCreated: compareMetric(currentCreated, previousCreated),
+        completedOrders: compareMetric(currentCompleted, previousCompleted),
+        cancelledOrders: compareMetric(currentCancelled, previousCancelled),
+        completionRate: rateMetric(currentCompleted, currentTerminal, previousCompleted, previousTerminal),
+        cancellationRate: rateMetric(currentCancelled, currentTerminal, previousCancelled, previousTerminal),
+        cancelledOrderValueToman: compareMetric(BigInt(summary.cancelledValue), BigInt(summary.previousCancelledValue)),
+        averageItemsPerOrder: fixedMetric(averageItems(allCurrentItems), averageItems(allPreviousItems)),
+      },
+      statusBreakdown: statuses.map((status) => {
+        const count = statusCounts.get(status) ?? 0n;
+        return { status, orderCount: count.toString(), sharePercent: percentOf(count, createdStatusTotal) };
+      }),
+      outcomeTrend: [outcomeSeries(COMPLETED_ORDER_STATUS), outcomeSeries(CANCELLED_ORDER_STATUS)],
+      orderSizeDistribution: sizeBuckets.map((key) => ({
+        key,
+        orders: itemRows.find((row) => row.period === "current" && row.bucket === key)?.completedOrders ?? "0",
+      })),
+      fulfillment: [OrderDeliveryMethod.Pickup, OrderDeliveryMethod.Courier].map((type) => {
+        const row = fulfillmentRows.find((item) => item.key === type) ?? {
+          dimension: "fulfillment" as const, key: type, created: "0", previousCreated: "0", completed: "0", previousCompleted: "0", revenue: "0", previousRevenue: "0",
+        };
+        return dimension(row, "fulfillment", fulfillmentRows);
+      }),
+      sources: [...sourceRows]
+        .sort((left, right) => compareBigInt(BigInt(right.revenue), BigInt(left.revenue)) || compareBigInt(BigInt(right.created), BigInt(left.created)) || left.key.localeCompare(right.key))
+        .map((row) => dimension(row, "source", sourceRows)),
     };
   }
 

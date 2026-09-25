@@ -7,7 +7,7 @@ import { Client, ClientAddress } from "../clients/entities";
 import { Branch, CoffeeShop, Domain } from "../database/entities";
 import { CoffeeShopMembership, MembershipRole, Permission, Role, RolePermission, User, UserPlatformRole } from "../identity/entities";
 import { MenuCategory, MenuItem, MenuItemVariant } from "../menu/entities";
-import { Order, OrderDeliveryMethod, OrderStatus } from "../ordering/entities";
+import { OnlineOrderingSettings, Order, OrderDeliveryMethod, OrderPaymentMethod, OrderSource, OrderStatus } from "../ordering/entities";
 import { OrderItem } from "../ordering/entities/order-item.entity";
 import { OrderingService } from "../ordering/ordering.service";
 import { InventoryDimension, InventoryWasteReason } from "./entities";
@@ -22,7 +22,7 @@ test("order quantity multiplication stays exact", () => {
 });
 
 test("accepted orders consume the applied recipe once and cancellation reverses its original movements", { skip: !process.env.INVENTORY_INTEGRATION_DATABASE_URL }, async () => {
-  const db = new DataSource({ type: "postgres", url: process.env.INVENTORY_INTEGRATION_DATABASE_URL, entities: [CoffeeShop, Branch, Domain, User, CoffeeShopMembership, MembershipRole, Permission, Role, RolePermission, UserPlatformRole, Client, ClientAddress, MenuCategory, MenuItem, MenuItemVariant, Order, OrderItem] });
+  const db = new DataSource({ type: "postgres", url: process.env.INVENTORY_INTEGRATION_DATABASE_URL, entities: [CoffeeShop, Branch, Domain, User, CoffeeShopMembership, MembershipRole, Permission, Role, RolePermission, UserPlatformRole, Client, ClientAddress, MenuCategory, MenuItem, MenuItemVariant, OnlineOrderingSettings, Order, OrderItem] });
   await db.initialize();
   const rollback = new Error(`rollback order inventory ${randomUUID()}`);
   try {
@@ -46,7 +46,7 @@ test("accepted orders consume the applied recipe once and cancellation reverses 
       const enabledSubscriptions = { requireFeature: async () => undefined, featureState: async () => ({ enabled: true }) };
       const recipes = new RecipesService(adapter, enabledSubscriptions as never);
       const inventory = new InventoryService(adapter, enabledSubscriptions as never, recipes);
-      const ordering = new OrderingService(adapter, {} as never, { enqueue: async () => undefined } as never, inventory);
+      const ordering = new OrderingService(adapter, enabledSubscriptions as never, { enqueue: async () => undefined } as never, inventory);
       const location = await inventory.createLocation(tenantId, { name: "Main", isDefault: true });
       const coffee = await inventory.createItem(tenantId, actor.id, { name: "Coffee", dimension: InventoryDimension.Weight, baseUnit: "g", locationId: location.id, openingQuantity: "1000" });
       const milk = await inventory.createItem(tenantId, actor.id, { name: "Milk", dimension: InventoryDimension.Volume, baseUnit: "ml", locationId: location.id, openingQuantity: "1000" });
@@ -71,6 +71,13 @@ test("accepted orders consume the applied recipe once and cancellation reverses 
         for (const line of lines) await manager.query(`INSERT INTO order_items(coffee_shop_id,order_id,menu_item_id,menu_item_variant_id,item_name,variant_name,unit_price_toman,quantity,line_total_toman) VALUES($1,$2,$3,$4,$5,$6,0,$7,0)`, [tenantId, order.id, line.item, line.variant ?? null, line.name, line.variant ? "Large" : null, line.quantity]);
         return order.id as string;
       };
+
+      const clientCheckout = await ordering.createOrder(tenantId, client.id, {
+        items: [{ menuItemId: gift.id, quantity: 2 }], deliveryMethod: OrderDeliveryMethod.Pickup,
+        paymentMethod: OrderPaymentMethod.Offline, idempotencyKey: `checkout-${randomUUID()}`,
+      });
+      const [checkoutSource] = await manager.query(`SELECT order_source::text AS source FROM orders WHERE coffee_shop_id=$1 AND id=$2`, [tenantId, clientCheckout.id]);
+      assert.equal(checkoutSource.source, OrderSource.PublicClient);
 
       const orderA = await createOrder(`order-a-${randomUUID()}`, [{ item: latte.id, name: "Latte", quantity: 2 }, { item: gift.id, name: "Gift Card", quantity: 1 }]);
       const acceptedA = await ordering.updateStatus(tenantId, orderA, actor.id, OrderStatus.Preparing);

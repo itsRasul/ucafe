@@ -22,6 +22,10 @@ export enum OrderDeliveryMethod {
   Courier = "COURIER",
 }
 
+export enum OrderSource {
+  PublicClient = "PUBLIC_CLIENT",
+}
+
 @Entity({ name: "orders" })
 @Unique("UQ_orders_client_idempotency", ["coffeeShopId", "clientId", "idempotencyKey"])
 @Index("IDX_orders_tenant_created", ["coffeeShopId", "createdAt"])
@@ -49,6 +53,9 @@ export class Order {
 
   @Column({ name: "delivery_method", type: "enum", enum: OrderDeliveryMethod, enumName: "order_delivery_method" })
   deliveryMethod!: OrderDeliveryMethod;
+
+  @Column({ name: "order_source", type: "enum", enum: OrderSource, enumName: "order_source", nullable: true })
+  orderSource!: OrderSource | null;
 
   @Column({ name: "delivery_address_id", type: "uuid", nullable: true })
   deliveryAddressId!: string | null;

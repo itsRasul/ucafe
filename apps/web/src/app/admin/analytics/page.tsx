@@ -8,6 +8,7 @@ import { useAdminSession } from "../admin-session";
 import { TimeDistribution, TimeView } from "./time-view";
 import { ProductAnalytics, ProductDetail, ProductView } from "./product-view";
 import { CustomerAnalytics, CustomerView } from "./customer-view";
+import { OrderAnalytics, OrderView } from "./order-view";
 import { InventoryVarianceView } from "./variance-view";
 import "./analytics.css";
 
@@ -74,10 +75,11 @@ export default function AnalyticsPage() {
   const [timeData, setTimeData] = useState<TimeDistribution | null>(null);
   const [productData, setProductData] = useState<ProductAnalytics | null>(null);
   const [customerData, setCustomerData] = useState<CustomerAnalytics | null>(null);
+  const [orderData, setOrderData] = useState<OrderAnalytics | null>(null);
   const [productDetail, setProductDetail] = useState<ProductDetail | null>(null);
   const [selectedProductId, setSelectedProductId] = useState("");
   const [detailBusy, setDetailBusy] = useState(false);
-  const [view, setView] = useState<"overview" | "time" | "products" | "customers" | "variance">("overview");
+  const [view, setView] = useState<"overview" | "time" | "products" | "customers" | "orders" | "variance">("overview");
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
   const [unavailable, setUnavailable] = useState(false);
@@ -90,11 +92,12 @@ export default function AnalyticsPage() {
     if (view === "variance") { setBusy(false); setError(""); setUnavailable(false); return; }
     const controller = new AbortController();
     setBusy(true); setError(""); setUnavailable(false);
-    const path = view === "overview" ? "overview" : view === "time" ? "time-distribution" : view === "products" ? "products" : "customers";
-    api<Overview | TimeDistribution | ProductAnalytics | CustomerAnalytics>(`/tenant/analytics/${path}?${query}${view === "products" || view === "customers" ? "&limit=10" : ""}`, { signal: controller.signal }).then((result) => {
+    const path = view === "overview" ? "overview" : view === "time" ? "time-distribution" : view === "products" ? "products" : view === "customers" ? "customers" : "orders";
+    api<Overview | TimeDistribution | ProductAnalytics | CustomerAnalytics | OrderAnalytics>(`/tenant/analytics/${path}?${query}${view === "products" || view === "customers" ? "&limit=10" : ""}`, { signal: controller.signal }).then((result) => {
       if (view === "overview") setData(result as Overview);
       else if (view === "time") setTimeData(result as TimeDistribution);
       else if (view === "customers") setCustomerData(result as CustomerAnalytics);
+      else if (view === "orders") setOrderData(result as OrderAnalytics);
       else {
         const report = result as ProductAnalytics;
         setProductData(report);
@@ -129,8 +132,8 @@ export default function AnalyticsPage() {
   return <section className="analytics-page">
     <header className="analytics-heading"><div><h1>آمار و تحلیل</h1><p>فروش، سفارش‌ها، رفتار مشتریان و اختلاف مصرف موجودی کافه.</p></div><span>گزارش‌های عملیاتی</span></header>
     <form className="analytics-filter" onSubmit={applyCustom}><label htmlFor="analytics-period">بازه گزارش</label><select id="analytics-period" value={period} onChange={(event) => selectPeriod(event.target.value as Period)}>{periods.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>{period === "custom" && <><label>از تاریخ<JalaliDateInput value={start} onChange={setStart} required /></label><label>تا تاریخ<JalaliDateInput value={end} onChange={setEnd} required /></label><button type="submit">نمایش گزارش</button></>}</form>
-    <nav className="analytics-tabs" aria-label="بخش‌های آمار"><button type="button" aria-current={view === "overview" ? "page" : undefined} onClick={() => setView("overview")}>نمای کلی</button><button type="button" aria-current={view === "time" ? "page" : undefined} onClick={() => setView("time")}>تحلیل زمانی</button><button type="button" aria-current={view === "products" ? "page" : undefined} onClick={() => setView("products")}>محصولات و منو</button><button type="button" aria-current={view === "customers" ? "page" : undefined} onClick={() => setView("customers")}>تحلیل مشتریان</button>{inventoryPermitted && <button type="button" aria-current={view === "variance" ? "page" : undefined} onClick={() => setView("variance")}>اختلاف مصرف موجودی</button>}</nav>
-    {view === "variance" ? <InventoryVarianceView timezone={access.tenant.timezone} /> : unavailable ? <div className="analytics-state"><h2>آمار و تحلیل در اشتراک فعلی فعال نیست</h2><p>برای بررسی پلن‌های دارای این امکان، صفحه اشتراک را ببینید.</p><Link href="/admin/subscription">مشاهده پلن‌ها</Link></div> : error ? <div className="analytics-state" role="alert"><h2>گزارش دریافت نشد</h2><p>{error}</p><button type="button" onClick={() => setRetry((value) => value + 1)}>تلاش دوباره</button></div> : busy ? <div className="analytics-loading" role="status"><span className="admin-spinner" />در حال آماده‌سازی گزارش…</div> : view === "customers" && customerData ? <CustomerView data={customerData} /> : view === "products" && productData ? <ProductView data={productData} detail={productDetail} detailBusy={detailBusy} selectedProductId={selectedProductId} onSelectProduct={setSelectedProductId} /> : view === "time" && timeData ? <TimeView data={timeData} /> : view === "overview" && data && <div className="analytics-results" aria-busy={busy}>
+    <nav className="analytics-tabs" aria-label="بخش‌های آمار"><button type="button" aria-current={view === "overview" ? "page" : undefined} onClick={() => setView("overview")}>نمای کلی</button><button type="button" aria-current={view === "time" ? "page" : undefined} onClick={() => setView("time")}>تحلیل زمانی</button><button type="button" aria-current={view === "products" ? "page" : undefined} onClick={() => setView("products")}>محصولات و منو</button><button type="button" aria-current={view === "customers" ? "page" : undefined} onClick={() => setView("customers")}>تحلیل مشتریان</button><button type="button" aria-current={view === "orders" ? "page" : undefined} onClick={() => setView("orders")}>سفارش‌ها و کانال‌ها</button>{inventoryPermitted && <button type="button" aria-current={view === "variance" ? "page" : undefined} onClick={() => setView("variance")}>اختلاف مصرف موجودی</button>}</nav>
+    {view === "variance" ? <InventoryVarianceView timezone={access.tenant.timezone} /> : unavailable ? <div className="analytics-state"><h2>آمار و تحلیل در اشتراک فعلی فعال نیست</h2><p>برای بررسی پلن‌های دارای این امکان، صفحه اشتراک را ببینید.</p><Link href="/admin/subscription">مشاهده پلن‌ها</Link></div> : error ? <div className="analytics-state" role="alert"><h2>گزارش دریافت نشد</h2><p>{error}</p><button type="button" onClick={() => setRetry((value) => value + 1)}>تلاش دوباره</button></div> : busy ? <div className="analytics-loading" role="status"><span className="admin-spinner" />در حال آماده‌سازی گزارش…</div> : view === "orders" && orderData ? <OrderView data={orderData} /> : view === "customers" && customerData ? <CustomerView data={customerData} /> : view === "products" && productData ? <ProductView data={productData} detail={productDetail} detailBusy={detailBusy} selectedProductId={selectedProductId} onSelectProduct={setSelectedProductId} /> : view === "time" && timeData ? <TimeView data={timeData} /> : view === "overview" && data && <div className="analytics-results" aria-busy={busy}>
       <div className="analytics-kpis"><article className="analytics-kpi main"><span>فروش تحویل‌شده</span><strong>{toman(data.metrics.revenueToman.value)}</strong><div><Comparison metric={data.metrics.revenueToman} /><small>دوره قبل: {toman(data.metrics.revenueToman.previousValue)}</small></div></article><article className="analytics-kpi"><span>سفارش‌های تکمیل‌شده</span><strong>{number(data.metrics.completedOrders.value)}</strong><div><Comparison metric={data.metrics.completedOrders} /><small>دوره قبل: {number(data.metrics.completedOrders.previousValue)}</small></div></article><article className="analytics-kpi"><span>میانگین هر سفارش</span><strong>{toman(data.metrics.averageOrderValueToman.value)}</strong><div><Comparison metric={data.metrics.averageOrderValueToman} /><small>دوره قبل: {toman(data.metrics.averageOrderValueToman.previousValue)}</small></div></article><article className="analytics-kpi"><span>مشتریان یکتا</span><strong>{number(data.metrics.uniqueCustomers.value)}</strong><div><Comparison metric={data.metrics.uniqueCustomers} /><small>دوره قبل: {number(data.metrics.uniqueCustomers.previousValue)}</small></div></article></div>
       {data.metrics.completedOrders.value === "0" && <div className="analytics-empty"><strong>هنوز فروش تحویل‌شده‌ای برای این بازه ثبت نشده است.</strong><p>پس از تکمیل سفارش‌ها، روند فروش و تعداد سفارش‌ها اینجا دیده می‌شود.</p></div>}
       <Trend title="روند فروش" description="ارزش سفارش‌های تحویل‌شده در هر بازه" series={data.series.revenueToman} granularity={data.granularity} timezone={data.timezone} money />

@@ -9,7 +9,7 @@ import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { SubscriptionFeatures } from "../subscriptions/subscription-features";
 import { InventoryService } from "../inventory/inventory.service";
 import { CheckoutAddressDto, CheckoutLineDto, ClientOrdersQueryDto, CreateOrderDto, OrdersQueryDto, UpdateOnlineOrderingSettingsDto } from "./dto/ordering.dto";
-import { OnlineOrderingSettings, Order, OrderDeliveryMethod, OrderItem, OrderPaymentMethod, OrderStatus } from "./entities";
+import { OnlineOrderingSettings, Order, OrderDeliveryMethod, OrderItem, OrderPaymentMethod, OrderSource, OrderStatus } from "./entities";
 import { nextOrderStatuses } from "./order-status.util";
 
 type UnavailableLine = { menuItemId: string; variantId: string | null; reason: string; name?: string };
@@ -84,6 +84,7 @@ export class OrderingService {
         status: OrderStatus.UnderReview,
         paymentMethod: input.paymentMethod,
         deliveryMethod: input.deliveryMethod,
+        orderSource: OrderSource.PublicClient,
         deliveryAddressId: address?.id ?? null,
         deliveryAddressSnapshot: address ? this.addressSnapshot(address) : null,
         totalAmountToman: total.toString(),

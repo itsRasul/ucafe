@@ -2,6 +2,14 @@
 
 Last updated: 2026-09-25
 
+## Analytics Phase 5: order and channel analytics
+
+Implemented `GET /tenant/analytics/orders` and the **سفارش‌ها و کانال‌ها** tab. The report compares created orders, terminal outcomes, completion/cancellation rates, canceled order value, average items and size buckets, status trends, pickup/courier performance, and source performance. Migration `1790331236284` adds nullable typed source tracking for public-client checkout; existing rows remain `UNKNOWN`.
+
+Completion/cancellation rates use terminal outcomes only (`DELIVERED + CANCELED`); active statuses do not count as failures. The order source intentionally identifies the public-client flow only; it cannot distinguish website vs QR, admin-created orders do not exist, and no visits, structured reasons, rejected state, or transition history are stored. See [ANALYTICS.md](ANALYTICS.md) for formulas, query strategy, unknown-source handling, and deferred work.
+
+Verification: workspace typecheck and production build passed. The focused Analytics and order/inventory PostgreSQL integrations passed (16/16); the serial full API suite passed (113 passed, 5 skipped), with the Analytics PostgreSQL cases run separately against the development database. The dynamic plan-editor database fixture was skipped because local plan settings are customized; Analytics feature resolver and service-denial tests passed. Migration `1790331236284` is applied and `migration:show` confirms all migrations. API route returned expected unauthenticated 401; `/admin/analytics` returned 200. Authenticated visual/mobile interaction review remains unavailable without a tenant-admin session.
+
 ## Analytics Phase 4: customer analytics
 
 Implemented `/tenant/analytics/customers` with cafe-scoped identity, first-purchase new/returning classification, period comparisons and trends, reorder interval, lifetime repeat distribution, coverage, top-10 revenue/order rankings, and a Persian RTL customer analytics tab. Migration `1787883600000` adds the tenant/status/client/time index.

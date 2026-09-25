@@ -47,6 +47,13 @@ export class AnalyticsController {
     return this.analytics.timeDistribution(tenant.coffeeShopId, tenant.timezone, query);
   }
 
+  @Get("orders")
+  @RequireTenantPermissions(TenantPermissions.AnalyticsRead)
+  orders(@Req() req: TenantContextRequest, @Query() query: AnalyticsQueryDto) {
+    const tenant = req[TENANT_CONTEXT]!;
+    return this.analytics.orders(tenant.coffeeShopId, tenant.timezone, query);
+  }
+
   @Get("products")
   @RequireTenantPermissions(TenantPermissions.AnalyticsRead)
   products(@Req() req: TenantContextRequest, @Query() query: ProductAnalyticsQueryDto) {
