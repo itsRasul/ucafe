@@ -7,6 +7,8 @@ export enum ReservationStatus { Pending = "PENDING", Confirmed = "CONFIRMED", Re
 
 @Entity({ name: "reservations" })
 @Index("IDX_reservations_tenant_date_status", ["coffeeShopId", "reservationDate", "status"])
+@Index("IDX_reservations_tenant_created_at", ["coffeeShopId", "createdAt"])
+@Index("IDX_reservations_tenant_status_changed", ["coffeeShopId", "status", "statusChangedAt"])
 @Index("IDX_reservations_branch_slot", ["branchId", "reservationDate", "startTime", "endTime"])
 export class Reservation {
   @PrimaryGeneratedColumn("uuid") id!: string;

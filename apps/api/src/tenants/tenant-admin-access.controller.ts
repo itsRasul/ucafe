@@ -20,7 +20,10 @@ export class TenantAdminAccessController {
     return {
       tenant: { slug: tenant.slug, status: tenant.status, locale: tenant.locale, timezone: tenant.timezone },
       permissions: access.permissions,
-      features: { inventory: (await this.subscriptions.featureState(tenant.coffeeShopId, SubscriptionFeatures.Inventory)).enabled },
+      features: {
+        inventory: (await this.subscriptions.featureState(tenant.coffeeShopId, SubscriptionFeatures.Inventory)).enabled,
+        reservations: (await this.subscriptions.featureState(tenant.coffeeShopId, SubscriptionFeatures.Reservations)).enabled,
+      },
     };
   }
 }

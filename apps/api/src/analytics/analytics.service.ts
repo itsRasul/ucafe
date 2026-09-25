@@ -4,6 +4,7 @@ import { CANCELLED_ORDER_STATUS, COMPLETED_ORDER_STATUS } from "../ordering/orde
 import { OrderDeliveryMethod, OrderSource, OrderStatus } from "../ordering/entities";
 import { SubscriptionFeatures } from "../subscriptions/subscription-features";
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
+import { ReservationStatus } from "../reservations/entities";
 import { AnalyticsQueryDto, compareMetric, percentOf, ProductAnalyticsQueryDto, CustomerAnalyticsQueryDto } from "./analytics.dto";
 import { analyticsGranularity, analyticsRanges, AnalyticsGranularity, AnalyticsRanges } from "./analytics-period";
 
@@ -28,6 +29,17 @@ interface OrderDimensionRow {
   created: string; previousCreated: string; completed: string; previousCompleted: string;
   revenue: string; previousRevenue: string;
 }
+interface ReservationSummaryRow {
+  period: "current" | "previous"; createdReservations: string; scheduledReservations: string;
+  pending: string; confirmed: string; rejected: string; canceled: string; completed: string; noShow: string;
+  reservedGuests: string; operationalReservations: string; partySizeSum: string; largestPartySize: string | null;
+  leadTimeHours: string | null; cancellationLeadTimeHours: string | null;
+}
+interface ReservationScheduleRow { date: string; hour: number; reservations: string; guests: string }
+interface ReservationCreatedRow { bucket: string; reservations: string }
+interface ReservationOutcomeTrendRow { bucket: string; canceled: string; rejected: string; completed: string; noShow: string }
+interface ReservationPartySizeRow { partySize: number; reservations: string }
+type ReservationMeasure = { reservationCount: string; reservedGuests: string };
 export interface OrderRateMetric { value: string | null; previousValue: string | null; change: string | null; changePercent: string | null }
 interface ProductRow {
   key: string; productId: string | null; name: string; status: "active" | "unavailable" | "archived" | "deleted";
@@ -63,6 +75,20 @@ interface CustomerRankingRow {
 export interface CategorySeriesRow extends ItemSeriesRow { key: string; categoryId: string | null; name: string }
 type TimeBucket = { revenue: string; completedOrders: string };
 const WEEKDAYS = ["saturday", "sunday", "monday", "tuesday", "wednesday", "thursday", "friday"] as const;
+const reservationBucket = (): ReservationMeasure => ({ reservationCount: "0", reservedGuests: "0" });
+const addReservationMeasure = (target: ReservationMeasure, reservations: string, guests: string) => {
+  target.reservationCount = (BigInt(target.reservationCount) + BigInt(reservations)).toString();
+  target.reservedGuests = (BigInt(target.reservedGuests) + BigInt(guests)).toString();
+};
+const shiftAnalyticsDate = (date: string, days: number) => {
+  const result = new Date(`${date}T00:00:00.000Z`);
+  result.setUTCDate(result.getUTCDate() + days);
+  return result.toISOString().slice(0, 10);
+};
+function reservationPeak<T extends ReservationMeasure>(buckets: T[], metric: keyof ReservationMeasure): T[] {
+  const max = buckets.reduce((value, bucket) => BigInt(bucket[metric]) > value ? BigInt(bucket[metric]) : value, 0n);
+  return max === 0n ? [] : buckets.filter((bucket) => BigInt(bucket[metric]) === max);
+}
 const emptyBucket = (): TimeBucket => ({ revenue: "0", completedOrders: "0" });
 const add = (bucket: TimeBucket, row: TimeRow) => {
   bucket.revenue = (BigInt(bucket.revenue) + BigInt(row.revenue)).toString();
@@ -98,6 +124,25 @@ function rateMetric(numerator: bigint, denominator: bigint, previousNumerator: b
     };
   }
   return fixedMetric(numerator * 10000n / denominator, previousNumerator * 10000n / previousDenominator);
+}
+
+function nullableFixedMetric(current: bigint | null, previous: bigint | null): OrderRateMetric {
+  if (current === null || previous === null) return {
+    value: current === null ? null : fixed(current), previousValue: previous === null ? null : fixed(previous),
+    change: null, changePercent: null,
+  };
+  const change = current - previous;
+  const absolute = change < 0n ? -change : change;
+  const relative = previous === 0n ? null : absolute * 10000n / previous;
+  return {
+    value: fixed(current), previousValue: fixed(previous), change: fixed(change),
+    changePercent: relative === null ? null : `${change < 0n ? "-" : ""}${fixed(relative)}`,
+  };
+}
+
+function averageMetric(total: bigint, count: bigint, previousTotal: bigint, previousCount: bigint): OrderRateMetric {
+  const average = (sum: bigint, size: bigint) => size === 0n ? null : (sum * 100n + size / 2n) / size;
+  return nullableFixedMetric(average(total, count), average(previousTotal, previousCount));
 }
 
 const EMPTY: Omit<AggregateRow, "period"> = { revenue: "0", completedOrders: "0", cancelledOrders: "0", uniqueCustomers: "0" };
@@ -203,6 +248,133 @@ export class AnalyticsService {
         revenueWeekdays: peak(weekdays, "revenue"), orderWeekdays: peak(weekdays, "completedOrders"),
         revenueDates: peak(dates, "revenue"), orderDates: peak(dates, "completedOrders"),
         lowestActiveRevenueDates: lowestRevenue === null ? [] : activeDates.filter((date) => BigInt(date.revenue) === lowestRevenue),
+      },
+    };
+  }
+
+  async reservations(coffeeShopId: string, timezone: string, query: AnalyticsQueryDto) {
+    await this.subscriptions.requireFeature(coffeeShopId, SubscriptionFeatures.Analytics);
+    await this.subscriptions.requireFeature(coffeeShopId, SubscriptionFeatures.Reservations);
+    const ranges = this.ranges(timezone, query);
+    const granularity = analyticsGranularity(ranges.current);
+    const [summaryRows, createdRows, scheduleRows, outcomeRows, partyRows] = await Promise.all([
+      this.reservationSummary(coffeeShopId, ranges),
+      this.reservationCreatedTrend(coffeeShopId, ranges, granularity),
+      this.reservationSchedule(coffeeShopId, ranges),
+      this.reservationOutcomeTrend(coffeeShopId, ranges, granularity),
+      this.reservationPartySizes(coffeeShopId, ranges),
+    ]);
+    const empty: ReservationSummaryRow = {
+      period: "current", createdReservations: "0", scheduledReservations: "0", pending: "0", confirmed: "0",
+      rejected: "0", canceled: "0", completed: "0", noShow: "0", reservedGuests: "0",
+      operationalReservations: "0", partySizeSum: "0", largestPartySize: null, leadTimeHours: null, cancellationLeadTimeHours: null,
+    };
+    const current = summaryRows.find((row) => row.period === "current") ?? empty;
+    const previous = summaryRows.find((row) => row.period === "previous") ?? { ...empty, period: "previous" as const };
+    const countMetric = (key: "createdReservations" | "scheduledReservations" | "pending" | "confirmed" | "rejected" | "canceled" | "completed" | "noShow" | "reservedGuests") =>
+      compareMetric(BigInt(current[key]), BigInt(previous[key]));
+    const terminal = (row: ReservationSummaryRow) => BigInt(row.completed) + BigInt(row.canceled) + BigInt(row.rejected) + BigInt(row.noShow);
+    const confirmationDenominator = (row: ReservationSummaryRow) => BigInt(row.pending) + BigInt(row.confirmed) + BigInt(row.rejected) + BigInt(row.completed) + BigInt(row.noShow);
+    const confirmedOrLater = (row: ReservationSummaryRow) => BigInt(row.confirmed) + BigInt(row.completed) + BigInt(row.noShow);
+
+    const weekdays = WEEKDAYS.map((weekday) => ({ weekday, ...reservationBucket() }));
+    const weekdayByKey = new Map(weekdays.map((row) => [row.weekday, row]));
+    const hours = Array.from({ length: 24 }, (_, hour) => ({ hour, ...reservationBucket() }));
+    const heatmap = weekdays.flatMap(({ weekday }) => hours.map(({ hour }) => ({ weekday, hour, ...reservationBucket() })));
+    const cellByKey = new Map(heatmap.map((cell) => [`${cell.weekday}:${cell.hour}`, cell]));
+    const dailyTotals = new Map<string, ReservationMeasure>();
+    const trendTotals = new Map<string, ReservationMeasure>();
+    for (const row of scheduleRows) {
+      const day = new Date(`${row.date}T00:00:00.000Z`).getUTCDay();
+      const weekday = WEEKDAYS[(day + 1) % 7]!;
+      const count = BigInt(row.reservations).toString();
+      addReservationMeasure(weekdayByKey.get(weekday)!, count, row.guests);
+      addReservationMeasure(hours[row.hour]!, count, row.guests);
+      addReservationMeasure(cellByKey.get(`${weekday}:${row.hour}`)!, count, row.guests);
+      const daily = dailyTotals.get(row.date) ?? reservationBucket();
+      addReservationMeasure(daily, count, row.guests);
+      dailyTotals.set(row.date, daily);
+      const dayOffset = Math.floor((Date.parse(`${row.date}T00:00:00Z`) - Date.parse(`${ranges.current.start}T00:00:00Z`)) / 86400000);
+      const trendKey = granularity === "hour" ? `hour:${row.hour}`
+        : granularity === "day" ? row.date
+          : granularity === "week" ? shiftAnalyticsDate(ranges.current.start, Math.floor(dayOffset / 7) * 7)
+            : granularity === "month" ? `${row.date.slice(0, 7)}-01` : `${row.date.slice(0, 4)}-01-01`;
+      const bucket = trendTotals.get(trendKey) ?? reservationBucket();
+      addReservationMeasure(bucket, count, row.guests);
+      trendTotals.set(trendKey, bucket);
+    }
+
+    const dates: Array<{ date: string } & ReservationMeasure> = [];
+    for (let date = ranges.current.start; date < ranges.current.endExclusive; date = shiftAnalyticsDate(date, 1)) {
+      dates.push({ date, ...(dailyTotals.get(date) ?? reservationBucket()) });
+    }
+    const trendKeys: string[] = [];
+    if (granularity === "hour") {
+      for (let hour = 0; hour < 24; hour++) trendKeys.push(`hour:${hour}`);
+    } else if (granularity === "day" || granularity === "week") {
+      const step = granularity === "day" ? 1 : 7;
+      for (let date = ranges.current.start; date < ranges.current.endExclusive; date = shiftAnalyticsDate(date, step)) trendKeys.push(date);
+    } else if (granularity === "month") {
+      for (let date = `${ranges.current.start.slice(0, 7)}-01`; date < ranges.current.endExclusive;) {
+        trendKeys.push(date);
+        const next = new Date(`${date}T00:00:00.000Z`);
+        next.setUTCMonth(next.getUTCMonth() + 1);
+        date = next.toISOString().slice(0, 10);
+      }
+    } else {
+      for (let year = Number(ranges.current.start.slice(0, 4)); year < Number(ranges.current.endExclusive.slice(0, 4)) + 1; year++) trendKeys.push(`${year}-01-01`);
+    }
+    const scheduledPoints = (metric: keyof ReservationMeasure) => trendKeys.map((key) => {
+      const value = trendTotals.get(key)?.[metric] ?? "0";
+      return { bucket: granularity === "hour" ? `${ranges.current.start}T${key.slice(5).padStart(2, "0")}:00:00` : key, label: granularity === "hour" ? `${key.slice(5).padStart(2, "0")}:00` : key, value };
+    });
+    const statusRows = [
+      [ReservationStatus.Pending, current.pending], [ReservationStatus.Confirmed, current.confirmed],
+      [ReservationStatus.Completed, current.completed], [ReservationStatus.NoShow, current.noShow],
+      [ReservationStatus.Canceled, current.canceled], [ReservationStatus.Rejected, current.rejected],
+    ] as const;
+    const scheduledTotal = BigInt(current.scheduledReservations);
+    const outcomeSeries = (key: string, label: string, field: keyof ReservationOutcomeTrendRow) => ({
+      key, label, points: outcomeRows.map((row) => ({ bucket: row.bucket, label: row.bucket, value: row[field] as string })),
+    });
+    const confirmationRate = rateMetric(confirmedOrLater(current), confirmationDenominator(current), confirmedOrLater(previous), confirmationDenominator(previous));
+    const terminalCount = terminal(current);
+    const previousTerminalCount = terminal(previous);
+
+    return {
+      period: query.period, timezone, current: ranges.current, previous: ranges.previous, granularity,
+      metrics: {
+        createdReservations: countMetric("createdReservations"), scheduledReservations: countMetric("scheduledReservations"),
+        confirmedReservations: countMetric("confirmed"), completedReservations: countMetric("completed"),
+        cancelledReservations: countMetric("canceled"), rejectedReservations: countMetric("rejected"),
+        noShowReservations: countMetric("noShow"), reservedGuests: countMetric("reservedGuests"),
+        averagePartySize: averageMetric(BigInt(current.partySizeSum), BigInt(current.operationalReservations), BigInt(previous.partySizeSum), BigInt(previous.operationalReservations)),
+        largestPartySize: { value: current.largestPartySize, previousValue: previous.largestPartySize },
+        confirmationRate,
+        completionRate: rateMetric(BigInt(current.completed), terminalCount, BigInt(previous.completed), previousTerminalCount),
+        cancellationRate: rateMetric(BigInt(current.canceled), terminalCount, BigInt(previous.canceled), previousTerminalCount),
+        rejectionRate: rateMetric(BigInt(current.rejected), terminalCount, BigInt(previous.rejected), previousTerminalCount),
+        noShowRate: rateMetric(BigInt(current.noShow), BigInt(current.completed) + BigInt(current.noShow), BigInt(previous.noShow), BigInt(previous.completed) + BigInt(previous.noShow)),
+        averageBookingLeadTimeHours: { value: current.leadTimeHours, previousValue: previous.leadTimeHours },
+        averageCancellationLeadTimeHours: { value: current.cancellationLeadTimeHours, previousValue: previous.cancellationLeadTimeHours },
+      },
+      statusBreakdown: statusRows.map(([status, count]) => ({ status, reservationCount: count, sharePercent: percentOf(BigInt(count), scheduledTotal) })),
+      trends: {
+        createdReservations: { key: "createdReservations", label: "رزروهای ثبت‌شده", points: createdRows.map((row) => ({ bucket: row.bucket, label: row.bucket, value: row.reservations })) },
+        scheduledReservations: { key: "scheduledReservations", label: "رزروهای برنامه‌ریزی‌شده", points: scheduledPoints("reservationCount") },
+        reservedGuests: { key: "reservedGuests", label: "مهمانان رزروشده", points: scheduledPoints("reservedGuests") },
+        cancellationTrend: outcomeSeries(ReservationStatus.Canceled, ReservationStatus.Canceled, "canceled"),
+        rejectionTrend: outcomeSeries(ReservationStatus.Rejected, ReservationStatus.Rejected, "rejected"),
+        noShowTrend: outcomeSeries(ReservationStatus.NoShow, ReservationStatus.NoShow, "noShow"),
+      },
+      distribution: {
+        weekdays, hours, heatmap, dates,
+        partySizes: partyRows.map((row) => ({ partySize: row.partySize, reservationCount: row.reservations, sharePercent: percentOf(BigInt(row.reservations), BigInt(current.operationalReservations)) })),
+      },
+      peaks: {
+        reservationHours: reservationPeak(hours, "reservationCount"), guestHours: reservationPeak(hours, "reservedGuests"),
+        reservationWeekdays: reservationPeak(weekdays, "reservationCount"), guestWeekdays: reservationPeak(weekdays, "reservedGuests"),
+        reservationDates: reservationPeak(dates, "reservationCount"), guestDates: reservationPeak(dates, "reservedGuests"),
       },
     };
   }
@@ -789,6 +961,128 @@ export class AnalyticsService {
     };
   }
 
+  private reservationSummary(coffeeShopId: string, ranges: AnalyticsRanges): Promise<ReservationSummaryRow[]> {
+    return this.dataSource.query<ReservationSummaryRow[]>(`
+      WITH bounds AS (
+        SELECT $2::date AS current_start_date, $3::date AS current_end_date,
+               $5::date AS previous_start_date, $6::date AS previous_end_date,
+               $2::timestamp AT TIME ZONE $4 AS current_start,
+               $3::timestamp AT TIME ZONE $4 AS current_end,
+               $5::timestamp AT TIME ZONE $4 AS previous_start,
+               $6::timestamp AT TIME ZONE $4 AS previous_end
+      ), created AS (
+        SELECT CASE WHEN r.created_at >= b.current_start THEN 'current' ELSE 'previous' END AS period,
+               COUNT(*)::text AS created
+        FROM reservations r CROSS JOIN bounds b
+        WHERE r.coffee_shop_id = $1 AND r.created_at >= b.previous_start AND r.created_at < b.current_end
+        GROUP BY 1
+      ), scheduled_base AS (
+        SELECT CASE WHEN r.reservation_date >= b.current_start_date THEN 'current' ELSE 'previous' END AS period,
+               r.status, r.party_size, r.created_at, r.status_changed_at,
+               (r.reservation_date + r.start_time) AT TIME ZONE br.timezone AS scheduled_at
+        FROM reservations r
+        JOIN branches br ON br.id = r.branch_id AND br.coffee_shop_id = r.coffee_shop_id
+        CROSS JOIN bounds b
+        WHERE r.coffee_shop_id = $1
+          AND r.reservation_date >= b.previous_start_date AND r.reservation_date < b.current_end_date
+      ), scheduled AS (
+        SELECT period, COUNT(*)::text AS scheduled,
+               COUNT(*) FILTER (WHERE status = 'PENDING')::text AS pending,
+               COUNT(*) FILTER (WHERE status = 'CONFIRMED')::text AS confirmed,
+               COUNT(*) FILTER (WHERE status = 'REJECTED')::text AS rejected,
+               COUNT(*) FILTER (WHERE status = 'CANCELED')::text AS canceled,
+               COUNT(*) FILTER (WHERE status = 'COMPLETED')::text AS completed,
+               COUNT(*) FILTER (WHERE status = 'NO_SHOW')::text AS "noShow",
+               COALESCE(SUM(party_size) FILTER (WHERE status IN ('PENDING','CONFIRMED','COMPLETED','NO_SHOW')), 0)::text AS "reservedGuests",
+               COUNT(*) FILTER (WHERE status IN ('PENDING','CONFIRMED','COMPLETED','NO_SHOW'))::text AS "operationalReservations",
+               COALESCE(SUM(party_size) FILTER (WHERE status IN ('PENDING','CONFIRMED','COMPLETED','NO_SHOW')), 0)::text AS "partySizeSum",
+               MAX(party_size) FILTER (WHERE status IN ('PENDING','CONFIRMED','COMPLETED','NO_SHOW'))::text AS "largestPartySize",
+               ROUND((AVG(EXTRACT(EPOCH FROM (scheduled_at - created_at)) / 3600.0)
+                 FILTER (WHERE scheduled_at >= created_at))::numeric, 1)::text AS "leadTimeHours",
+               ROUND((AVG(EXTRACT(EPOCH FROM (scheduled_at - status_changed_at)) / 3600.0)
+                 FILTER (WHERE status = 'CANCELED' AND status_changed_at <= scheduled_at))::numeric, 1)::text AS "cancellationLeadTimeHours"
+        FROM scheduled_base GROUP BY period
+      )
+      SELECT p.period, COALESCE(c.created, '0') AS "createdReservations",
+             COALESCE(s.scheduled, '0') AS "scheduledReservations",
+             COALESCE(s.pending, '0') AS pending, COALESCE(s.confirmed, '0') AS confirmed,
+             COALESCE(s.rejected, '0') AS rejected, COALESCE(s.canceled, '0') AS canceled,
+             COALESCE(s.completed, '0') AS completed, COALESCE(s."noShow", '0') AS "noShow",
+             COALESCE(s."reservedGuests", '0') AS "reservedGuests",
+             COALESCE(s."operationalReservations", '0') AS "operationalReservations",
+             COALESCE(s."partySizeSum", '0') AS "partySizeSum", s."largestPartySize",
+             s."leadTimeHours", s."cancellationLeadTimeHours"
+      FROM (VALUES ('current'::text), ('previous'::text)) p(period)
+      LEFT JOIN created c USING (period)
+      LEFT JOIN scheduled s USING (period)
+      ORDER BY p.period
+    `, [coffeeShopId, ranges.current.start, ranges.current.endExclusive, ranges.timezone, ranges.previous.start, ranges.previous.endExclusive]);
+  }
+
+  private reservationCreatedTrend(coffeeShopId: string, ranges: AnalyticsRanges, granularity: AnalyticsGranularity): Promise<ReservationCreatedRow[]> {
+    const { slots, bucket, textBucket } = this.seriesParts(granularity, "r.created_at", "$4");
+    return this.dataSource.query<ReservationCreatedRow[]>(`
+      WITH bounds AS (
+        SELECT $2::date AS local_start, $3::date AS local_end,
+               $2::timestamp AT TIME ZONE $4 AS current_start,
+               $3::timestamp AT TIME ZONE $4 AS current_end
+      ), slots AS (${slots}), totals AS (
+        SELECT ${bucket} AS bucket, COUNT(*)::text AS reservations
+        FROM reservations r CROSS JOIN bounds b
+        WHERE r.coffee_shop_id = $1 AND r.created_at >= b.current_start AND r.created_at < b.current_end
+        GROUP BY 1
+      )
+      SELECT ${textBucket} AS bucket, COALESCE(t.reservations, '0') AS reservations
+      FROM slots s LEFT JOIN totals t ON t.bucket = s.bucket ORDER BY s.bucket
+    `, [coffeeShopId, ranges.current.start, ranges.current.endExclusive, ranges.timezone]);
+  }
+
+  private reservationSchedule(coffeeShopId: string, ranges: AnalyticsRanges): Promise<ReservationScheduleRow[]> {
+    return this.dataSource.query<ReservationScheduleRow[]>(`
+      SELECT r.reservation_date::text AS date, EXTRACT(HOUR FROM r.start_time)::int AS hour,
+             COUNT(*)::text AS reservations,
+             COALESCE(SUM(r.party_size) FILTER (WHERE r.status IN ('PENDING','CONFIRMED','COMPLETED','NO_SHOW')), 0)::text AS guests
+      FROM reservations r
+      WHERE r.coffee_shop_id = $1 AND r.reservation_date >= $2::date AND r.reservation_date < $3::date
+      GROUP BY r.reservation_date, EXTRACT(HOUR FROM r.start_time)
+      ORDER BY r.reservation_date, hour
+    `, [coffeeShopId, ranges.current.start, ranges.current.endExclusive]);
+  }
+
+  private reservationOutcomeTrend(coffeeShopId: string, ranges: AnalyticsRanges, granularity: AnalyticsGranularity): Promise<ReservationOutcomeTrendRow[]> {
+    const { slots, bucket, textBucket } = this.seriesParts(granularity, "r.status_changed_at", "$4");
+    return this.dataSource.query<ReservationOutcomeTrendRow[]>(`
+      WITH bounds AS (
+        SELECT $2::date AS local_start, $3::date AS local_end,
+               $2::timestamp AT TIME ZONE $4 AS current_start,
+               $3::timestamp AT TIME ZONE $4 AS current_end
+      ), slots AS (${slots}), totals AS (
+        SELECT ${bucket} AS bucket, r.status, COUNT(*)::bigint AS reservations
+        FROM reservations r CROSS JOIN bounds b
+        WHERE r.coffee_shop_id = $1 AND r.status_changed_at >= b.current_start AND r.status_changed_at < b.current_end
+          AND r.status IN ('CANCELED','REJECTED','COMPLETED','NO_SHOW')
+        GROUP BY 1, r.status
+      )
+      SELECT ${textBucket} AS bucket,
+             COALESCE(SUM(t.reservations) FILTER (WHERE t.status = 'CANCELED'), 0)::text AS canceled,
+             COALESCE(SUM(t.reservations) FILTER (WHERE t.status = 'REJECTED'), 0)::text AS rejected,
+             COALESCE(SUM(t.reservations) FILTER (WHERE t.status = 'COMPLETED'), 0)::text AS completed,
+             COALESCE(SUM(t.reservations) FILTER (WHERE t.status = 'NO_SHOW'), 0)::text AS "noShow"
+      FROM slots s LEFT JOIN totals t ON t.bucket = s.bucket
+      GROUP BY s.bucket ORDER BY s.bucket
+    `, [coffeeShopId, ranges.current.start, ranges.current.endExclusive, ranges.timezone]);
+  }
+
+  private reservationPartySizes(coffeeShopId: string, ranges: AnalyticsRanges): Promise<ReservationPartySizeRow[]> {
+    return this.dataSource.query<ReservationPartySizeRow[]>(`
+      SELECT r.party_size AS "partySize", COUNT(*)::text AS reservations
+      FROM reservations r
+      WHERE r.coffee_shop_id = $1 AND r.reservation_date >= $2::date AND r.reservation_date < $3::date
+        AND r.status IN ('PENDING','CONFIRMED','COMPLETED','NO_SHOW')
+      GROUP BY r.party_size ORDER BY r.party_size
+    `, [coffeeShopId, ranges.current.start, ranges.current.endExclusive]);
+  }
+
   private series(coffeeShopId: string, ranges: AnalyticsRanges, granularity: AnalyticsGranularity): Promise<SeriesRow[]> {
     const { slots, bucket, textBucket } = this.seriesParts(granularity);
     return this.dataSource.query<SeriesRow[]>(`
@@ -809,7 +1103,7 @@ export class AnalyticsService {
     `, [coffeeShopId, ranges.current.start, ranges.current.endExclusive, COMPLETED_ORDER_STATUS, ranges.timezone]);
   }
 
-  private seriesParts(granularity: AnalyticsGranularity) {
+  private seriesParts(granularity: AnalyticsGranularity, eventTime = "o.status_changed_at", timezoneParam = "$5") {
     const slots: Record<AnalyticsGranularity, string> = {
       hour: `SELECT generate_series(b.current_start, b.current_end - interval '1 microsecond', interval '1 hour') AS bucket FROM bounds b`,
       day: `SELECT generate_series(b.local_start::date, b.local_end::date - 1, interval '1 day')::date AS bucket FROM bounds b`,
@@ -818,11 +1112,11 @@ export class AnalyticsService {
       year: `SELECT generate_series(date_trunc('year', b.local_start::timestamp), date_trunc('year', (b.local_end::date - 1)::timestamp), interval '1 year')::date AS bucket FROM bounds b`,
     };
     const bucket: Record<AnalyticsGranularity, string> = {
-      hour: `date_bin('1 hour', o.status_changed_at, b.current_start)`,
-      day: `(o.status_changed_at AT TIME ZONE $5)::date`,
-      week: `b.local_start::date + ((((o.status_changed_at AT TIME ZONE $5)::date - b.local_start::date) / 7) * 7)`,
-      month: `date_trunc('month', o.status_changed_at AT TIME ZONE $5)::date`,
-      year: `date_trunc('year', o.status_changed_at AT TIME ZONE $5)::date`,
+      hour: `date_bin('1 hour', ${eventTime}, b.current_start)`,
+      day: `(${eventTime} AT TIME ZONE ${timezoneParam})::date`,
+      week: `b.local_start::date + ((((${eventTime} AT TIME ZONE ${timezoneParam})::date - b.local_start::date) / 7) * 7)`,
+      month: `date_trunc('month', ${eventTime} AT TIME ZONE ${timezoneParam})::date`,
+      year: `date_trunc('year', ${eventTime} AT TIME ZONE ${timezoneParam})::date`,
     };
     return { slots: slots[granularity], bucket: bucket[granularity], textBucket: granularity === "hour" ? `to_char(s.bucket AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')` : `s.bucket::text` };
   }

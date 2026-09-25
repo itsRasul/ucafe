@@ -6,7 +6,7 @@ import { BrandLogo } from "../brand-logo";
 import { OtpCodeFields } from "../otp-code-fields";
 
 export type TenantPermission = "site.manage" | "menu.read" | "menu.manage" | "reservations.read" | "reservations.manage" | "orders.read" | "orders.manage" | "analytics.read" | "inventory.read" | "inventory.manage" | "staff.manage" | "subscription.read" | "subscription.checkout";
-type Access = { tenant: { slug: string; status: string; locale: string; timezone: string }; permissions: TenantPermission[]; features?: { inventory?: boolean } };
+type Access = { tenant: { slug: string; status: string; locale: string; timezone: string }; permissions: TenantPermission[]; features?: { inventory?: boolean; reservations?: boolean } };
 type ApiError = { message?: string | string[]; code?: string; feature?: string };
 type SessionContext = { access: Access; api: <T>(path: string, init?: RequestInit) => Promise<T>; signOut: () => Promise<void> };
 
@@ -15,7 +15,7 @@ const accessKey = "ucafe_owner_access";
 
 function messageFor(response: Response, body: ApiError) {
   const detail = Array.isArray(body.message) ? body.message[0] : body.message;
-  if (response.status === 403) return body.code === "FEATURE_UNAVAILABLE" ? body.feature === "inventory" ? "مدیریت موجودی در اشتراک فعلی فعال نیست." : "آمار و تحلیل در اشتراک فعلی فعال نیست." : "این حساب اجازه دسترسی به این بخش از کافه را ندارد.";
+  if (response.status === 403) return body.code === "FEATURE_UNAVAILABLE" ? body.feature === "inventory" ? "مدیریت موجودی در اشتراک فعلی فعال نیست." : body.feature === "reservations" ? "رزرو میز در اشتراک فعلی فعال نیست." : "آمار و تحلیل در اشتراک فعلی فعال نیست." : "این حساب اجازه دسترسی به این بخش از کافه را ندارد.";
   if (response.status === 409) return "این عملیات دیگر مجاز نیست؛ اطلاعات را تازه کنید.";
   return detail || "ارتباط با سرور برقرار نشد. دوباره تلاش کنید.";
 }
@@ -26,7 +26,7 @@ async function request<T>(path: string, token?: string, init?: RequestInit): Pro
   if (token) headers.set("Authorization", `Bearer ${token}`);
   const response = await fetch(`/api/backend${path}`, { ...init, cache: "no-store", credentials: "same-origin", headers });
   const body = response.status === 204 ? {} : await response.json().catch(() => ({})) as ApiError;
-  if (!response.ok) throw Object.assign(new Error(messageFor(response, body)), { status: response.status, code: body.code });
+  if (!response.ok) throw Object.assign(new Error(messageFor(response, body)), { status: response.status, code: body.code, feature: body.feature });
   return body as T;
 }
 

@@ -408,3 +408,95 @@ test("SQL order analytics separates created orders, terminal outcomes, delivery 
     }), (error: unknown) => error === rollback);
   } finally { await db.destroy(); }
 });
+
+test("reservation analytics requires both Analytics and Reservations before querying", async () => {
+  for (const disabled of ["analytics", "reservations"]) {
+    const calls: string[] = [];
+    const service = new AnalyticsService(
+      { query: async () => { throw new Error("SQL should not run"); } } as unknown as DataSource,
+      { requireFeature: async (_tenant: string, feature: string) => { calls.push(feature); if (feature === disabled) throw new ForbiddenException({ code: "FEATURE_UNAVAILABLE", feature }); } } as never,
+    );
+    await assert.rejects(service.reservations("tenant-a", "UTC", { period: "today" }), ForbiddenException);
+    assert.deepEqual(calls, disabled === "analytics" ? ["analytics"] : ["analytics", "reservations"]);
+  }
+});
+
+test("reservation SQL separates created, scheduled, and terminal event time and stays tenant-scoped", { skip: !process.env.ANALYTICS_INTEGRATION_DATABASE_URL }, async () => {
+  const db = new DataSource({ type: "postgres", url: process.env.ANALYTICS_INTEGRATION_DATABASE_URL });
+  await db.initialize();
+  const rollback = new Error("rollback reservation analytics fixture");
+  try {
+    await assert.rejects(db.transaction(async (manager) => {
+      const tenantA = randomUUID(), tenantB = randomUUID(), branchA = randomUUID(), branchB = randomUUID();
+      const clientA = randomUUID(), clientB = randomUUID();
+      await manager.query(
+        "INSERT INTO coffee_shops(id,name,slug,status,timezone) VALUES($1,'Reservation Analytics',$2,'ACTIVE','Asia/Tehran'),($3,'Reservation Analytics',$4,'ACTIVE','Asia/Tehran')",
+        [tenantA, "reservation-analytics-" + tenantA, tenantB, "reservation-analytics-" + tenantB],
+      );
+      await manager.query(
+        "INSERT INTO branches(id,coffee_shop_id,name,slug,is_primary,timezone) VALUES($1,$2,'Main','main',true,'Asia/Tehran'),($3,$4,'Main','main',true,'Asia/Tehran')",
+        [branchA, tenantA, branchB, tenantB],
+      );
+      await manager.query(
+        "INSERT INTO clients(id,coffee_shop_id,first_name,last_name,phone) VALUES($1,$2,'Test','A','+989140000001'),($3,$4,'Test','B','+989140000002')",
+        [clientA, tenantA, clientB, tenantB],
+      );
+      const addReservation = (tenant: string, branch: string, client: string, status: string, date: string, time: string, party: number, created: string, changed: string | null) => manager.query(
+        "INSERT INTO reservations(coffee_shop_id,branch_id,client_id,contact_name,reservation_date,start_time,end_time,party_size,status,created_at,status_changed_at) VALUES($1,$2,$3,'Test', $4::date,$5::time,($5::time + interval '90 minutes'),$6,$7::reservation_status,$8,$9)",
+        [tenant, branch, client, date, time, party, status, created, changed],
+      );
+      await addReservation(tenantA, branchA, clientA, "PENDING", "2026-01-09", "19:00", 2, "2026-01-05T06:30:00Z", null);
+      await addReservation(tenantA, branchA, clientA, "PENDING", "2026-01-09", "17:00", 7, "2026-01-04T20:45:00Z", null);
+      await addReservation(tenantA, branchA, clientA, "CONFIRMED", "2026-01-09", "20:00", 4, "2026-01-08T22:30:00Z", "2026-01-08T22:30:00Z");
+      await addReservation(tenantA, branchA, clientA, "REJECTED", "2026-01-09", "19:00", 5, "2026-01-05T08:30:00Z", "2026-01-07T08:30:00Z");
+      await addReservation(tenantA, branchA, clientA, "CANCELED", "2026-01-09", "21:00", 6, "2026-01-05T09:30:00Z", "2026-01-08T14:30:00Z");
+      await addReservation(tenantA, branchA, clientA, "COMPLETED", "2026-01-09", "18:00", 1, "2026-01-07T08:30:00Z", "2026-01-09T15:30:00Z");
+      await addReservation(tenantA, branchA, clientA, "NO_SHOW", "2026-01-09", "20:00", 3, "2026-01-07T10:30:00Z", "2026-01-09T17:30:00Z");
+      await addReservation(tenantB, branchB, clientB, "CONFIRMED", "2026-01-09", "20:00", 50, "2026-01-09T18:00:00Z", "2026-01-09T18:00:00Z");
+
+      const service = new AnalyticsService(
+        { query: (sql: string, parameters: unknown[]) => manager.query(sql, parameters) } as unknown as DataSource,
+        { requireFeature: async () => undefined } as never,
+      );
+      const query = { period: "custom" as const, start: "2026-01-05", end: "2026-01-09" };
+      const report = await service.reservations(tenantA, "Asia/Tehran", query);
+      assert.equal(report.metrics.createdReservations.value, "7");
+      assert.equal(report.metrics.scheduledReservations.value, "7");
+      assert.equal(report.metrics.reservedGuests.value, "17");
+      assert.equal(report.metrics.averagePartySize.value, "3.40");
+      assert.equal(report.metrics.largestPartySize.value, "7");
+      assert.equal(report.metrics.confirmationRate.value, "50.00");
+      assert.equal(report.metrics.completionRate.value, "25.00");
+      assert.equal(report.metrics.cancellationRate.value, "25.00");
+      assert.equal(report.metrics.rejectionRate.value, "25.00");
+      assert.equal(report.metrics.noShowRate.value, "50.00");
+      assert.equal(report.metrics.averageBookingLeadTimeHours.value, "78.7");
+      assert.equal(report.metrics.averageCancellationLeadTimeHours.value, "27.0");
+      assert.equal(report.statusBreakdown.find((row) => row.status === "PENDING")?.reservationCount, "2");
+      assert.equal(report.statusBreakdown.find((row) => row.status === "NO_SHOW")?.reservationCount, "1");
+      assert.equal(report.trends.createdReservations.points.find((point) => point.bucket === "2026-01-05")?.value, "4");
+      assert.equal(report.trends.createdReservations.points.reduce((sum, point) => sum + BigInt(point.value), 0n), 7n);
+      assert.equal(report.trends.scheduledReservations.points.find((point) => point.bucket === "2026-01-09")?.value, "7");
+      assert.equal(report.trends.reservedGuests.points.find((point) => point.bucket === "2026-01-09")?.value, "17");
+      assert.equal(report.trends.cancellationTrend.points.reduce((sum, point) => sum + BigInt(point.value), 0n), 1n);
+      assert.equal(report.trends.rejectionTrend.points.reduce((sum, point) => sum + BigInt(point.value), 0n), 1n);
+      assert.equal(report.trends.noShowTrend.points.reduce((sum, point) => sum + BigInt(point.value), 0n), 1n);
+      assert.equal(report.distribution.weekdays.length, 7);
+      assert.equal(report.distribution.hours.length, 24);
+      assert.equal(report.distribution.heatmap.length, 168);
+      assert.equal(report.distribution.heatmap.find((cell) => cell.weekday === "friday" && cell.hour === 20)?.reservedGuests, "7");
+      assert.equal(report.distribution.dates.length, 5);
+      assert.deepEqual(report.peaks.reservationHours.map((row) => row.hour), [19, 20]);
+      assert.deepEqual(report.peaks.guestHours.map((row) => row.hour), [17, 20]);
+      assert.deepEqual(report.distribution.partySizes.map((row) => row.partySize), [1, 2, 3, 4, 7]);
+
+      const foreign = await service.reservations(tenantB, "Asia/Tehran", query);
+      assert.equal(foreign.metrics.scheduledReservations.value, "1");
+      assert.equal(foreign.metrics.reservedGuests.value, "50");
+      assert.equal(foreign.metrics.completionRate.value, null);
+      assert.equal(foreign.metrics.noShowRate.value, null);
+      assert.equal(foreign.metrics.averageBookingLeadTimeHours.value, null);
+      throw rollback;
+    }), (error: unknown) => error === rollback);
+  } finally { await db.destroy(); }
+});
