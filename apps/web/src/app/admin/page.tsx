@@ -6,6 +6,7 @@ import { hasAnyPermission, TenantPermission, useAdminSession } from "./admin-ses
 const modules: Array<{ title: string; detail: string; href: string; permissions: TenantPermission[]; feature?: "inventory"; future?: boolean }> = [
   { title: "وب‌سایت", detail: "محتوا، هویت بصری و ساعت کاری", href: "/admin/site", permissions: ["site.manage"] },
   { title: "منو", detail: "دسته‌بندی‌ها، آیتم‌ها و قیمت‌ها", href: "/admin/menu", permissions: ["menu.read", "menu.manage"] },
+  { title: "تخفیف‌ها", detail: "تخفیف محصولات و دسته‌بندی‌ها", href: "/admin/promotions", permissions: ["menu.read", "menu.manage"] },
   { title: "رزروها", detail: "صف درخواست‌ها و تنظیمات پذیرش", href: "/admin/reservations", permissions: ["reservations.read", "reservations.manage"] },
   { title: "سفارش آنلاین", detail: "سفارش‌ها، وضعیت آماده‌سازی و تنظیمات تحویل", href: "/admin/orders", permissions: ["orders.read", "orders.manage"] },
   { title: "آمار و تحلیل", detail: "فروش، سفارش‌ها و روند عملکرد", href: "/admin/analytics", permissions: ["analytics.read"] },

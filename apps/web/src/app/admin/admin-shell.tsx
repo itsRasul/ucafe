@@ -10,6 +10,7 @@ const items: Array<{ href: string; label: string; short: string; icon: string; p
   { href: "/admin", label: "نمای کلی", short: "خانه", icon: "dashboard", permissions: ["site.manage", "menu.read", "reservations.read", "subscription.read"] },
   { href: "/admin/site", label: "وب‌سایت", short: "سایت", icon: "site", permissions: ["site.manage"] },
   { href: "/admin/menu", label: "منو", short: "منو", icon: "menu", permissions: ["menu.read", "menu.manage"] },
+  { href: "/admin/promotions", label: "تخفیف‌ها", short: "تخفیف", icon: "menu", permissions: ["menu.read", "menu.manage"] },
   { href: "/admin/reservations", label: "رزروها", short: "رزرو", icon: "reservations", permissions: ["reservations.read", "reservations.manage"] },
   { href: "/admin/orders", label: "سفارش‌ها", short: "سفارش", icon: "orders", permissions: ["orders.read", "orders.manage"] },
   { href: "/admin/analytics", label: "آمار و تحلیل", short: "آمار", icon: "analytics", permissions: ["analytics.read"] },

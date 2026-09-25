@@ -1,26 +1,26 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { DataSource, EntityManager, IsNull } from "typeorm";
 import { CreateMenuCategoryDto, UpdateMenuCategoryDto } from "./dto/menu-category.dto";
 import { CreateMenuItemDto, MenuItemVariantDto, UpdateMenuItemDto } from "./dto/menu-item.dto";
 import { MenuCategory, MenuItem, MenuItemVariant } from "./entities";
 import { validateMenuPricing } from "./menu-validation.util";
 import { MediaService } from "../media/media.service";
+import { PromotionPricingService } from "../promotions/promotion-pricing.service";
 
 @Injectable()
 export class MenuService {
-  constructor(private readonly dataSource: DataSource, private readonly media: MediaService) {}
+  constructor(private readonly dataSource: DataSource, private readonly media: MediaService, @Inject(PromotionPricingService) private readonly pricing = new PromotionPricingService()) {}
 
   async getMenu(coffeeShopId: string, publicOnly: boolean) {
-    const categories = await this.dataSource.getRepository(MenuCategory).find({
+    const [categories, items, images, pricingContext] = await Promise.all([this.dataSource.getRepository(MenuCategory).find({
       where: { coffeeShopId, deletedAt: IsNull(), ...(publicOnly ? { isActive: true } : {}) },
       order: { sortOrder: "ASC", createdAt: "ASC" },
-    });
-    const items = await this.dataSource.getRepository(MenuItem).find({
+    }), this.dataSource.getRepository(MenuItem).find({
       where: { coffeeShopId, deletedAt: IsNull() },
       relations: { variants: true },
       order: { sortOrder: "ASC", createdAt: "ASC", variants: { sortOrder: "ASC" } },
-    });
-    const images = new Map((await this.media.listMenuItemImages(coffeeShopId)).map((entry) => [entry.menuItemId, entry.image]));
+    }), this.media.listMenuItemImages(coffeeShopId), publicOnly ? this.pricing.loadContext(this.dataSource.manager, coffeeShopId, new Date()) : Promise.resolve(null)]);
+    const imageByItem = new Map(images.map((entry) => [entry.menuItemId, entry.image]));
     return categories.map((category) => ({
       id: category.id,
       name: category.name,
@@ -32,11 +32,16 @@ export class MenuService {
         name: item.name,
         description: item.description,
         basePriceToman: item.basePriceToman,
+        ...(publicOnly && item.basePriceToman !== null ? (() => { const price = this.pricing.price(pricingContext!, item.id, item.categoryId, item.basePriceToman!); return { finalPriceToman: price.finalPriceToman, discountAmountToman: price.discountAmountToman, promotionName: price.promotion?.name ?? null, promotionRewardType: price.promotion?.rewardType ?? null, promotionRewardValue: price.promotion?.rewardValue ?? null }; })() : {}),
         isAvailable: item.isAvailable,
         isFeatured: item.isFeatured,
         sortOrder: item.sortOrder,
-        image: images.get(item.id) ?? null,
-        variants: item.variants.map((variant) => ({ id: variant.id, name: variant.name, priceToman: variant.priceToman, isDefault: variant.isDefault, isAvailable: variant.isAvailable, sortOrder: variant.sortOrder })),
+        image: imageByItem.get(item.id) ?? null,
+        variants: item.variants.map((variant) => ({
+          id: variant.id, name: variant.name, priceToman: variant.priceToman,
+          ...(publicOnly ? (() => { const price = this.pricing.price(pricingContext!, item.id, item.categoryId, variant.priceToman); return { finalPriceToman: price.finalPriceToman, discountAmountToman: price.discountAmountToman, promotionName: price.promotion?.name ?? null, promotionRewardType: price.promotion?.rewardType ?? null, promotionRewardValue: price.promotion?.rewardValue ?? null }; })() : {}),
+          isDefault: variant.isDefault, isAvailable: variant.isAvailable, sortOrder: variant.sortOrder,
+        })),
       })),
     }));
   }

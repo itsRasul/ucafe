@@ -7,7 +7,7 @@ PostgreSQL 17 is the business system of record. TypeORM entities describe the ap
 - tenancy/content: `coffee_shops`, `branches`, `domains`, `website_settings`, `branch_opening_hours`, `media_assets`
 - administrative identity/RBAC: `users`, memberships, roles, permissions, assignments, `auth_sessions`, OTP challenges
 - clients: `clients`, `client_auth_sessions`, `client_addresses`
-- catalog/commerce: menu categories/items/variants, ordering settings, orders/items
+- catalog/commerce: menu categories/items/variants, promotions/targets, ordering settings, orders/items
 - reservations: settings and reservations
 - subscriptions/payments: plans, subscription lifecycle projections, entitlement periods, subscription payments, payment intents
 - operations: notification deliveries, platform audit events, platform consultation requests
@@ -27,7 +27,7 @@ Examples include role assignment, menu item/variant/category, reservation branch
 - normalized phone checks; one client phone per tenant
 - one subscription per cafe; paired pending-plan fields; valid entitlement ranges; unique payment-intent/provider references
 - tenant/client order idempotency, tenant checkout idempotency, manual-payment idempotency, and at most one live checkout per tenant
-- positive/nonnegative plan, menu, order, capacity, interval, and image metadata checks
+- positive/nonnegative plan, menu, order, promotion reward/target, capacity, interval, and image metadata checks
 - one active logo/hero and menu-item image slot; gallery/key/focal/order constraints
 - globally unique notification deduplication key
 - `(coffee_shop_id, status, status_changed_at)` index for tenant outcome-time analytics
@@ -36,7 +36,7 @@ Soft deletion is used for cafes/domains/branches/users/menu/category/items/clien
 
 ## Money
 
-Money is integer toman in `bigint`/`numeric` columns and represented as strings at TypeScript persistence/response boundaries where precision matters. Payment/order rows snapshot names and amounts. Rial conversion exists only in the gateway adapter/service boundary.
+Money is integer toman in `bigint`/`numeric` columns and represented as strings at TypeScript persistence/response boundaries where precision matters. Payment/order rows snapshot names and amounts; order totals preserve gross subtotal, discounts, and net payable value. Rial conversion exists only in the gateway adapter/service boundary.
 
 ## Date and time
 

@@ -16,6 +16,7 @@ Critical rules are summarized here. Domain documents contain the corresponding l
 - An item needs either a base price or at least one variant. Variant names are unique per item and at most one variant is default.
 - Checkout requires an authenticated client and an enabled `onlineOrdering` plan feature.
 - The server merges duplicate cart lines, limits each line to 1–20 units and the cart to 50 units, rechecks tenant/category/item/variant ownership and availability, and recalculates all totals in toman.
+- Product/category promotions overlay base or variant prices; the largest per-unit saving wins, with priority and promotion ID as deterministic tie-breakers. Order totals and line snapshots preserve original price, discount, and payable price.
 - A courier order requires an existing tenant/client-owned address or a validated new address. Pickup stores no delivery address.
 - Only `OFFLINE` payment exists for customer orders. Subscription gateway payments are a separate domain.
 - `(coffee_shop_id, client_id, idempotency_key)` makes repeated checkout creation return the existing order.

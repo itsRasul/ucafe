@@ -27,6 +27,7 @@ The product is aimed at independent cafes that need a professional storefront, e
 ### Menu and content
 
 - Owners manage approved site identity, story, theme, contact, location, opening hours, logo, hero, gallery, categories, items, variants, prices, availability, featured state, and menu-item images.
+- Owners with menu-management permission can run scheduled, tenant-scoped percentage, fixed-amount, and fixed-price promotions on products or categories. Public menu prices, cart quotes, and order creation use one server-side calculation; orders retain immutable price and promotion snapshots.
 - Media is decoded and transformed into fixed AVIF/WebP variants. The object bucket is private; public bytes are streamed through the tenant-aware API.
 
 ### Ordering

@@ -2,7 +2,7 @@
 
 import { KeyboardEvent, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useResolvedCart } from "../cart-store";
+import { useResolvedCart, useServerCartQuote } from "../cart-store";
 import { CartIcon, CartQuantityControl, TrashIcon } from "../cart-controls";
 import { ClientAuthPanel } from "../client-auth-panel";
 import { useClientSession } from "../client-session";
@@ -10,6 +10,9 @@ import { Picture, formatToman, type PublicMenu, type PublicOrderingState } from 
 
 export function CartPageClient({ menu, ordering, cafeName, logoUrl }: { menu: PublicMenu; ordering: PublicOrderingState | null; cafeName: string; logoUrl?: string }) {
   const cart = useResolvedCart(menu);
+  const serverQuote = useServerCartQuote(cart.lines);
+  const quotedLine = (menuItemId: string, variantId: string | null) => serverQuote.quote?.items.find((item) => item.menuItemId === menuItemId && item.variantId === variantId) ?? null;
+  const displayedTotal = serverQuote.quote?.totalAmountToman ?? String(cart.totalToman);
   const session = useClientSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -41,7 +44,7 @@ export function CartPageClient({ menu, ordering, cafeName, logoUrl }: { menu: Pu
   return <section className="cart-page-shell" aria-labelledby="cart-title">
     <header className="cart-overview">
       <div className="cart-overview-copy"><h1 id="cart-title">سفارش شما آماده بررسی است</h1><p>محصولات انتخاب‌شده، تعداد و مبلغ سفارش را مرور کنید و سپس به مرحله تسویه بروید.</p></div>
-      <dl className="cart-overview-stats"><div><dt>تعداد آیتم‌ها</dt><dd>{new Intl.NumberFormat("fa-IR").format(cart.count)}</dd></div><div><dt>مبلغ سفارش</dt><dd>{formatToman(String(cart.totalToman))}</dd></div></dl>
+      <dl className="cart-overview-stats"><div><dt>تعداد آیتم‌ها</dt><dd>{new Intl.NumberFormat("fa-IR").format(cart.count)}</dd></div><div><dt>مبلغ سفارش</dt><dd>{formatToman(displayedTotal)}</dd></div></dl>
     </header>
 
     {!cart.lines.length ? <div className="cart-empty"><CartIcon className="cart-empty-icon" /><h2>سبد خرید خالی است</h2><p>از منو نوشیدنی یا خوراکی دلخواهتان را انتخاب کنید.</p><a href="/menu">مشاهده منو</a></div> : <>
@@ -56,17 +59,19 @@ export function CartPageClient({ menu, ordering, cafeName, logoUrl }: { menu: Pu
               {line.reason && <strong>{line.reason}</strong>}
             </div>
             <div className="cart-line-price">
-              <span><small>قیمت واحد</small><b>{line.unitPriceToman ? formatToman(line.unitPriceToman) : "نامشخص"}</b></span>
-              <span><small>قیمت نهایی</small><b>{line.unitPriceToman ? formatToman(String(Number(line.unitPriceToman) * line.quantity)) : "—"}</b></span>
+              <span><small>قیمت واحد</small><b>{quotedLine(line.menuItemId, line.variantId)?.discountAmountToman !== "0" && quotedLine(line.menuItemId, line.variantId) ? <><del>{formatToman(quotedLine(line.menuItemId, line.variantId)!.originalUnitPriceToman)}</del> {formatToman(quotedLine(line.menuItemId, line.variantId)!.unitPriceToman)}</> : line.unitPriceToman ? formatToman(line.unitPriceToman) : "نامشخص"}</b>{quotedLine(line.menuItemId, line.variantId)?.promotionName && <small>{quotedLine(line.menuItemId, line.variantId)!.promotionName}</small>}</span>
+              <span><small>قیمت نهایی</small><b>{quotedLine(line.menuItemId, line.variantId) ? formatToman(quotedLine(line.menuItemId, line.variantId)!.lineTotalToman) : line.unitPriceToman ? formatToman(String(Number(line.unitPriceToman) * line.quantity)) : "—"}</b></span>
             </div>
             <CartQuantityControl quantity={line.quantity} itemName={line.item?.name ?? "محصول"} onIncrease={() => cart.setQuantity(line.menuItemId, line.variantId, line.quantity + 1)} onDecrease={() => cart.setQuantity(line.menuItemId, line.variantId, line.quantity - 1)} onRemove={() => cart.remove(line.menuItemId, line.variantId)} />
           </article>)}
         </div>
         <aside className="cart-summary">
           <div><h2>خلاصه سفارش</h2><p>مرور نهایی پیش از ثبت سفارش</p></div>
-          <dl><div><dt>تعداد محصولات</dt><dd>{new Intl.NumberFormat("fa-IR").format(cart.count)}</dd></div><div><dt>مجموع سفارش</dt><dd>{formatToman(String(cart.totalToman))}</dd></div><div className="cart-summary-total"><dt>مبلغ نهایی</dt><dd>{formatToman(String(cart.totalToman))}</dd></div></dl>
+          <dl><div><dt>تعداد محصولات</dt><dd>{new Intl.NumberFormat("fa-IR").format(cart.count)}</dd></div><div><dt>مجموع پیش از تخفیف</dt><dd>{formatToman(serverQuote.quote?.subtotalBeforeDiscountToman ?? String(cart.totalToman))}</dd></div>{serverQuote.quote && Number(serverQuote.quote.discountTotalToman) > 0 && <div><dt>تخفیف</dt><dd>−{formatToman(serverQuote.quote.discountTotalToman)}</dd></div>}<div className="cart-summary-total"><dt>مبلغ نهایی</dt><dd>{formatToman(displayedTotal)}</dd></div></dl>
+          {cart.lines.length > 0 && serverQuote.loading && <p className="cart-quote-status" role="status">در حال به‌روزرسانی قیمت‌ها…</p>}
+          {serverQuote.error && <p className="form-message error" role="alert">دریافت قیمت نهایی سبد ممکن نشد؛ دوباره تلاش کنید.</p>}
           {!cart.canCheckout && <p className="form-message error">برخی آیتم‌ها دیگر قابل سفارش نیستند.</p>}
-          <button className="cart-checkout" type="button" disabled={!cart.canCheckout || session.state === "loading"} onClick={continueCheckout}>{session.state === "loading" ? "در حال بررسی…" : "ادامه به تسویه"}</button>
+          <button className="cart-checkout" type="button" disabled={!cart.canCheckout || !serverQuote.quote || serverQuote.loading || session.state === "loading"} onClick={continueCheckout}>{session.state === "loading" ? "در حال بررسی…" : serverQuote.loading ? "در حال به‌روزرسانی قیمت…" : "ادامه به تسویه"}</button>
         </aside>
       </div></>}
 

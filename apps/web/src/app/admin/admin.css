@@ -3262,3 +3262,64 @@
         grid-template-columns: 1fr
     }
 }
+/* Discounts & promotions */
+.admin-promotions { display: grid; gap: 1rem; }
+.admin-promotions .admin-page-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.admin-promotions button { min-height: 2.7rem; padding: .55rem .9rem; border: 1px solid #554334; border-radius: .7rem; background: #4b382b; color: #fffaf5; font: inherit; cursor: pointer; }
+.admin-promotions button:disabled { opacity: .55; cursor: not-allowed; }
+.promotion-form,
+.promotion-card { padding: 1rem; border: 1px solid var(--admin-line, #ded7d0); border-radius: 1rem; background: var(--admin-surface, #fff); }
+.promotion-form-heading,
+.promotion-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.promotion-form-heading h2,
+.promotion-card-heading h2 { margin: 0; font-size: 1.08rem; }
+.promotion-form-heading p,
+.promotion-card-heading p { margin: .35rem 0 0; color: var(--admin-muted, #75675d); }
+.admin-promotions .promotion-cancel,
+.admin-promotions .promotion-secondary { background: transparent; color: inherit; }
+.promotion-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; margin-block: 1rem; }
+.promotion-form-grid label { display: grid; align-content: start; gap: .35rem; font-weight: 700; }
+.promotion-form-grid label small { color: var(--admin-muted, #75675d); font-weight: 400; }
+.promotion-form-grid input,
+.promotion-form-grid select,
+.promotion-form-grid textarea { width: 100%; min-height: 2.8rem; padding: .55rem .65rem; border: 1px solid var(--admin-line, #ded7d0); border-radius: .6rem; background: var(--admin-background, #fffdfa); color: inherit; font: inherit; }
+.promotion-form-grid textarea { min-height: 5rem; resize: vertical; }
+.promotion-wide { grid-column: 1 / -1; }
+.promotion-targets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem 1rem; max-height: 18rem; overflow: auto; padding: .8rem; border: 1px solid var(--admin-line, #ded7d0); border-radius: .7rem; }
+.promotion-targets legend { padding-inline: .35rem; font-weight: 800; }
+.promotion-target-group { display: grid; align-content: start; gap: .45rem; }
+.promotion-target-option { display: flex; align-items: center; gap: .5rem; min-height: 2rem; cursor: pointer; }
+.promotion-target-option input,
+.promotion-activate input { width: 1.1rem; height: 1.1rem; accent-color: #78513b; }
+.promotion-product-option { padding-inline-start: 1.25rem; font-weight: 400; }
+.promotion-product-option small { color: var(--admin-muted, #75675d); }
+.promotion-activate { display: inline-flex; align-items: center; gap: .5rem; margin-block: .8rem; }
+.promotion-form-actions,
+.promotion-card-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1rem; }
+.admin-promotions .promotion-danger { border-color: #a84937; background: transparent; color: #9b3e2e; }
+.promotion-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; }
+.promotion-card { min-width: 0; }
+.promotion-card-heading h2 { overflow-wrap: anywhere; }
+.promotion-card-heading p { font-size: .9rem; }
+.promotion-status { flex: 0 0 auto; padding: .35rem .6rem; border-radius: 999px; background: #eee8e2; color: #594536; font-size: .78rem; font-weight: 800; }
+.promotion-status-running { background: #e4f2e6; color: #2d6937; }
+.promotion-status-upcoming { background: #fff1ce; color: #795700; }
+.promotion-status-expired,
+.promotion-status-archived { background: #f0e9e7; color: #79483e; }
+.promotion-card dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; margin: 1rem 0 0; }
+.promotion-card dl div { min-width: 0; }
+.promotion-card dt { color: var(--admin-muted, #75675d); font-size: .78rem; }
+.promotion-card dd { margin: .2rem 0 0; overflow-wrap: anywhere; font-weight: 700; }
+.promotion-card .promotion-target-summary { grid-column: 1 / -1; }
+@media (max-width: 48rem) {
+  .promotion-list { grid-template-columns: 1fr; }
+}
+@media (max-width: 36rem) {
+  .admin-promotions .admin-page-heading,
+  .promotion-form-heading { align-items: flex-start; }
+  .promotion-form-grid,
+  .promotion-targets { grid-template-columns: 1fr; }
+  .promotion-wide,
+  .promotion-card .promotion-target-summary { grid-column: auto; }
+  .promotion-card-heading { flex-direction: column; }
+}

@@ -25,12 +25,17 @@ export type MediaAsset = {
   sources: ImageSources;
 };
 export type MenuImage = Omit<MediaAsset, "kind"> & { kind: "MENU_ITEM" };
-export type PublicMenuVariant = { id: string; name: string; priceToman: string; isDefault: boolean; isAvailable: boolean };
+export type PublicMenuVariant = { id: string; name: string; priceToman: string; finalPriceToman?: string; discountAmountToman?: string; promotionName?: string | null; promotionRewardType?: "PERCENTAGE" | "FIXED_AMOUNT" | "FIXED_PRICE" | null; promotionRewardValue?: string | null; isDefault: boolean; isAvailable: boolean };
 export type PublicMenuItem = {
   id: string;
   name: string;
   description: string | null;
   basePriceToman: string | null;
+  finalPriceToman?: string | null;
+  discountAmountToman?: string | null;
+  promotionName?: string | null;
+  promotionRewardType?: "PERCENTAGE" | "FIXED_AMOUNT" | "FIXED_PRICE" | null;
+  promotionRewardValue?: string | null;
   isAvailable: boolean;
   isFeatured: boolean;
   image: MenuImage | null;
@@ -80,8 +85,15 @@ export function Picture({ asset, fallback, alt, className, eager = false }: { as
 
 export function Price({ item }: { item: PublicMenuItem }) {
   const variants = item.variants.filter((variant) => variant.isAvailable);
-  if (variants.length) return <span>{variants.map((variant) => `${variant.name} ${formatToman(variant.priceToman)}`).join("، ")}</span>;
-  return item.basePriceToman ? <strong>{formatToman(item.basePriceToman)}</strong> : <span>قیمت به‌زودی</span>;
+  if (variants.length) return <span className="tenant-price-list">{variants.map((variant) => <span className="tenant-price-option" key={variant.id}><small>{variant.name}</small><PriceAmount originalPriceToman={variant.priceToman} finalPriceToman={variant.finalPriceToman ?? variant.priceToman} discountAmountToman={variant.discountAmountToman ?? "0"} rewardType={variant.promotionRewardType} rewardValue={variant.promotionRewardValue} /></span>)}</span>;
+  if (item.basePriceToman === null) return <span>قیمت به‌زودی</span>;
+  return <PriceAmount originalPriceToman={item.basePriceToman} finalPriceToman={item.finalPriceToman ?? item.basePriceToman} discountAmountToman={item.discountAmountToman ?? "0"} rewardType={item.promotionRewardType} rewardValue={item.promotionRewardValue} />;
+}
+
+export function PriceAmount({ originalPriceToman, finalPriceToman, discountAmountToman, rewardType, rewardValue }: { originalPriceToman: string; finalPriceToman: string; discountAmountToman: string; rewardType?: PublicMenuVariant["promotionRewardType"]; rewardValue?: string | null }) {
+  if (Number(discountAmountToman) <= 0) return <strong>{formatToman(finalPriceToman)}</strong>;
+  const label = rewardType === "PERCENTAGE" ? `${new Intl.NumberFormat("fa-IR").format(Number(rewardValue))}٪ تخفیف` : rewardType === "FIXED_AMOUNT" ? `${formatToman(discountAmountToman)} تخفیف` : "قیمت ویژه";
+  return <span className="tenant-discount-price"><del>{formatToman(originalPriceToman)}</del><strong>{formatToman(finalPriceToman)}</strong><small>{label}</small></span>;
 }
 
 export function TenantHeader({ site, onHomePage = false }: { site: PublicSite; onHomePage?: boolean }) {

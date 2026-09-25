@@ -34,7 +34,7 @@ Production reverse proxies must strip both internal headers from public traffic,
 
 ## Database enforcement
 
-Migrations add scoped uniqueness and triggers for important cross-tenant relations, including memberships/roles, menu variants, reservations, media, payment intents, clients/sessions/addresses, orders/items, and notification ownership. These checks complement scoped application queries; they do not make unscoped application reads acceptable.
+Migrations add scoped uniqueness and triggers for important cross-tenant relations, including memberships/roles, menu variants, promotions and product/category targets, reservations, media, payment intents, clients/sessions/addresses, orders/items, and notification ownership. These checks complement scoped application queries; they do not make unscoped application reads acceptable.
 
 Notable uniqueness includes hostname globally, one active primary branch/domain per cafe, client phone per cafe, and order/checkout idempotency within tenant scope.
 

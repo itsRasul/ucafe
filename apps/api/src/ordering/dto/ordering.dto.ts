@@ -42,6 +42,11 @@ export class CreateOrderDto {
   customerNote?: string;
 }
 
+export class QuoteOrderDto {
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => CheckoutLineDto)
+  items!: CheckoutLineDto[];
+}
+
 export class UpdateOnlineOrderingSettingsDto {
   @IsOptional() @IsBoolean() pickupEnabled?: boolean;
   @IsOptional() @IsBoolean() courierEnabled?: boolean;

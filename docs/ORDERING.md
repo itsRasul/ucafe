@@ -16,7 +16,7 @@ Relevant records are `online_ordering_settings`, `orders`, `order_items`, `clien
 6. The order begins `UNDER_REVIEW`, immutable item/address snapshots are stored, and customer/optional-owner notifications are enqueued.
 7. Clients list/read only orders matching both cafe and client ID through `/public/orders`.
 
-The server rejects deleted/missing tenant items, inactive categories, unavailable items/variants, missing required variants, foreign addresses, unsupported delivery/payment choices, invalid quantities, and price-less items. Client-submitted prices/totals do not exist in the DTO contract.
+The server rejects deleted/missing tenant items, inactive categories, unavailable items/variants, missing required variants, foreign addresses, unsupported delivery/payment choices, invalid quantities, and price-less items. The shared promotion pricing path recalculates product/category discounts for quote and order creation. Client-submitted prices, discounts, promotion IDs, and totals do not exist in the DTO contract.
 
 ## Admin flow and statuses
 
@@ -48,6 +48,6 @@ Defaults enable pickup, courier, and offline payment. Tenant managers may toggle
 ## Constraints
 
 - Maximum 20 units per line and 50 units per cart.
-- Current order currency is integer toman stored as `bigint`/string at JavaScript boundaries.
-- No taxes, discounts, inventory decrement, delivery fees, online customer payment, refund, or customer cancellation workflow is implemented.
+- Current order currency is integer toman stored as `bigint`/string at JavaScript boundaries. Each order snapshots original item prices, discounts, net line totals, and promotion details.
+- Taxes, delivery fees, online customer payment, refunds, and customer cancellation are not implemented.
 

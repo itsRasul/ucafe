@@ -31,7 +31,7 @@ The proxy forwards authorization/cookies and an authenticated tenant-host overri
 
 The API exposes REST groups under `/api/v1`: `/public`, `/auth`, `/tenant`, `/platform`, and `/health`. Global validation whitelists/transforms DTO input and rejects unknown properties. Controllers handle transport/identity metadata; services own use cases and transactions; entities map persistence; small utilities hold deterministic rules.
 
-Major modules: tenants, identity/authorization, auth, clients, subscriptions, site, menu, media, ordering, inventory, analytics, reservations, notifications, payments, platform consultation requests, audit, and health. Inventory movement/balance and count semantics are in [INVENTORY.md](INVENTORY.md); analytics definitions and extension points are in [ANALYTICS.md](ANALYTICS.md).
+Major modules: tenants, identity/authorization, auth, clients, subscriptions, site, menu, promotions, media, ordering, inventory, analytics, reservations, notifications, payments, platform consultation requests, audit, and health. Inventory movement/balance and count semantics are in [INVENTORY.md](INVENTORY.md); discount pricing and order snapshots are in [DISCOUNTS.md](DISCOUNTS.md); analytics definitions and extension points are in [ANALYTICS.md](ANALYTICS.md).
 
 Analytics imports the exported `InventoryVarianceService` for the Inventory Phase 7 report. That service reads tenant-scoped physical counts, source-validated movements and order recipe snapshots; it checks both effective `inventory` and `analytics` entitlements. Inventory does not depend on Analytics, and report reads do not post stock movements.
 
@@ -64,7 +64,7 @@ See [DATABASE.md](DATABASE.md) for important constraints without duplicating the
 
 - **Tenant request:** host → domain → effective subscription/cafe status → tenant context → public or authenticated guard → tenant-scoped service query.
 - **Client action:** cafe-scoped OTP/session → client JWT tied to resolved cafe → owned resource query.
-- **Order:** feature/settings checks → server-side menu validation/pricing → transaction/snapshots → outbox.
+- **Order:** feature/settings checks → server-side menu and promotion pricing → transaction/financial snapshots → outbox.
 - **Inventory variance:** authenticated Analytics page → tenant count interval → one grouped movement/count query → paginated signed variance and source drill-down; no operational stock write.
 - **Reservation:** feature/slot checks → branch/date advisory lock → capacity recheck → transaction/outbox.
 - **Renewal:** owner permission → immutable payment intent → public authority callback → provider verification → idempotent subscription payment/reactivation.

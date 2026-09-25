@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { DataSource, In, IsNull } from "typeorm";
 import { Client, ClientAddress } from "../clients/entities";
 import { Branch, CoffeeShop } from "../database/entities";
@@ -8,6 +8,7 @@ import { displayOrderNumber, displayToman, NotificationType } from "../notificat
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { SubscriptionFeatures } from "../subscriptions/subscription-features";
 import { InventoryService } from "../inventory/inventory.service";
+import { PromotionPricingService } from "../promotions/promotion-pricing.service";
 import { CheckoutAddressDto, CheckoutLineDto, ClientOrdersQueryDto, CreateOrderDto, OrdersQueryDto, UpdateOnlineOrderingSettingsDto } from "./dto/ordering.dto";
 import { OnlineOrderingSettings, Order, OrderDeliveryMethod, OrderItem, OrderPaymentMethod, OrderSource, OrderStatus } from "./entities";
 import { nextOrderStatuses } from "./order-status.util";
@@ -16,7 +17,7 @@ type UnavailableLine = { menuItemId: string; variantId: string | null; reason: s
 
 @Injectable()
 export class OrderingService {
-  constructor(private readonly dataSource: DataSource, private readonly subscriptions: SubscriptionsService, private readonly notifications: NotificationsService, private readonly inventory: InventoryService) { }
+  constructor(private readonly dataSource: DataSource, private readonly subscriptions: SubscriptionsService, private readonly notifications: NotificationsService, private readonly inventory: InventoryService, @Inject(PromotionPricingService) private readonly promotionPricing = new PromotionPricingService()) { }
 
   async publicState(coffeeShopId: string) {
     const [feature, settings, branch] = await Promise.all([
@@ -74,8 +75,11 @@ export class OrderingService {
 
       const branch = await manager.findOneBy(Branch, { coffeeShopId, isPrimary: true, isActive: true });
       const address = input.deliveryMethod === OrderDeliveryMethod.Courier ? await this.resolveAddress(manager, coffeeShopId, clientId, input.addressId, input.newAddress) : null;
-      const lines = await this.priceLines(manager, coffeeShopId, input.items);
+      const pricingTime = new Date();
+      const lines = await this.priceLines(manager, coffeeShopId, input.items, pricingTime);
       const total = lines.reduce((sum, line) => sum + BigInt(line.lineTotalToman), 0n);
+      const subtotal = lines.reduce((sum, line) => sum + BigInt(line.originalUnitPriceToman) * BigInt(line.quantity), 0n);
+      const discountTotal = subtotal - total;
 
       const order = await manager.save(Order, manager.create(Order, {
         coffeeShopId,
@@ -88,6 +92,8 @@ export class OrderingService {
         deliveryAddressId: address?.id ?? null,
         deliveryAddressSnapshot: address ? this.addressSnapshot(address) : null,
         totalAmountToman: total.toString(),
+        subtotalBeforeDiscountToman: subtotal.toString(),
+        discountTotalToman: discountTotal.toString(),
         idempotencyKey: input.idempotencyKey,
         customerNote: input.customerNote?.trim() || null,
       }));
@@ -100,6 +106,16 @@ export class OrderingService {
       const saved = await manager.findOneOrFail(Order, { where: { id: order.id }, relations: { client: true, items: true } });
       return this.clientProject(saved);
     });
+  }
+
+  async quote(coffeeShopId: string, input: CheckoutLineDto[]) {
+    const lines = await this.priceLines(this.dataSource.manager, coffeeShopId, input, new Date());
+    const subtotal = lines.reduce((sum, line) => sum + BigInt(line.originalUnitPriceToman) * BigInt(line.quantity), 0n);
+    const total = lines.reduce((sum, line) => sum + BigInt(line.lineTotalToman), 0n);
+    return {
+      items: lines.map((line) => ({ menuItemId: line.menuItemId, variantId: line.menuItemVariantId, quantity: line.quantity, itemName: line.itemName, variantName: line.variantName, originalUnitPriceToman: line.originalUnitPriceToman, unitPriceToman: line.unitPriceToman, discountAmountToman: line.discountAmountToman, lineTotalToman: line.lineTotalToman, promotionName: line.promotionNameSnapshot })),
+      subtotalBeforeDiscountToman: subtotal.toString(), discountTotalToman: (subtotal - total).toString(), totalAmountToman: total.toString(),
+    };
   }
 
   async clientList(coffeeShopId: string, clientId: string, query: ClientOrdersQueryDto) {
@@ -175,7 +191,7 @@ export class OrderingService {
     return { label: address.label, province: address.province, city: address.city, addressLine: address.addressLine, buildingNumber: address.buildingNumber, unit: address.unit, postalCode: address.postalCode };
   }
 
-  private async priceLines(manager: import("typeorm").EntityManager, coffeeShopId: string, input: CheckoutLineDto[]) {
+  private async priceLines(manager: import("typeorm").EntityManager, coffeeShopId: string, input: CheckoutLineDto[], now = new Date()) {
     const merged = new Map<string, CheckoutLineDto>();
     for (const line of input) {
       const key = `${line.menuItemId}:${line.variantId ?? ""}`;
@@ -187,9 +203,10 @@ export class OrderingService {
     if (lines.reduce((sum, line) => sum + line.quantity, 0) > 50 || lines.some((line) => line.quantity < 1 || line.quantity > 20)) throw new BadRequestException("Invalid cart quantity");
 
     const items = await manager.find(MenuItem, { where: { id: In(lines.map((line) => line.menuItemId)), coffeeShopId, deletedAt: IsNull() }, relations: { variants: true, category: true } });
+    const pricingContext = await this.promotionPricing.loadContext(manager, coffeeShopId, now);
     const itemById = new Map(items.map((item) => [item.id, item]));
     const unavailable: UnavailableLine[] = [];
-    const priced: Array<Pick<OrderItem, "menuItemId" | "menuItemVariantId" | "itemName" | "variantName" | "categoryIdSnapshot" | "categoryNameSnapshot" | "unitPriceToman" | "quantity" | "lineTotalToman">> = [];
+    const priced: Array<Pick<OrderItem, "menuItemId" | "menuItemVariantId" | "itemName" | "variantName" | "categoryIdSnapshot" | "categoryNameSnapshot" | "unitPriceToman" | "originalUnitPriceToman" | "discountAmountToman" | "promotionIdSnapshot" | "promotionNameSnapshot" | "promotionRewardTypeSnapshot" | "promotionRewardValueSnapshot" | "quantity" | "lineTotalToman">> = [];
 
     for (const line of lines) {
       const item = itemById.get(line.menuItemId);
@@ -209,8 +226,16 @@ export class OrderingService {
         continue;
       }
       if (unitPrice === null) { unavailable.push({ menuItemId: item.id, variantId: line.variantId ?? null, reason: "PRICE_UNAVAILABLE", name: item.name }); continue; }
-      const lineTotal = BigInt(unitPrice) * BigInt(line.quantity);
-      priced.push({ menuItemId: item.id, menuItemVariantId: variant?.id ?? null, itemName: item.name, variantName: variant?.name ?? null, categoryIdSnapshot: item.category.id, categoryNameSnapshot: item.category.name, unitPriceToman: unitPrice, quantity: line.quantity, lineTotalToman: lineTotal.toString() });
+      const result = this.promotionPricing.price(pricingContext, item.id, item.category.id, unitPrice);
+      const lineTotal = BigInt(result.finalPriceToman) * BigInt(line.quantity);
+      priced.push({
+        menuItemId: item.id, menuItemVariantId: variant?.id ?? null, itemName: item.name, variantName: variant?.name ?? null,
+        categoryIdSnapshot: item.category.id, categoryNameSnapshot: item.category.name, unitPriceToman: result.finalPriceToman,
+        originalUnitPriceToman: result.originalPriceToman, discountAmountToman: result.discountAmountToman,
+        promotionIdSnapshot: result.promotion?.id ?? null, promotionNameSnapshot: result.promotion?.name ?? null,
+        promotionRewardTypeSnapshot: result.promotion?.rewardType ?? null, promotionRewardValueSnapshot: result.promotion?.rewardValue ?? null,
+        quantity: line.quantity, lineTotalToman: lineTotal.toString(),
+      });
     }
 
     if (unavailable.length) throw new ConflictException({ code: "ORDER_ITEM_UNAVAILABLE", message: "Some cart items are no longer available", items: unavailable });
@@ -237,6 +262,8 @@ export class OrderingService {
       deliveryMethod: order.deliveryMethod,
       paymentMethod: order.paymentMethod,
       totalAmountToman: order.totalAmountToman,
+      subtotalBeforeDiscountToman: order.subtotalBeforeDiscountToman,
+      discountTotalToman: order.discountTotalToman,
       client: order.client ? { id: order.client.id, firstName: order.client.firstName, lastName: order.client.lastName, phone: order.client.phone } : null,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
@@ -250,6 +277,8 @@ export class OrderingService {
       deliveryMethod: order.deliveryMethod,
       paymentMethod: order.paymentMethod,
       totalAmountToman: order.totalAmountToman,
+      subtotalBeforeDiscountToman: order.subtotalBeforeDiscountToman,
+      discountTotalToman: order.discountTotalToman,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
     };
@@ -263,6 +292,9 @@ export class OrderingService {
       itemName: item.itemName,
       variantName: item.variantName,
       unitPriceToman: item.unitPriceToman,
+      originalUnitPriceToman: item.originalUnitPriceToman,
+      discountAmountToman: item.discountAmountToman,
+      promotionName: item.promotionNameSnapshot,
       quantity: item.quantity,
       lineTotalToman: item.lineTotalToman,
     }));

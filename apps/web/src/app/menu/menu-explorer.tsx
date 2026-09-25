@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } fr
 import { addCartItem, useCartLines } from "../cart-store";
 import { CartQuantityControl } from "../cart-controls";
 import { showAddedToCartToast, TenantToastContainer } from "../tenant-toast";
-import { Picture, Price, formatToman, type PublicMenu, type PublicMenuItem, type PublicOrderingState } from "../tenant-public";
+import { Picture, Price, PriceAmount, formatToman, type PublicMenu, type PublicMenuItem, type PublicOrderingState } from "../tenant-public";
 
 function normalizeSearch(value: string) {
   return value
@@ -221,7 +221,7 @@ export function MenuExplorer({ menu, initialItemId, ordering }: { menu: PublicMe
           <h2 id="menu-dialog-title">{selectedEntry.item.name}</h2>
           {selectedEntry.item.description && <p id="menu-dialog-description">{selectedEntry.item.description}</p>}
           {!selectedEntry.item.isAvailable && <strong className="menu-dialog-unavailable">ناموجود</strong>}
-          {selectedEntry.item.variants.filter((variant) => variant.isAvailable).length ? <div className="menu-dialog-variants">{selectedEntry.item.variants.filter((variant) => variant.isAvailable).map((variant) => <button type="button" className={selectedVariantId === variant.id ? "selected" : ""} key={variant.id} onClick={() => setSelectedVariantId(variant.id)}><span>{variant.name}</span><strong>{formatToman(variant.priceToman)}</strong></button>)}</div> : <div className="menu-dialog-base-price"><Price item={selectedEntry.item} /></div>}
+          {selectedEntry.item.variants.filter((variant) => variant.isAvailable).length ? <div className="menu-dialog-variants">{selectedEntry.item.variants.filter((variant) => variant.isAvailable).map((variant) => <button type="button" className={selectedVariantId === variant.id ? "selected" : ""} key={variant.id} onClick={() => setSelectedVariantId(variant.id)}><span>{variant.name}</span><PriceAmount originalPriceToman={variant.priceToman} finalPriceToman={variant.finalPriceToman ?? variant.priceToman} discountAmountToman={variant.discountAmountToman ?? "0"} rewardType={variant.promotionRewardType} rewardValue={variant.promotionRewardValue} /></button>)}</div> : <div className="menu-dialog-base-price"><Price item={selectedEntry.item} /></div>}
           {selectedQuantity > 0
             ? <CartQuantityControl className="menu-dialog-quantity" quantity={selectedQuantity} itemName={selectedEntry.item.name} onIncrease={() => cart.setQuantity(selectedEntry.item.id, selectedEntry.item.variants.length ? selectedVariantId : null, selectedQuantity + 1)} onDecrease={() => cart.setQuantity(selectedEntry.item.id, selectedEntry.item.variants.length ? selectedVariantId : null, selectedQuantity - 1)} onRemove={() => cart.remove(selectedEntry.item.id, selectedEntry.item.variants.length ? selectedVariantId : null)} />
             : <button className="menu-dialog-add" type="button" disabled={!selectedEntry.item.isAvailable || (Boolean(selectedEntry.item.variants.length) && !selectedVariantId)} onClick={() => addItem(selectedEntry.item, selectedEntry.item.variants.length ? selectedVariantId : null)}>{selectedEntry.item.isAvailable ? "افزودن به سبد خرید" : "ناموجود"}</button>}

@@ -39,6 +39,24 @@ export class OrderItem {
   @Column({ name: "unit_price_toman", type: "bigint" })
   unitPriceToman!: string;
 
+  @Column({ name: "original_unit_price_toman", type: "bigint", default: 0 })
+  originalUnitPriceToman!: string;
+
+  @Column({ name: "discount_amount_toman", type: "bigint", default: 0 })
+  discountAmountToman!: string;
+
+  @Column({ name: "promotion_id_snapshot", type: "uuid", nullable: true })
+  promotionIdSnapshot!: string | null;
+
+  @Column({ name: "promotion_name_snapshot", type: "varchar", length: 120, nullable: true })
+  promotionNameSnapshot!: string | null;
+
+  @Column({ name: "promotion_reward_type_snapshot", type: "varchar", length: 20, nullable: true })
+  promotionRewardTypeSnapshot!: string | null;
+
+  @Column({ name: "promotion_reward_value_snapshot", type: "bigint", nullable: true })
+  promotionRewardValueSnapshot!: string | null;
+
   @Column({ type: "smallint" })
   quantity!: number;
 

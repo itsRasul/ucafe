@@ -4,7 +4,7 @@ import { CLIENT_PRINCIPAL, ClientAuthorizedRequest } from "../clients/client-pri
 import { PublicTenantAvailableGuard } from "../tenants/public-tenant-available.guard";
 import { TENANT_CONTEXT, TenantContextRequest } from "../tenants/tenant-context";
 import { TenantContextGuard } from "../tenants/tenant-context.guard";
-import { ClientOrdersQueryDto, CreateOrderDto } from "./dto/ordering.dto";
+import { ClientOrdersQueryDto, CreateOrderDto, QuoteOrderDto } from "./dto/ordering.dto";
 import { OrderingService } from "./ordering.service";
 
 @Controller()
@@ -15,6 +15,11 @@ export class PublicOrderingController {
   @Get("public/ordering/settings")
   state(@Req() request: TenantContextRequest) {
     return this.ordering.publicState(request[TENANT_CONTEXT]!.coffeeShopId);
+  }
+
+  @Post("public/ordering/quote")
+  quote(@Req() request: TenantContextRequest, @Body() input: QuoteOrderDto) {
+    return this.ordering.quote(request[TENANT_CONTEXT]!.coffeeShopId, input.items);
   }
 
   @Post("public/orders")

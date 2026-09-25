@@ -66,6 +66,12 @@ export class Order {
   @Column({ name: "total_amount_toman", type: "bigint" })
   totalAmountToman!: string;
 
+  @Column({ name: "subtotal_before_discount_toman", type: "bigint", default: 0 })
+  subtotalBeforeDiscountToman!: string;
+
+  @Column({ name: "discount_total_toman", type: "bigint", default: 0 })
+  discountTotalToman!: string;
+
   @Column({ name: "idempotency_key", type: "varchar", length: 80 })
   idempotencyKey!: string;
 

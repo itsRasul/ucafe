@@ -14,9 +14,10 @@ import { OrderingService } from "./ordering.service";
 import { PublicOrderingController } from "./public-ordering.controller";
 import { NotificationsModule } from "../notifications/notifications.module";
 import { TenantOrderingController } from "./tenant-ordering.controller";
+import { PromotionsModule } from "../promotions/promotions.module";
 
 @Module({
-  imports: [NotificationsModule, InventoryModule, TypeOrmModule.forFeature([OnlineOrderingSettings, Order, OrderItem, Branch, MenuCategory, MenuItem, MenuItemVariant]), AuthModule, AuthorizationModule, ClientsModule, SubscriptionsModule],
+  imports: [NotificationsModule, InventoryModule, PromotionsModule, TypeOrmModule.forFeature([OnlineOrderingSettings, Order, OrderItem, Branch, MenuCategory, MenuItem, MenuItemVariant]), AuthModule, AuthorizationModule, ClientsModule, SubscriptionsModule],
   controllers: [PublicOrderingController, TenantOrderingController],
   providers: [OrderingService, TenantContextGuard, PublicTenantAvailableGuard],
   exports: [OrderingService],

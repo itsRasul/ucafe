@@ -3975,3 +3975,14 @@ img.tenant-footer-logo {
     flex-direction: column;
   }
 }
+
+.tenant-price-list { display: grid; gap: .25rem; }
+.tenant-price-option { display: flex; align-items: baseline; flex-wrap: wrap; gap: .3rem .45rem; }
+.tenant-price-option small { flex-basis: 100%; color: #77685d; }
+.tenant-discount-price { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: .25rem .45rem; }
+.tenant-discount-price del,
+.checkout-original-price { color: #89796d; font-size: .78em; font-weight: 500; }
+.tenant-discount-price strong { color: #9a4528; }
+.checkout-promotion-name { display: block; color: #8e4d2b; font-size: .72rem; }
+.checkout-original-price { display: block; margin-inline-start: auto; }
+.cart-quote-status { margin: .5rem 0 0; color: var(--coffee-muted); font-size: .78rem; }
