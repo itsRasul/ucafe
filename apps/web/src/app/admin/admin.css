@@ -3294,6 +3294,21 @@
 .promotion-product-option { padding-inline-start: 1.25rem; font-weight: 400; }
 .promotion-product-option small { color: var(--admin-muted, #75675d); }
 .promotion-activate { display: inline-flex; align-items: center; gap: .5rem; margin-block: .8rem; }
+.promotion-schedule { display: grid; gap: .75rem; padding: .9rem; border: 1px solid var(--admin-line, #ded7d0); border-radius: .8rem; }
+.promotion-schedule > legend,
+.promotion-schedule-days > legend { padding-inline: .35rem; font-weight: 800; }
+.promotion-schedule > p { margin: 0; color: var(--admin-muted, #75675d); }
+.promotion-schedule-toggle,
+.promotion-schedule-all-day { display: flex; align-items: center; gap: .5rem; }
+.promotion-schedule input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: #78513b; }
+.promotion-schedule-window { display: grid; gap: .7rem; padding: .8rem; border: 1px solid var(--admin-line, #ded7d0); border-radius: .7rem; }
+.promotion-schedule-window-heading { display: flex; align-items: center; justify-content: space-between; gap: .6rem; }
+.promotion-schedule-days { display: flex; flex-wrap: wrap; gap: .45rem .9rem; padding: .5rem; border: 1px solid var(--admin-line, #ded7d0); border-radius: .6rem; }
+.promotion-schedule-days label { display: inline-flex; align-items: center; gap: .35rem; min-height: 2rem; }
+.promotion-schedule-times { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; }
+.promotion-schedule-times label { display: grid; gap: .35rem; }
+.promotion-schedule-times input { min-height: 2.8rem; padding: .55rem .65rem; border: 1px solid var(--admin-line, #ded7d0); border-radius: .6rem; background: var(--admin-background, #fffdfa); color: inherit; font: inherit; }
+.promotion-schedule-times small { grid-column: 1 / -1; color: var(--admin-muted, #75675d); }
 .promotion-form-actions,
 .promotion-card-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1rem; }
 .admin-promotions .promotion-danger { border-color: #a84937; background: transparent; color: #9b3e2e; }
@@ -3304,6 +3319,7 @@
 .promotion-status { flex: 0 0 auto; padding: .35rem .6rem; border-radius: 999px; background: #eee8e2; color: #594536; font-size: .78rem; font-weight: 800; }
 .promotion-status-running { background: #e4f2e6; color: #2d6937; }
 .promotion-status-upcoming { background: #fff1ce; color: #795700; }
+.promotion-status-outside_schedule { background: #fff1ce; color: #795700; }
 .promotion-status-expired,
 .promotion-status-archived { background: #f0e9e7; color: #79483e; }
 .promotion-card dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; margin: 1rem 0 0; }
@@ -3319,6 +3335,7 @@
   .promotion-form-heading { align-items: flex-start; }
   .promotion-form-grid,
   .promotion-targets { grid-template-columns: 1fr; }
+  .promotion-schedule-times { grid-template-columns: 1fr; }
   .promotion-wide,
   .promotion-card .promotion-target-summary { grid-column: auto; }
   .promotion-card-heading { flex-direction: column; }

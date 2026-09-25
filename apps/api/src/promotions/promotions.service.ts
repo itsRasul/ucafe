@@ -1,27 +1,33 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { DataSource, In, IsNull } from "typeorm";
 import { MenuCategory, MenuItem } from "../menu/entities";
+import { CoffeeShop } from "../database/entities";
 import { CreatePromotionDto, PromotionTargetDto, UpdatePromotionDto } from "./dto/promotion.dto";
-import { Promotion, PromotionCoupon, PromotionRewardType, PromotionTarget } from "./entities";
+import { Promotion, PromotionCoupon, PromotionRewardType, PromotionScheduleWindow, PromotionTarget } from "./entities";
 import { promotionStatus } from "./promotion-pricing.util";
+import { isValidTimeZone, PROMOTION_WEEKDAYS } from "./promotion-schedule.util";
 
 @Injectable()
 export class PromotionsService {
   constructor(private readonly dataSource: DataSource) {}
 
-  async list(coffeeShopId: string) {
-    const promotions = await this.dataSource.getRepository(Promotion).find({ where: { coffeeShopId }, relations: { targets: true }, order: { updatedAt: "DESC" }, withDeleted: true });
-    return this.projectMany(coffeeShopId, promotions);
+  async list(coffeeShopId: string, timezone?: string) {
+    const tenantTimezone = await this.tenantTimezone(coffeeShopId, timezone);
+    const promotions = await this.dataSource.getRepository(Promotion).find({ where: { coffeeShopId }, relations: { targets: true, scheduleWindows: true }, order: { updatedAt: "DESC" }, withDeleted: true });
+    return this.projectMany(coffeeShopId, promotions, tenantTimezone);
   }
 
-  async get(coffeeShopId: string, id: string) {
-    const promotion = await this.dataSource.getRepository(Promotion).findOne({ where: { id, coffeeShopId }, relations: { targets: true }, withDeleted: true });
+  async get(coffeeShopId: string, id: string, timezone?: string) {
+    const tenantTimezone = await this.tenantTimezone(coffeeShopId, timezone);
+    const promotion = await this.dataSource.getRepository(Promotion).findOne({ where: { id, coffeeShopId }, relations: { targets: true, scheduleWindows: true }, withDeleted: true });
     if (!promotion) throw new NotFoundException("Promotion not found");
-    return (await this.projectMany(coffeeShopId, [promotion]))[0];
+    return (await this.projectMany(coffeeShopId, [promotion], tenantTimezone))[0];
   }
 
-  async create(coffeeShopId: string, actorUserId: string, input: CreatePromotionDto) {
+  async create(coffeeShopId: string, actorUserId: string, input: CreatePromotionDto, timezone?: string) {
+    const tenantTimezone = await this.tenantTimezone(coffeeShopId, timezone);
     this.validateFields(input.rewardType, input.rewardValue, input.startAt, input.endAt, input.name);
+    this.validateSchedule(input.schedule, tenantTimezone);
     this.validateOrderFields(input.entireOrder, input.rewardType, input.targets, input.maxDiscountToman, Boolean(input.couponCode));
     this.validateCouponDates(input.couponStartsAt, input.couponExpiresAt);
     const id = await this.dataSource.transaction(async (manager) => {
@@ -37,6 +43,7 @@ export class PromotionsService {
       await manager.save(PromotionTarget, input.targets.map((target) => manager.create(PromotionTarget, {
         coffeeShopId, promotionId: promotion.id, menuItemId: target.menuItemId ?? null, categoryId: target.categoryId ?? null,
       })));
+      if (input.schedule) await this.saveSchedule(manager, coffeeShopId, promotion.id, input.schedule);
       if (input.couponCode) await manager.save(PromotionCoupon, manager.create(PromotionCoupon, {
         coffeeShopId, promotionId: promotion.id, code: input.couponCode.trim().toUpperCase(), normalizedCode: input.couponCode.trim().toUpperCase(),
         isActive: input.couponActive ?? true, startsAt: input.couponStartsAt ? new Date(input.couponStartsAt) : null,
@@ -45,12 +52,13 @@ export class PromotionsService {
       }));
       return promotion.id;
     }).catch((error: unknown) => { if ((error as { driverError?: { constraint?: string } }).driverError?.constraint === "uq_promotion_coupons_tenant_code") throw new BadRequestException({ code: "COUPON_CODE_IN_USE", message: "این کد تخفیف قبلاً ثبت شده است." }); throw error; });
-    return this.get(coffeeShopId, id);
+    return this.get(coffeeShopId, id, tenantTimezone);
   }
 
-  async update(coffeeShopId: string, id: string, input: UpdatePromotionDto) {
+  async update(coffeeShopId: string, id: string, input: UpdatePromotionDto, timezone?: string) {
+    const tenantTimezone = await this.tenantTimezone(coffeeShopId, timezone);
     await this.dataSource.transaction(async (manager) => {
-      const promotion = await manager.findOne(Promotion, { where: { id, coffeeShopId }, relations: { targets: true } });
+      const promotion = await manager.findOne(Promotion, { where: { id, coffeeShopId }, relations: { targets: true, scheduleWindows: true } });
       if (!promotion) throw new NotFoundException("Promotion not found");
       const rewardType = input.rewardType ?? promotion.rewardType;
       const rewardValue = input.rewardValue ?? Number(promotion.rewardValue);
@@ -58,6 +66,7 @@ export class PromotionsService {
       const startAt = input.startAt === undefined ? promotion.startAt?.toISOString() : input.startAt ?? undefined;
       const endAt = input.endAt === undefined ? promotion.endAt?.toISOString() : input.endAt ?? undefined;
       this.validateFields(rewardType, rewardValue, startAt, endAt, name);
+      if (input.schedule !== undefined) this.validateSchedule(input.schedule, tenantTimezone);
       const entireOrder = input.entireOrder ?? promotion.entireOrder;
       const targets = input.targets ?? promotion.targets;
       const currentCoupon = await manager.findOneBy(PromotionCoupon, { coffeeShopId, promotionId: id });
@@ -81,6 +90,7 @@ export class PromotionsService {
           coffeeShopId, promotionId: id, menuItemId: target.menuItemId ?? null, categoryId: target.categoryId ?? null,
         })));
       }
+      if (input.schedule !== undefined) await this.saveSchedule(manager, coffeeShopId, id, input.schedule);
       let coupon = currentCoupon;
       if (input.couponCode && input.couponCode.trim().toUpperCase() !== coupon?.normalizedCode && await manager.findOneBy(PromotionCoupon, { coffeeShopId, normalizedCode: input.couponCode.trim().toUpperCase() })) throw new BadRequestException({ code: "COUPON_CODE_IN_USE", message: "این کد تخفیف قبلاً ثبت شده است." });
       if (input.couponCode && !coupon) coupon = manager.create(PromotionCoupon, { coffeeShopId, promotionId: id, isActive: true });
@@ -95,13 +105,13 @@ export class PromotionsService {
         await manager.save(coupon);
       }
     }).catch((error: unknown) => { if ((error as { driverError?: { constraint?: string } }).driverError?.constraint === "uq_promotion_coupons_tenant_code") throw new BadRequestException({ code: "COUPON_CODE_IN_USE", message: "این کد تخفیف قبلاً ثبت شده است." }); throw error; });
-    return this.get(coffeeShopId, id);
+    return this.get(coffeeShopId, id, tenantTimezone);
   }
 
-  async setActive(coffeeShopId: string, id: string, isActive: boolean) {
+  async setActive(coffeeShopId: string, id: string, isActive: boolean, timezone?: string) {
     const result = await this.dataSource.getRepository(Promotion).update({ id, coffeeShopId, deletedAt: IsNull() }, { isActive });
     if (!result.affected) throw new NotFoundException("Promotion not found");
-    return this.get(coffeeShopId, id);
+    return this.get(coffeeShopId, id, timezone);
   }
 
   async archive(coffeeShopId: string, id: string) {
@@ -133,6 +143,43 @@ export class PromotionsService {
     if (startAt && endAt && new Date(endAt) <= new Date(startAt)) throw new BadRequestException("Coupon end time must be after its start time");
   }
 
+  private validateSchedule(schedule: CreatePromotionDto["schedule"] | UpdatePromotionDto["schedule"], timezone: string) {
+    if (schedule == null) return;
+    if (!isValidTimeZone(timezone)) throw new BadRequestException("Cafe timezone must be a valid IANA timezone");
+    if (!Array.isArray(schedule.windows) || !schedule.windows.length) throw new BadRequestException("A weekly schedule requires at least one time window");
+    const keys = new Set<string>();
+    for (const window of schedule.windows) {
+      const days = window.daysOfWeek;
+      if (!Array.isArray(days) || !days.length || days.some((day) => !(PROMOTION_WEEKDAYS as readonly string[]).includes(day)) || new Set(days).size !== days.length) {
+        throw new BadRequestException("Select one or more unique valid weekdays for each schedule window");
+      }
+      const allDay = window.isAllDay ?? false;
+      if (allDay ? window.startTime != null || window.endTime != null
+        : !window.startTime || !window.endTime || !/^([01]\d|2[0-3]):[0-5]\d$/.test(window.startTime) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(window.endTime) || window.startTime === window.endTime) {
+        throw new BadRequestException("Each schedule window needs valid times, or must be marked all day");
+      }
+      const key = `${[...days].sort().join(",")}:${allDay ? "ALL" : `${window.startTime}-${window.endTime}`}`;
+      if (keys.has(key)) throw new BadRequestException("Duplicate schedule windows are not allowed");
+      keys.add(key);
+    }
+  }
+
+  private async saveSchedule(manager: import("typeorm").EntityManager, coffeeShopId: string, promotionId: string, schedule: CreatePromotionDto["schedule"] | UpdatePromotionDto["schedule"]) {
+    await manager.delete(PromotionScheduleWindow, { coffeeShopId, promotionId });
+    if (!schedule) return;
+    await manager.save(PromotionScheduleWindow, schedule.windows.map((window) => manager.create(PromotionScheduleWindow, {
+      coffeeShopId, promotionId, daysOfWeek: window.daysOfWeek, isAllDay: window.isAllDay ?? false,
+      startTime: window.isAllDay ? null : window.startTime!, endTime: window.isAllDay ? null : window.endTime!,
+    })));
+  }
+
+  private async tenantTimezone(coffeeShopId: string, timezone?: string) {
+    if (timezone) return timezone;
+    const tenant = await this.dataSource.getRepository(CoffeeShop).findOne({ where: { id: coffeeShopId }, select: { id: true, timezone: true } });
+    if (!tenant) throw new NotFoundException("Cafe not found");
+    return tenant.timezone;
+  }
+
   private async validateTargets(manager: import("typeorm").EntityManager, coffeeShopId: string, targets: PromotionTargetDto[]) {
     const itemIds: string[] = [];
     const categoryIds: string[] = [];
@@ -149,7 +196,7 @@ export class PromotionsService {
     if (items.length !== itemIds.length || categories.length !== categoryIds.length) throw new BadRequestException("Promotion targets must belong to this cafe and be available");
   }
 
-  private async projectMany(coffeeShopId: string, promotions: Promotion[]) {
+  private async projectMany(coffeeShopId: string, promotions: Promotion[], timezone: string) {
     const coupons = promotions.length ? await this.dataSource.getRepository(PromotionCoupon).find({ where: { coffeeShopId, promotionId: In(promotions.map((promotion) => promotion.id)) } }) : [];
     const couponByPromotion = new Map(coupons.map((coupon) => [coupon.promotionId, coupon]));
     const targetRows = promotions.flatMap((promotion) => promotion.targets);
@@ -164,10 +211,11 @@ export class PromotionsService {
     const now = new Date();
     return promotions.map((promotion) => ({
       id: promotion.id, name: promotion.name, description: promotion.description, isActive: promotion.isActive,
-      status: promotionStatus(promotion, now), startAt: promotion.startAt, endAt: promotion.endAt, priority: promotion.priority,
+      status: promotionStatus(promotion, now, timezone), startAt: promotion.startAt, endAt: promotion.endAt, priority: promotion.priority,
       rewardType: promotion.rewardType, rewardValue: promotion.rewardValue,
       entireOrder: promotion.entireOrder, minimumSubtotalToman: promotion.minimumSubtotalToman, maxDiscountToman: promotion.maxDiscountToman,
       coupon: couponByPromotion.get(promotion.id) ?? null,
+      schedule: promotion.scheduleWindows?.length ? { windows: [...promotion.scheduleWindows].sort((a, b) => (a.startTime ?? "").localeCompare(b.startTime ?? "")).map((window) => ({ daysOfWeek: window.daysOfWeek, startTime: window.startTime?.slice(0, 5) ?? null, endTime: window.endTime?.slice(0, 5) ?? null, isAllDay: window.isAllDay })) } : null,
       targets: promotion.targets.map((target) => target.menuItemId
         ? { type: "PRODUCT" as const, id: target.menuItemId, name: itemById.get(target.menuItemId) ?? null }
         : { type: "CATEGORY" as const, id: target.categoryId!, name: categoryById.get(target.categoryId!) ?? null }),

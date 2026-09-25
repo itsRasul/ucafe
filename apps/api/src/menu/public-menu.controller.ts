@@ -8,5 +8,5 @@ import { MenuService } from "./menu.service";
 @UseGuards(TenantContextGuard, PublicTenantAvailableGuard)
 export class PublicMenuController {
   constructor(private readonly menu: MenuService) {}
-  @Get() get(@Req() request: TenantContextRequest) { return this.menu.getMenu(request[TENANT_CONTEXT]!.coffeeShopId, true); }
+  @Get() get(@Req() request: TenantContextRequest) { const tenant = request[TENANT_CONTEXT]!; return this.menu.getMenu(tenant.coffeeShopId, true, tenant.timezone); }
 }

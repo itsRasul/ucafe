@@ -8,11 +8,11 @@ export type PricingContext = { product: Map<string, PricingPromotion[]>; categor
 
 @Injectable()
 export class PromotionPricingService {
-  async loadContext(manager: EntityManager, coffeeShopId: string, now: Date): Promise<PricingContext> {
-    const promotions = await manager.find(Promotion, { where: { coffeeShopId, isActive: true, deletedAt: IsNull() }, relations: { targets: true, coupon: true } });
+  async loadContext(manager: EntityManager, coffeeShopId: string, now: Date, timezone: string): Promise<PricingContext> {
+    const promotions = await manager.find(Promotion, { where: { coffeeShopId, isActive: true, deletedAt: IsNull() }, relations: { targets: true, coupon: true, scheduleWindows: true }, relationLoadStrategy: "query" });
     const context: PricingContext = { product: new Map(), category: new Map(), order: [] };
     for (const promotion of promotions) {
-      if (promotionStatus(promotion, now) !== "RUNNING") continue;
+      if (promotionStatus(promotion, now, timezone) !== "RUNNING") continue;
       if (promotion.coupon) continue;
       if (promotion.entireOrder) { context.order.push(promotion); continue; }
       const entry = { id: promotion.id, name: promotion.name, priority: promotion.priority, rewardType: promotion.rewardType, rewardValue: promotion.rewardValue };

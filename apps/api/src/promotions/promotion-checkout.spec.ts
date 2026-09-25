@@ -5,8 +5,10 @@ import { DataSource, EntityManager } from "typeorm";
 import dataSource from "../database/data-source";
 import { OrderDeliveryMethod, OrderPaymentMethod, OrderStatus } from "../ordering/entities";
 import { OrderingService } from "../ordering/ordering.service";
+import { MenuService } from "../menu/menu.service";
 import { PromotionRewardType } from "./entities";
 import { PromotionsService } from "./promotions.service";
+import { PromotionWeekday } from "./promotion-schedule.util";
 
 test("coupon quote, checkout, limit, cancellation and tenant isolation share authoritative prices", { skip: !process.env.PROMOTIONS_INTEGRATION_DATABASE_URL }, async () => {
   await dataSource.initialize();
@@ -25,7 +27,8 @@ test("coupon quote, checkout, limit, cancellation and tenant isolation share aut
       const [category] = await manager.query(`INSERT INTO menu_categories(coffee_shop_id,name) VALUES($1,'Coffee') RETURNING id`, [tenants[0]]);
       const [item] = await manager.query(`INSERT INTO menu_items(coffee_shop_id,category_id,name,base_price_toman) VALUES($1,$2,'Latte',1000000) RETURNING id`, [tenants[0], category.id]);
       const promotions = new PromotionsService(adapter);
-      await promotions.create(tenants[0], actor.id, { name: "Latte sale", isActive: true, priority: 0, rewardType: PromotionRewardType.Percentage, rewardValue: 20, targets: [{ menuItemId: item.id }], entireOrder: false });
+      const latteSale = await promotions.create(tenants[0], actor.id, { name: "Latte sale", isActive: true, priority: 0, rewardType: PromotionRewardType.Percentage, rewardValue: 20, targets: [{ menuItemId: item.id }], entireOrder: false });
+      assert.ok(latteSale);
       const coupon = await promotions.create(tenants[0], actor.id, { name: "Welcome", isActive: true, priority: 0, rewardType: PromotionRewardType.Percentage, rewardValue: 30, targets: [], entireOrder: true, minimumSubtotalToman: 500000, maxDiscountToman: 150000, couponCode: "WELCOME20", totalUsageLimit: 1, perCustomerUsageLimit: 1 });
       assert.ok(coupon);
       await promotions.create(tenants[1], actor.id, { name: "Other", isActive: true, priority: 0, rewardType: PromotionRewardType.Percentage, rewardValue: 10, targets: [], entireOrder: true, couponCode: "WELCOME20" });
@@ -78,6 +81,48 @@ test("coupon quote, checkout, limit, cancellation and tenant isolation share aut
       assert.equal(targeted.totalAmountToman, "880000");
       await promotions.create(tenants[0], actor.id, { name: "Small cap", isActive: true, priority: 0, rewardType: PromotionRewardType.Percentage, rewardValue: 30, targets: [], entireOrder: true, maxDiscountToman: 150000, couponCode: "SMALL30" });
       assert.equal((await ordering.quote(tenants[0], [{ menuItemId: cake.id, quantity: 1 }], "SMALL30", client.id)).orderDiscountToman, "30000");
+
+      const days: PromotionWeekday[] = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
+      const today = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Tehran", weekday: "long" }).format(new Date()).toUpperCase() as PromotionWeekday;
+      const todayIndex = days.indexOf(today);
+      const unavailableDay = days[(todayIndex + 4) % days.length]!;
+      const scheduledDays = days.filter((day) => day !== unavailableDay);
+      await promotions.setActive(tenants[0], latteSale.id, false);
+      const scheduledProduct = await promotions.create(tenants[0], actor.id, {
+        name: "Scheduled Latte", isActive: true, priority: 0, rewardType: PromotionRewardType.Percentage, rewardValue: 40,
+        targets: [{ categoryId: category.id }], entireOrder: false,
+        schedule: { windows: [{ daysOfWeek: scheduledDays, isAllDay: true }] },
+      });
+      assert.ok(scheduledProduct);
+      await manager.query("SAVEPOINT schedule_tenant_scope");
+      await assert.rejects(manager.query(`INSERT INTO promotion_schedule_windows(coffee_shop_id,promotion_id,days_of_week,is_all_day) VALUES($1,$2,$3,true)`, [tenants[1], scheduledProduct.id, ["MONDAY"]]), (error: { code?: string }) => error.code === "23503");
+      await manager.query("ROLLBACK TO SAVEPOINT schedule_tenant_scope");
+      const scheduledCoupon = await promotions.create(tenants[0], actor.id, {
+        name: "Scheduled coupon", isActive: true, priority: 0, rewardType: PromotionRewardType.Percentage, rewardValue: 10,
+        targets: [], entireOrder: true, minimumSubtotalToman: 500000, couponCode: "HOUR10",
+        schedule: { windows: [{ daysOfWeek: scheduledDays, isAllDay: true }] },
+      });
+      assert.ok(scheduledCoupon);
+      await promotions.update(tenants[0], scheduledCoupon.id, { minimumSubtotalToman: 700000 });
+      await assert.rejects(ordering.quote(tenants[0], lines, "HOUR10", client.id), (error: { response?: { code?: string } }) => error.response?.code === "MINIMUM_ORDER_NOT_MET");
+      await promotions.update(tenants[0], scheduledCoupon.id, { minimumSubtotalToman: 500000 });
+      const scheduledQuote = await ordering.quote(tenants[0], lines, "HOUR10", client.id);
+      assert.equal(scheduledQuote.itemDiscountTotalToman, "400000");
+      assert.equal(scheduledQuote.orderDiscountToman, "60000");
+      assert.equal(scheduledQuote.totalAmountToman, "540000");
+      const menu = new MenuService(adapter, { listMenuItemImages: async () => [] } as never);
+      const activeMenu = await menu.getMenu(tenants[0], true, "Asia/Tehran");
+      assert.equal(activeMenu.find((row) => row.id === category.id)?.items.find((row) => row.id === item.id)?.finalPriceToman, "600000");
+      const scheduledOrder = await ordering.createOrder(tenants[0], client.id, { ...input, couponCode: "HOUR10", idempotencyKey: randomUUID() });
+      await promotions.update(tenants[0], scheduledProduct.id, { schedule: { windows: [{ daysOfWeek: [unavailableDay], isAllDay: true }] } });
+      await promotions.update(tenants[0], scheduledCoupon.id, { schedule: { windows: [{ daysOfWeek: [unavailableDay], isAllDay: true }] } });
+      assert.equal((await ordering.quote(tenants[0], lines)).totalAmountToman, "1000000");
+      const expiredMenu = await menu.getMenu(tenants[0], true, "Asia/Tehran");
+      assert.equal(expiredMenu.find((row) => row.id === category.id)?.items.find((row) => row.id === item.id)?.finalPriceToman, "1000000");
+      await assert.rejects(ordering.quote(tenants[0], lines, "HOUR10", client.id), (error: { response?: { code?: string } }) => error.response?.code === "PROMOTION_NOT_APPLICABLE");
+      const [snapshot] = await manager.query(`SELECT o.total_amount_toman, i.promotion_name_snapshot FROM orders o JOIN order_items i ON i.order_id=o.id WHERE o.id=$1`, [scheduledOrder.id]);
+      assert.equal(snapshot.total_amount_toman, "540000");
+      assert.equal(snapshot.promotion_name_snapshot, "Scheduled Latte");
       throw rollback;
     }), (error: Error) => error === rollback);
   } finally { await dataSource.destroy(); }

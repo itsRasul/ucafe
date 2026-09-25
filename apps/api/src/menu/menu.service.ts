@@ -6,12 +6,15 @@ import { MenuCategory, MenuItem, MenuItemVariant } from "./entities";
 import { validateMenuPricing } from "./menu-validation.util";
 import { MediaService } from "../media/media.service";
 import { PromotionPricingService } from "../promotions/promotion-pricing.service";
+import { CoffeeShop } from "../database/entities";
 
 @Injectable()
 export class MenuService {
   constructor(private readonly dataSource: DataSource, private readonly media: MediaService, @Inject(PromotionPricingService) private readonly pricing = new PromotionPricingService()) {}
 
-  async getMenu(coffeeShopId: string, publicOnly: boolean) {
+  async getMenu(coffeeShopId: string, publicOnly: boolean, tenantTimezone?: string) {
+    const timezone = publicOnly ? tenantTimezone ?? (await this.dataSource.getRepository(CoffeeShop).findOneByOrFail({ id: coffeeShopId })).timezone : undefined;
+    const evaluationTime = new Date();
     const [categories, items, images, pricingContext] = await Promise.all([this.dataSource.getRepository(MenuCategory).find({
       where: { coffeeShopId, deletedAt: IsNull(), ...(publicOnly ? { isActive: true } : {}) },
       order: { sortOrder: "ASC", createdAt: "ASC" },
@@ -19,7 +22,7 @@ export class MenuService {
       where: { coffeeShopId, deletedAt: IsNull() },
       relations: { variants: true },
       order: { sortOrder: "ASC", createdAt: "ASC", variants: { sortOrder: "ASC" } },
-    }), this.media.listMenuItemImages(coffeeShopId), publicOnly ? this.pricing.loadContext(this.dataSource.manager, coffeeShopId, new Date()) : Promise.resolve(null)]);
+    }), this.media.listMenuItemImages(coffeeShopId), publicOnly ? this.pricing.loadContext(this.dataSource.manager, coffeeShopId, evaluationTime, timezone!) : Promise.resolve(null)]);
     const imageByItem = new Map(images.map((entry) => [entry.menuItemId, entry.image]));
     return categories.map((category) => ({
       id: category.id,

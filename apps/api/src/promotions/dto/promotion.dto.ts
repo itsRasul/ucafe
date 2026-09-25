@@ -1,10 +1,23 @@
 import { Type } from "class-transformer";
-import { IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, ValidateNested } from "class-validator";
+import { ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, ValidateNested } from "class-validator";
 import { PromotionRewardType } from "../entities";
+import { PROMOTION_WEEKDAYS, PromotionWeekday } from "../promotion-schedule.util";
 
 export class PromotionTargetDto {
   @IsOptional() @IsUUID() menuItemId?: string;
   @IsOptional() @IsUUID() categoryId?: string;
+}
+
+export class PromotionScheduleWindowDto {
+  @IsArray() @ArrayMinSize(1) @ArrayUnique() @IsEnum(PROMOTION_WEEKDAYS, { each: true }) daysOfWeek!: PromotionWeekday[];
+  @IsOptional() @IsBoolean() isAllDay?: boolean;
+  @IsOptional() @Matches(/^(?:[01]\d|2[0-3]):[0-5]\d$/) startTime?: string | null;
+  @IsOptional() @Matches(/^(?:[01]\d|2[0-3]):[0-5]\d$/) endTime?: string | null;
+}
+
+export class PromotionScheduleDto {
+  @IsArray() @ArrayMinSize(1) @ValidateNested({ each: true }) @Type(() => PromotionScheduleWindowDto)
+  windows!: PromotionScheduleWindowDto[];
 }
 
 export class CreatePromotionDto {
@@ -13,6 +26,7 @@ export class CreatePromotionDto {
   @IsOptional() @IsBoolean() isActive = false;
   @IsOptional() @IsDateString() startAt?: string | null;
   @IsOptional() @IsDateString() endAt?: string | null;
+  @IsOptional() @ValidateNested() @Type(() => PromotionScheduleDto) schedule?: PromotionScheduleDto | null;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(1000000) priority = 0;
   @IsEnum(PromotionRewardType) rewardType!: PromotionRewardType;
   @Type(() => Number) @IsInt() @Min(0) @Max(Number.MAX_SAFE_INTEGER) rewardValue!: number;
@@ -33,6 +47,7 @@ export class UpdatePromotionDto {
   @IsOptional() @IsString() @MaxLength(500) description?: string | null;
   @IsOptional() @IsDateString() startAt?: string | null;
   @IsOptional() @IsDateString() endAt?: string | null;
+  @IsOptional() @ValidateNested() @Type(() => PromotionScheduleDto) schedule?: PromotionScheduleDto | null;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(1000000) priority?: number;
   @IsOptional() @IsEnum(PromotionRewardType) rewardType?: PromotionRewardType;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(Number.MAX_SAFE_INTEGER) rewardValue?: number;

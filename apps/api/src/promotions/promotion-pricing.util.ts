@@ -1,13 +1,15 @@
 import { PromotionRewardType } from "./entities";
+import { promotionScheduleMatches, PromotionScheduleWindowLike } from "./promotion-schedule.util";
 
 export type PricingPromotion = { id: string; name: string; priority: number; rewardType: PromotionRewardType; rewardValue: string };
 export type PriceResult = { originalPriceToman: string; finalPriceToman: string; discountAmountToman: string; promotion: PricingPromotion | null };
 
-export function promotionStatus(promotion: { isActive: boolean; startAt: Date | null; endAt: Date | null; deletedAt?: Date | null }, now: Date) {
+export function promotionStatus(promotion: { isActive: boolean; startAt: Date | null; endAt: Date | null; deletedAt?: Date | null; scheduleWindows?: PromotionScheduleWindowLike[] }, now: Date, timezone?: string) {
   if (promotion.deletedAt) return "ARCHIVED" as const;
   if (!promotion.isActive) return "INACTIVE" as const;
   if (promotion.startAt && promotion.startAt.getTime() > now.getTime()) return "UPCOMING" as const;
   if (promotion.endAt && promotion.endAt.getTime() <= now.getTime()) return "EXPIRED" as const;
+  if (promotion.scheduleWindows?.length && (!timezone || !promotionScheduleMatches(promotion.scheduleWindows, now, timezone))) return "OUTSIDE_SCHEDULE" as const;
   return "RUNNING" as const;
 }
 

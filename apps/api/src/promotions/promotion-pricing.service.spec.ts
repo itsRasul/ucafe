@@ -18,7 +18,7 @@ test("pricing resolves product and category targets in tenant scope, with the be
     return promotions.filter((promotion) => promotion.coffeeShopId === options.where.coffeeShopId && promotion.isActive && !promotion.deletedAt);
   } };
   const pricing = new PromotionPricingService();
-  const context = await pricing.loadContext(manager as never, "tenant-a", now);
+  const context = await pricing.loadContext(manager as never, "tenant-a", now, "UTC");
   assert.equal(pricing.price(context, "latte", "coffee", "100000").finalPriceToman, "70000");
   assert.equal(pricing.price(context, "flat-white", "coffee", "100000").finalPriceToman, "80000");
   assert.equal(pricing.price(context, "tea", "tea", "100000").finalPriceToman, "100000");

@@ -8,7 +8,7 @@ import { displayOrderNumber, displayToman, NotificationType } from "../notificat
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { SubscriptionFeatures } from "../subscriptions/subscription-features";
 import { InventoryService } from "../inventory/inventory.service";
-import { PromotionPricingService } from "../promotions/promotion-pricing.service";
+import { PricingContext, PromotionPricingService } from "../promotions/promotion-pricing.service";
 import { Promotion, PromotionCoupon, PromotionRedemption, RedemptionStatus } from "../promotions/entities";
 import { discountFor, promotionStatus } from "../promotions/promotion-pricing.util";
 import { CheckoutAddressDto, CheckoutLineDto, ClientOrdersQueryDto, CreateOrderDto, OrdersQueryDto, UpdateOnlineOrderingSettingsDto } from "./dto/ordering.dto";
@@ -60,7 +60,7 @@ export class OrderingService {
     return this.dataSource.getRepository(OnlineOrderingSettings).save(settings);
   }
 
-  async createOrder(coffeeShopId: string, clientId: string, input: CreateOrderDto) {
+  async createOrder(coffeeShopId: string, clientId: string, input: CreateOrderDto, tenantTimezone?: string) {
     return this.dataSource.transaction(async (manager) => {
       await manager.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`order:${coffeeShopId}:${clientId}:${input.idempotencyKey}`]);
       const existing = await manager.findOne(Order, { where: { coffeeShopId, clientId, idempotencyKey: input.idempotencyKey }, relations: { client: true, items: true } });
@@ -78,7 +78,7 @@ export class OrderingService {
       const branch = await manager.findOneBy(Branch, { coffeeShopId, isPrimary: true, isActive: true });
       const address = input.deliveryMethod === OrderDeliveryMethod.Courier ? await this.resolveAddress(manager, coffeeShopId, clientId, input.addressId, input.newAddress) : null;
       const pricingTime = new Date();
-      const priced = await this.priceCart(manager, coffeeShopId, input.items, pricingTime, input.couponCode, clientId, true);
+      const priced = await this.priceCart(manager, coffeeShopId, input.items, pricingTime, input.couponCode, clientId, true, tenantTimezone);
       const { lines, total, subtotal, discountTotal, orderDiscount, promotion, coupon } = priced;
 
       const order = await manager.save(Order, manager.create(Order, {
@@ -116,8 +116,8 @@ export class OrderingService {
     });
   }
 
-  async quote(coffeeShopId: string, input: CheckoutLineDto[], couponCode?: string, clientId?: string) {
-    const { lines, subtotal, total, discountTotal, orderDiscount, promotion, coupon } = await this.priceCart(this.dataSource.manager, coffeeShopId, input, new Date(), couponCode, clientId, false);
+  async quote(coffeeShopId: string, input: CheckoutLineDto[], couponCode?: string, clientId?: string, tenantTimezone?: string) {
+    const { lines, subtotal, total, discountTotal, orderDiscount, promotion, coupon } = await this.priceCart(this.dataSource.manager, coffeeShopId, input, new Date(), couponCode, clientId, false, tenantTimezone);
     return {
       items: lines.map((line) => ({ menuItemId: line.menuItemId, variantId: line.menuItemVariantId, quantity: line.quantity, itemName: line.itemName, variantName: line.variantName, originalUnitPriceToman: line.originalUnitPriceToman, unitPriceToman: line.unitPriceToman, discountAmountToman: line.discountAmountToman, lineTotalToman: line.lineTotalToman, promotionName: line.promotionNameSnapshot })),
       subtotalBeforeDiscountToman: subtotal.toString(), itemDiscountTotalToman: (discountTotal - orderDiscount).toString(),
@@ -202,7 +202,12 @@ export class OrderingService {
     return { label: address.label, province: address.province, city: address.city, addressLine: address.addressLine, buildingNumber: address.buildingNumber, unit: address.unit, postalCode: address.postalCode };
   }
 
-  private async priceCart(manager: import("typeorm").EntityManager, coffeeShopId: string, input: CheckoutLineDto[], now: Date, couponCode?: string, clientId?: string, lockCoupon = false) {
+  private async priceCart(manager: import("typeorm").EntityManager, coffeeShopId: string, input: CheckoutLineDto[], now: Date, couponCode?: string, clientId?: string, lockCoupon = false, tenantTimezone?: string) {
+    if (!tenantTimezone) {
+      const tenant = await manager.findOne(CoffeeShop, { where: { id: coffeeShopId }, select: { id: true, timezone: true } });
+      if (!tenant) throw new NotFoundException("Cafe not found");
+      tenantTimezone = tenant.timezone;
+    }
     const normalized = couponCode?.trim().toUpperCase();
     if (normalized && (!clientId || !/^[A-Z0-9_-]{3,64}$/.test(normalized))) throw new BadRequestException({ code: "COUPON_NOT_FOUND", message: "کد تخفیف یافت نشد." });
     let coupon: PromotionCoupon | null = null;
@@ -216,17 +221,17 @@ export class OrderingService {
       if (!coupon.isActive) throw new BadRequestException({ code: "COUPON_INACTIVE", message: "کد تخفیف غیرفعال است." });
       if (coupon.startsAt && coupon.startsAt > now) throw new BadRequestException({ code: "COUPON_NOT_STARTED", message: "زمان استفاده از این کد هنوز شروع نشده است." });
       if (coupon.expiresAt && coupon.expiresAt <= now) throw new BadRequestException({ code: "COUPON_EXPIRED", message: "مهلت استفاده از این کد پایان یافته است." });
-      couponPromotion = await manager.findOne(Promotion, { where: { id: coupon.promotionId, coffeeShopId }, relations: { targets: true } });
-      if (!couponPromotion || promotionStatus(couponPromotion, now) !== "RUNNING") throw new BadRequestException({ code: "PROMOTION_NOT_APPLICABLE", message: "این تخفیف در حال حاضر قابل استفاده نیست." });
+      couponPromotion = await manager.findOne(Promotion, { where: { id: coupon.promotionId, coffeeShopId }, relations: { targets: true, scheduleWindows: true } });
+      if (!couponPromotion || promotionStatus(couponPromotion, now, tenantTimezone) !== "RUNNING") throw new BadRequestException({ code: "PROMOTION_NOT_APPLICABLE", message: "این تخفیف در حال حاضر قابل استفاده نیست." });
       const used = await manager.count(PromotionRedemption, { where: { coffeeShopId, couponId: coupon.id, status: RedemptionStatus.Applied } });
       if (coupon.totalUsageLimit !== null && used >= coupon.totalUsageLimit) throw new BadRequestException({ code: "COUPON_USAGE_LIMIT_REACHED", message: "ظرفیت استفاده از این کد به پایان رسیده است." });
       const customerUsed = await manager.count(PromotionRedemption, { where: { coffeeShopId, couponId: coupon.id, customerId: clientId!, status: RedemptionStatus.Applied } });
       if (coupon.perCustomerUsageLimit !== null && customerUsed >= coupon.perCustomerUsageLimit) throw new BadRequestException({ code: "CUSTOMER_USAGE_LIMIT_REACHED", message: "شما قبلاً از این کد استفاده کرده‌اید." });
     }
-    const lines = await this.priceLines(manager, coffeeShopId, input, now);
+    const context = await this.promotionPricing.loadContext(manager, coffeeShopId, now, tenantTimezone);
+    const lines = await this.priceLines(manager, coffeeShopId, input, context);
     const subtotal = lines.reduce((sum, line) => sum + BigInt(line.originalUnitPriceToman) * BigInt(line.quantity), 0n);
     const itemTotal = lines.reduce((sum, line) => sum + BigInt(line.lineTotalToman), 0n);
-    const context = await this.promotionPricing.loadContext(manager, coffeeShopId, now);
     const candidates = couponPromotion ? [...context.order, couponPromotion] : context.order;
     let promotion: Promotion | null = null;
     let orderDiscount = 0n;
@@ -256,7 +261,7 @@ export class OrderingService {
     return { lines, subtotal, total, discountTotal: subtotal - total, orderDiscount, promotion, coupon };
   }
 
-  private async priceLines(manager: import("typeorm").EntityManager, coffeeShopId: string, input: CheckoutLineDto[], now = new Date()) {
+  private async priceLines(manager: import("typeorm").EntityManager, coffeeShopId: string, input: CheckoutLineDto[], pricingContext: PricingContext) {
     const merged = new Map<string, CheckoutLineDto>();
     for (const line of input) {
       const key = `${line.menuItemId}:${line.variantId ?? ""}`;
@@ -268,7 +273,6 @@ export class OrderingService {
     if (lines.reduce((sum, line) => sum + line.quantity, 0) > 50 || lines.some((line) => line.quantity < 1 || line.quantity > 20)) throw new BadRequestException("Invalid cart quantity");
 
     const items = await manager.find(MenuItem, { where: { id: In(lines.map((line) => line.menuItemId)), coffeeShopId, deletedAt: IsNull() }, relations: { variants: true, category: true } });
-    const pricingContext = await this.promotionPricing.loadContext(manager, coffeeShopId, now);
     const itemById = new Map(items.map((item) => [item.id, item]));
     const unavailable: UnavailableLine[] = [];
     const priced: Array<Pick<OrderItem, "menuItemId" | "menuItemVariantId" | "itemName" | "variantName" | "categoryIdSnapshot" | "categoryNameSnapshot" | "unitPriceToman" | "originalUnitPriceToman" | "discountAmountToman" | "promotionIdSnapshot" | "promotionNameSnapshot" | "promotionRewardTypeSnapshot" | "promotionRewardValueSnapshot" | "quantity" | "lineTotalToman">> = [];

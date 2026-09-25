@@ -19,19 +19,22 @@ export class PublicOrderingController {
 
   @Post("public/ordering/quote")
   quote(@Req() request: TenantContextRequest, @Body() input: QuoteOrderDto) {
-    return this.ordering.quote(request[TENANT_CONTEXT]!.coffeeShopId, input.items, input.couponCode);
+    const tenant = request[TENANT_CONTEXT]!;
+    return this.ordering.quote(tenant.coffeeShopId, input.items, input.couponCode, undefined, tenant.timezone);
   }
 
   @Post("public/ordering/coupon-quote")
   @UseGuards(ClientAccessTokenGuard)
   couponQuote(@Req() request: TenantContextRequest & ClientAuthorizedRequest, @Body() input: QuoteOrderDto) {
-    return this.ordering.quote(request[TENANT_CONTEXT]!.coffeeShopId, input.items, input.couponCode, request[CLIENT_PRINCIPAL]!.clientId);
+    const tenant = request[TENANT_CONTEXT]!;
+    return this.ordering.quote(tenant.coffeeShopId, input.items, input.couponCode, request[CLIENT_PRINCIPAL]!.clientId, tenant.timezone);
   }
 
   @Post("public/orders")
   @UseGuards(ClientAccessTokenGuard)
   create(@Req() request: TenantContextRequest & ClientAuthorizedRequest, @Body() input: CreateOrderDto) {
-    return this.ordering.createOrder(request[TENANT_CONTEXT]!.coffeeShopId, request[CLIENT_PRINCIPAL]!.clientId, input);
+    const tenant = request[TENANT_CONTEXT]!;
+    return this.ordering.createOrder(tenant.coffeeShopId, request[CLIENT_PRINCIPAL]!.clientId, input, tenant.timezone);
   }
 
   @Get("public/orders")

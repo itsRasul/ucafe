@@ -64,7 +64,7 @@ See [DATABASE.md](DATABASE.md) for important constraints without duplicating the
 
 - **Tenant request:** host → domain → effective subscription/cafe status → tenant context → public or authenticated guard → tenant-scoped service query.
 - **Client action:** cafe-scoped OTP/session → client JWT tied to resolved cafe → owned resource query.
-- **Order:** feature/settings checks → server-side item and order promotion pricing → coupon row lock and usage recheck when applicable → transaction/financial snapshots and redemption → outbox.
+- **Order:** feature/settings checks → server-side item and order promotion eligibility/pricing (including tenant-local weekly schedule) → coupon row lock and usage recheck when applicable → transaction/financial snapshots and redemption → outbox.
 - **Inventory variance:** authenticated Analytics page → tenant count interval → one grouped movement/count query → paginated signed variance and source drill-down; no operational stock write.
 - **Reservation:** feature/slot checks → branch/date advisory lock → capacity recheck → transaction/outbox.
 - **Renewal:** owner permission → immutable payment intent → public authority callback → provider verification → idempotent subscription payment/reactivation.

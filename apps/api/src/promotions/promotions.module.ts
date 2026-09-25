@@ -6,13 +6,13 @@ import { MenuCategory, MenuItem } from "../menu/entities";
 import { TenantContextGuard } from "../tenants/tenant-context.guard";
 import { AccessTokenGuard } from "../auth/access-token.guard";
 import { TenantPermissionGuard } from "../authorization/tenant-permission.guard";
-import { Promotion, PromotionTarget } from "./entities";
+import { Promotion, PromotionScheduleWindow, PromotionTarget } from "./entities";
 import { PromotionPricingService } from "./promotion-pricing.service";
 import { PromotionsService } from "./promotions.service";
 import { TenantPromotionsController } from "./tenant-promotions.controller";
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Promotion, PromotionTarget, MenuItem, MenuCategory]), AuthModule, AuthorizationModule],
+  imports: [TypeOrmModule.forFeature([Promotion, PromotionTarget, PromotionScheduleWindow, MenuItem, MenuCategory]), AuthModule, AuthorizationModule],
   controllers: [TenantPromotionsController],
   providers: [PromotionsService, PromotionPricingService, AccessTokenGuard, TenantContextGuard, TenantPermissionGuard],
   exports: [PromotionPricingService],

@@ -1,6 +1,7 @@
 import { Column, CreateDateColumn, DeleteDateColumn, Entity, Index, OneToMany, OneToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 import { PromotionTarget } from "./promotion-target.entity";
 import { PromotionCoupon } from "./promotion-coupon.entity";
+import { PromotionScheduleWindow } from "./promotion-schedule-window.entity";
 
 export enum PromotionRewardType {
   Percentage = "PERCENTAGE",
@@ -31,4 +32,5 @@ export class Promotion {
   @DeleteDateColumn({ name: "deleted_at", type: "timestamptz", nullable: true }) deletedAt!: Date | null;
   @OneToMany(() => PromotionTarget, (target) => target.promotion) targets!: PromotionTarget[];
   @OneToOne(() => PromotionCoupon, (coupon) => coupon.promotion) coupon!: PromotionCoupon | null;
+  @OneToMany(() => PromotionScheduleWindow, (window) => window.promotion) scheduleWindows!: PromotionScheduleWindow[];
 }

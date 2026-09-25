@@ -2,6 +2,12 @@
 
 Last updated: 2026-09-25
 
+## Discounts & Promotions Phase 2
+
+Added optional weekly windows to the existing Promotion eligibility path, used by public menu pricing, cart/checkout pricing, and coupon validation. Windows support canonical weekdays, multiple and overlapping ranges, overnight periods, and explicit all-day windows in the tenant's café timezone. Existing UTC campaign dates, Phase 0/1 promotions without schedules, minimums, usage limits, redemption transactions, conflict resolution, and order snapshots remain in the existing engine. Owners configure schedules in the current Promotions form; no activation job or shared resolved-price cache was added.
+
+Migration `1790431200000-AddPromotionScheduleWindows` adds tenant-scoped child rows and is applied to the development database. Verification: workspace typecheck and build passed; full API suite passed (116 passed, 13 database-only skips) with promotion PostgreSQL integration enabled; focused schedule/pricing checks passed (8/8), and the final promotion PostgreSQL integration passed (2/2), including public menu pricing, coupon minimum composition, schedule expiry, and immutable order snapshots. Migration show reports the new migration executed; API readiness and `/admin/promotions` returned 200. The browser reached the owner OTP login screen, so authenticated admin interaction/visual checks were unavailable. There is no lint command. `docs/PROJECT_SPEC.md` and `docs/PLAN.md` were absent; current PRD, Business Rules, Architecture, Decisions, Development, Testing, Ordering, Database, and Discounts docs were used.
+
 ## Discounts & Promotions Phase 1
 
 Extended the Phase 0 promotion pricing path with entire-order targets, coupon activation, post-item-discount minimums, percentage caps, tenant-scoped code normalization, authenticated coupon quotes, transactional offline-order redemptions, and under-review cancellation release. Migration `1790427600000-AddPromotionCoupons` adds coupon/redemption records and immutable order-stage snapshots. The owner Promotions screen now configures order targets and coupon limits; checkout applies/removes one code and displays item/order discount amounts. Customer and owner order details show the snapshotted breakdown. Subscription Zarinpal billing is separate; customer order payment remains offline only.
