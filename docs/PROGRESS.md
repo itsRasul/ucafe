@@ -2,6 +2,12 @@
 
 Last updated: 2026-09-25
 
+## Analytics Phase 4: customer analytics
+
+Implemented `/tenant/analytics/customers` with cafe-scoped identity, first-purchase new/returning classification, period comparisons and trends, reorder interval, lifetime repeat distribution, coverage, top-10 revenue/order rankings, and a Persian RTL customer analytics tab. Migration `1787883600000` adds the tenant/status/client/time index.
+
+Verification: workspace typecheck and production build passed; full API suite passed (105 passed, 11 database-only cases skipped); Analytics and subscription-feature integration checks passed 19/19 on a fresh database migrated through all 41 migrations. The migration also applied to development PostgreSQL. Live customer route returned the expected 401 without authentication, and `/admin/analytics` returned 200. Authenticated interaction review remains unavailable because this browser has no tenant-admin session. The existing development Silver plan has Analytics enabled by local configuration; its stock-plan fixture was verified on the fresh database rather than changing the cafe's plan settings.
+
 ## Inventory Phase 0/1 stabilization
 
 The observed Inventory 404s came from a development Nest process started before the new module was registered; direct API requests and `/api/backend` requests both changed from route-level 404 to auth-level 401 after an API restart. The `/tenant/subscription` route was already registered. Inventory now rejects normalized duplicate category/location names, blocks writes to inactive items, rejects duplicate count lines and oversized page numbers, pages count history, and uses movement indexes for recent history and per-balance lookups. The admin UI pages stock/counts and refreshes filtered datasets independently. Migration `1787840000000` is applied in the local development database. An authenticated read-only smoke test through the BFF returned 200 for all seven Inventory GET routes and 400 for invalid category/location POST bodies. The PostgreSQL Inventory integration test, workspace typecheck, full test suite, and production build passed; authenticated visual UI testing remains pending because this browser session has no admin login.

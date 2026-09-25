@@ -5,7 +5,7 @@ import { TenantPermissions } from "../authorization/permission.constants";
 import { TenantPermissionGuard } from "../authorization/tenant-permission.guard";
 import { TENANT_CONTEXT, TenantContextRequest } from "../tenants/tenant-context";
 import { TenantContextGuard } from "../tenants/tenant-context.guard";
-import { AnalyticsQueryDto, ProductAnalyticsQueryDto } from "./analytics.dto";
+import { AnalyticsQueryDto, CustomerAnalyticsQueryDto, ProductAnalyticsQueryDto } from "./analytics.dto";
 import { AnalyticsService } from "./analytics.service";
 import { InventoryVarianceService } from "../inventory/variance.service";
 import { InventoryVarianceIntervalDto, InventoryVarianceQueryDto } from "../inventory/variance.dto";
@@ -52,6 +52,13 @@ export class AnalyticsController {
   products(@Req() req: TenantContextRequest, @Query() query: ProductAnalyticsQueryDto) {
     const tenant = req[TENANT_CONTEXT]!;
     return this.analytics.products(tenant.coffeeShopId, tenant.timezone, query);
+  }
+
+  @Get("customers")
+  @RequireTenantPermissions(TenantPermissions.AnalyticsRead)
+  customers(@Req() req: TenantContextRequest, @Query() query: CustomerAnalyticsQueryDto) {
+    const tenant = req[TENANT_CONTEXT]!;
+    return this.analytics.customers(tenant.coffeeShopId, tenant.timezone, query);
   }
 
   @Get("products/:productId")

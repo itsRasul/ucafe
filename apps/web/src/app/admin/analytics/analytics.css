@@ -1409,13 +1409,59 @@
 .variance-movements li small { color: #6c8093; overflow-wrap: anywhere }
 .variance-movements li b { flex: 0 0 auto }
 
+.customer-kpis { grid-template-columns: repeat(5, minmax(0, 1fr)) }
+.customer-panel { min-width: 0; padding: 1.1rem; border: 1px solid #dfe7ed; border-radius: .8rem; background: #fff }
+.customer-panel h2 { margin: 0; font-size: 1rem; line-height: 1.6 }
+.customer-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .8rem }
+.customer-section-heading p,
+.customer-caption { margin: .25rem 0 0; color: #697d8f; font-size: .75rem; line-height: 1.8 }
+.customer-rate { flex: 0 0 auto; padding: .5rem .7rem; border-radius: .6rem; background: #edf6f4; color: #17644e; font-size: .82rem }
+.customer-type-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem }
+.customer-type-grid article { min-width: 0; padding: .9rem; border: 1px solid #e2e9ef; border-radius: .65rem }
+.customer-type-grid article>div:first-child { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .4rem }
+.customer-type-grid article strong { color: #30485d }
+.customer-type-grid article b { color: #16758a; font-size: .8rem }
+.customer-type-grid p { margin: .65rem 0 0; font-weight: 850; font-size: .85rem }
+.customer-type-grid small { color: #697d8f; font-weight: 500 }
+.customer-bar { height: .5rem; margin-top: .7rem; overflow: hidden; border-radius: 99px; background: #edf2f4 }
+.customer-bar span { display: block; height: 100%; border-radius: inherit; background: #18859a }
+.customer-type-grid article:first-child .customer-bar span { background: #d19846 }
+.customer-trends { display: grid; gap: .8rem; min-width: 0 }
+.customer-behavior-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem }
+.customer-behavior-grid dl { display: grid; gap: .15rem; margin: .65rem 0 0 }
+.customer-behavior-grid dl div { display: flex; justify-content: space-between; gap: .8rem; padding: .6rem 0; border-bottom: 1px solid #edf1f4 }
+.customer-behavior-grid dt { color: #64788b; font-size: .78rem }
+.customer-behavior-grid dd { margin: 0; color: #23394e; font-weight: 850; text-align: left }
+.customer-distribution { display: grid; gap: .3rem; margin: .65rem 0 0; padding: 0; list-style: none }
+.customer-distribution li { display: flex; justify-content: space-between; gap: .75rem; padding: .52rem .6rem; border-radius: .4rem; background: #f7fafb; color: #53687c; font-size: .78rem }
+.customer-distribution strong { color: #1d5262 }
+.customer-ranking-tabs { display: flex; flex-wrap: wrap; gap: .35rem }
+.customer-ranking-tabs button { min-height: 2.3rem; padding: .35rem .65rem; border: 1px solid #dbe4e9; border-radius: .5rem; background: #fff; color: #485c70; font: inherit; font-size: .75rem; cursor: pointer }
+.customer-ranking-tabs button[aria-pressed="true"] { border-color: #27798a; background: #edf7f8; color: #145b6a; font-weight: 850 }
+.customer-table-scroll { max-width: 100%; overflow-x: auto; border: 1px solid #dfe7ed; border-radius: .6rem }
+.customer-table { width: 100%; min-width: 52rem; border-collapse: collapse; background: #fff; text-align: right }
+.customer-table th,
+.customer-table td { padding: .7rem .75rem; border-bottom: 1px solid #edf1f4; white-space: nowrap; font-size: .78rem }
+.customer-table th { background: #f7fafb; color: #607488; font-weight: 850 }
+.customer-table td { color: #23394e; font-variant-numeric: tabular-nums }
+.customer-table td:first-child { min-width: 14rem; white-space: normal }
+.customer-table td:first-child strong,
+.customer-table td small { display: block }
+.customer-table td small { margin-top: .2rem; color: #718398; font-size: .68rem; line-height: 1.7 }
+.customer-table tr:last-child td { border-bottom: 0 }
+
 @media(max-width:60rem) {
+    .customer-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)) }
+    .customer-behavior-grid { grid-template-columns: 1fr }
     .variance-summary { grid-template-columns: repeat(2, minmax(0, 1fr)) }
     .variance-filters { grid-template-columns: repeat(2, minmax(0, 1fr)) }
     .variance-breakdown dl { grid-template-columns: repeat(2, minmax(0, 1fr)) }
 }
 
 @media(max-width:40rem) {
+    .customer-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+    .customer-type-grid { grid-template-columns: 1fr }
+    .customer-section-heading { align-items: flex-start; flex-direction: column }
     .variance-filters,
     .variance-summary,
     .variance-breakdown dl { grid-template-columns: 1fr }

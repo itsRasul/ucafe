@@ -12,6 +12,10 @@ export class ProductAnalyticsQueryDto extends AnalyticsQueryDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(20) limit = 10;
 }
 
+export class CustomerAnalyticsQueryDto extends AnalyticsQueryDto {
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(20) limit = 10;
+}
+
 export interface AnalyticsMetric {
   value: string;
   previousValue: string;

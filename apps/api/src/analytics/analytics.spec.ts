@@ -5,7 +5,7 @@ import { DataSource } from "typeorm";
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
-import { AnalyticsQueryDto, compareMetric, percentOf, ProductAnalyticsQueryDto } from "./analytics.dto";
+import { AnalyticsQueryDto, compareMetric, percentOf, ProductAnalyticsQueryDto, CustomerAnalyticsQueryDto } from "./analytics.dto";
 import { analyticsGranularity, analyticsRanges } from "./analytics-period";
 import { AnalyticsService } from "./analytics.service";
 
@@ -79,6 +79,7 @@ test("analytics query rejects unknown periods and malformed dates", async () => 
   assert.ok((await validate(plainToInstance(AnalyticsQueryDto, { period: "tomorrow" }))).length > 0);
   assert.ok((await validate(plainToInstance(AnalyticsQueryDto, { period: "custom", start: "2026/01/01" }))).length > 0);
   assert.ok((await validate(plainToInstance(ProductAnalyticsQueryDto, { limit: 21 }))).length > 0);
+  assert.ok((await validate(plainToInstance(CustomerAnalyticsQueryDto, { limit: 21 }))).length > 0);
 });
 
 test("direct product analytics stops before SQL when analytics is not entitled", async () => {
@@ -87,6 +88,11 @@ test("direct product analytics stops before SQL when analytics is not entitled",
   await assert.rejects(service.products("tenant-a", "UTC", { period: "today", limit: 10 }), ForbiddenException);
   await assert.rejects(service.product("tenant-a", "UTC", randomUUID(), { period: "today" }), ForbiddenException);
   assert.equal(queried, false);
+});
+
+test("direct customer analytics stops before SQL when analytics is not entitled", async () => {
+  const service = new AnalyticsService({ query: async () => { throw new Error("SQL should not run"); } } as never, { requireFeature: async () => { throw new ForbiddenException(); } } as never);
+  await assert.rejects(service.customers("tenant-a", "Asia/Tehran", { period: "today", limit: 10 }), ForbiddenException);
 });
 
 test("SQL overview excludes pending/cancelled revenue and isolates cafes", { skip: !process.env.ANALYTICS_INTEGRATION_DATABASE_URL }, async () => {
@@ -239,6 +245,69 @@ test("SQL product analytics uses item/category snapshots, quantities, comparison
       const other = await service.products(tenantB, "Asia/Tehran", query);
       assert.equal(other.rankings.byRevenue[0]?.name, "محصول خارجی");
       assert.equal(other.totals.productRevenueToman, "999");
+      throw rollback;
+    }), (error: unknown) => error === rollback);
+  } finally { await db.destroy(); }
+});
+
+test("SQL customer analytics uses tenant-local identity, first-purchase classification, trends and bounded rankings", { skip: !process.env.ANALYTICS_INTEGRATION_DATABASE_URL }, async () => {
+  const db = new DataSource({ type: "postgres", url: process.env.ANALYTICS_INTEGRATION_DATABASE_URL });
+  await db.initialize();
+  const rollback = new Error("rollback customer analytics fixture");
+  try {
+    await assert.rejects(db.transaction(async (manager) => {
+      const tenantA = randomUUID(), tenantB = randomUUID();
+      const clientA = randomUUID(), clientB = randomUUID(), clientC = randomUUID(), clientD = randomUUID(), clientForeign = randomUUID();
+      for (const id of [tenantA, tenantB]) await manager.query(`INSERT INTO coffee_shops(id,name,slug,status) VALUES($1,'Customer Analytics Test',$2,'ACTIVE')`, [id, `customer-analytics-${id}`]);
+      await manager.query(`INSERT INTO clients(id,coffee_shop_id,first_name,last_name,phone) VALUES
+        ($1,$6,'A','Returning','+989120000001'),($2,$6,'B','New','+989120000002'),($3,$6,'C','Returning','+989120000003'),
+        ($4,$6,'D','New','+989120000004'),($5,$7,'Foreign','Customer','+989120000005')`, [clientA, clientB, clientC, clientD, clientForeign, tenantA, tenantB]);
+      const addOrder = (tenant: string, client: string, status: string, amount: string, at: string) => manager.query(
+        `INSERT INTO orders(coffee_shop_id,client_id,status,payment_method,delivery_method,total_amount_toman,idempotency_key,status_changed_at)
+         VALUES($1,$2,$3::order_status,'OFFLINE','PICKUP',$4,$5,$6)`, [tenant, client, status, amount, randomUUID(), at],
+      );
+      await addOrder(tenantA, clientA, "DELIVERED", "50", "2026-01-08T01:00:00Z");
+      await addOrder(tenantA, clientA, "DELIVERED", "100", "2026-01-10T00:00:00Z");
+      await addOrder(tenantA, clientA, "DELIVERED", "300", "2026-01-10T03:10:00Z");
+      await addOrder(tenantA, clientB, "DELIVERED", "100", "2026-01-10T03:15:00Z");
+      await addOrder(tenantA, clientB, "DELIVERED", "100", "2026-01-10T03:45:00Z");
+      await addOrder(tenantA, clientB, "DELIVERED", "100", "2026-01-10T04:15:00Z");
+      await addOrder(tenantA, clientC, "DELIVERED", "120", "2026-01-09T01:00:00Z");
+      await addOrder(tenantA, clientC, "DELIVERED", "50", "2026-01-10T02:10:00Z");
+      await addOrder(tenantA, clientD, "CANCELED", "900", "2026-01-09T02:00:00Z");
+      await addOrder(tenantA, clientD, "DELIVERED", "75", "2026-01-10T01:30:00Z");
+      await addOrder(tenantB, clientForeign, "DELIVERED", "99999", "2026-01-10T03:00:00Z");
+      await manager.query(`UPDATE clients SET first_name='Renamed', phone='+989120000009' WHERE id=$1`, [clientA]);
+
+      const service = new AnalyticsService({ query: (sql: string, parameters: unknown[]) => manager.query(sql, parameters) } as DataSource, { requireFeature: async () => undefined } as never);
+      const report = await service.customers(tenantA, "UTC", { period: "custom", start: "2026-01-10", end: "2026-01-10", limit: 10 });
+      assert.equal(report.metrics.uniqueCustomers.value, "4");
+      assert.equal(report.metrics.newCustomers.value, "2");
+      assert.equal(report.metrics.returningCustomers.value, "2");
+      assert.equal(report.metrics.returningCustomerRate.value, "50.00");
+      assert.equal(report.metrics.returningCustomerRate.previousValue, "0.00");
+      assert.equal(report.metrics.returningCustomerRate.changePercent, null);
+      assert.equal(report.metrics.knownCustomerRevenueToman.value, "825");
+      assert.equal(report.metrics.averageRevenuePerCustomerToman.value, "206");
+      assert.equal(report.metrics.averageOrdersPerCustomer.value, "1.75");
+      assert.equal(report.newVsReturning[0]?.revenueToman, "375");
+      assert.equal(report.newVsReturning[1]?.revenueToman, "450");
+      assert.equal(report.coverage.identifiedOrderPercent, "100.00");
+      assert.deepEqual(report.behavior.orderCountDistribution.map((item) => item.customers), ["1", "3", "0", "0", "0"]);
+      assert.equal(report.behavior.averageDaysBetweenOrders, "0.6");
+      assert.equal(report.behavior.topTenRevenueSharePercent, "100.00");
+      assert.equal(report.rankings.byRevenue[0]?.customerId, clientA);
+      assert.equal(report.rankings.byOrderCount[0]?.customerId, clientB);
+      assert.equal(report.rankings.byRevenue[0]?.displayName, "Renamed Returning");
+      assert.doesNotMatch(JSON.stringify(report), /\+989120000009/);
+      assert.equal(report.rankings.byOrderCount.length, 4);
+      assert.equal(report.rankings.byRevenue.some((customer) => customer.customerId === clientForeign), false);
+      assert.equal(report.rankings.byRevenue[0]?.lifetimeOrderCount, "3");
+      assert.equal(report.trends.uniqueCustomers.points.length, 24);
+      assert.equal(report.trends.uniqueCustomers.points.find((point) => point.bucket === "2026-01-10T00:00:00Z")?.value, "1");
+      assert.equal(report.trends.uniqueCustomers.points.find((point) => point.bucket === "2026-01-10T03:00:00Z")?.value, "2");
+      assert.equal(report.trends.newCustomers.points.find((point) => point.bucket === "2026-01-10T03:00:00Z")?.value, "1");
+      assert.equal(report.trends.returningCustomers.points.find((point) => point.bucket === "2026-01-10T04:00:00Z")?.value, "1");
       throw rollback;
     }), (error: unknown) => error === rollback);
   } finally { await db.destroy(); }

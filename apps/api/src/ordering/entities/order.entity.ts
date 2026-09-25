@@ -27,6 +27,7 @@ export enum OrderDeliveryMethod {
 @Index("IDX_orders_tenant_created", ["coffeeShopId", "createdAt"])
 @Index("IDX_orders_tenant_status_created", ["coffeeShopId", "status", "createdAt"])
 @Index("IDX_orders_tenant_status_changed", ["coffeeShopId", "status", "statusChangedAt"])
+@Index("IDX_orders_tenant_status_client_changed", ["coffeeShopId", "status", "clientId", "statusChangedAt"])
 export class Order {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

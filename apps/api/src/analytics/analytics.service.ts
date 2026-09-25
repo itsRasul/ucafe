@@ -3,7 +3,7 @@ import { DataSource } from "typeorm";
 import { CANCELLED_ORDER_STATUS, COMPLETED_ORDER_STATUS } from "../ordering/order-status.util";
 import { SubscriptionFeatures } from "../subscriptions/subscription-features";
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
-import { AnalyticsQueryDto, compareMetric, percentOf, ProductAnalyticsQueryDto } from "./analytics.dto";
+import { AnalyticsQueryDto, compareMetric, percentOf, ProductAnalyticsQueryDto, CustomerAnalyticsQueryDto } from "./analytics.dto";
 import { analyticsGranularity, analyticsRanges, AnalyticsGranularity, AnalyticsRanges } from "./analytics-period";
 
 interface AggregateRow {
@@ -32,6 +32,20 @@ interface ProductDetailRow {
   previousRevenue: string; previousQuantity: string; previousOrders: string;
 }
 interface ItemSeriesRow { bucket: string; revenue: string; quantity: string; orders: string }
+interface CustomerSummaryRow {
+  currentRevenue: string; currentOrders: string; currentCustomers: string; currentNew: string; currentReturning: string;
+  currentNewRevenue: string; currentReturningRevenue: string;
+  previousRevenue: string; previousOrders: string; previousCustomers: string; previousNew: string; previousReturning: string;
+}
+interface CustomerTrendRow { bucket: string; uniqueCustomers: string; newCustomers: string; returningCustomers: string }
+interface CustomerRankingRow {
+  customerId: string | null; displayName: string | null; revenue: string | null; orders: string | null;
+  averageOrderValue: string | null; firstOrderAt: Date | null; lastOrderAt: Date | null; daysSinceLastOrder: string | null;
+  lifetimeRevenue: string | null; lifetimeOrders: string | null; revenueRank: string | null; orderRank: string | null;
+  oneTimeCustomers: string; repeatCustomers: string; distribution2to3: string; distribution4to5: string;
+  distribution6to10: string; distribution11plus: string; topTenRevenue: string; knownRevenue: string;
+  averageDaysBetweenOrders: string | null;
+}
 export interface CategorySeriesRow extends ItemSeriesRow { key: string; categoryId: string | null; name: string }
 type TimeBucket = { revenue: string; completedOrders: string };
 const WEEKDAYS = ["saturday", "sunday", "monday", "tuesday", "wednesday", "thursday", "friday"] as const;
@@ -151,6 +165,234 @@ export class AnalyticsService {
         lowestActiveRevenueDates: lowestRevenue === null ? [] : activeDates.filter((date) => BigInt(date.revenue) === lowestRevenue),
       },
     };
+  }
+
+  async customers(coffeeShopId: string, timezone: string, query: CustomerAnalyticsQueryDto) {
+    await this.subscriptions.requireFeature(coffeeShopId, SubscriptionFeatures.Analytics);
+    const ranges = this.ranges(timezone, query);
+    const granularity = analyticsGranularity(ranges.current);
+    const params = [coffeeShopId, ranges.previous.start, ranges.current.start, ranges.current.endExclusive, timezone, COMPLETED_ORDER_STATUS];
+    const [summaryRows, trends, rankingRows] = await Promise.all([
+      this.dataSource.query<CustomerSummaryRow[]>(`
+        WITH bounds AS (
+          SELECT $2::timestamp AT TIME ZONE $5 AS previous_start,
+                 $3::timestamp AT TIME ZONE $5 AS current_start,
+                 $4::timestamp AT TIME ZONE $5 AS current_end
+        ), first_purchase AS (
+          SELECT o.client_id, MIN(o.status_changed_at) AS first_at
+          FROM orders o CROSS JOIN bounds b
+          WHERE o.coffee_shop_id = $1 AND o.status = $6::order_status
+            AND o.status_changed_at < b.current_end
+          GROUP BY o.client_id
+        ), period_customers AS (
+          SELECT o.client_id,
+                 COUNT(*) FILTER (WHERE o.status_changed_at >= b.current_start)::text AS current_orders,
+                 COALESCE(SUM(o.total_amount_toman) FILTER (WHERE o.status_changed_at >= b.current_start), 0)::text AS current_revenue,
+                 COUNT(*) FILTER (WHERE o.status_changed_at < b.current_start)::text AS previous_orders,
+                 COALESCE(SUM(o.total_amount_toman) FILTER (WHERE o.status_changed_at < b.current_start), 0)::text AS previous_revenue
+          FROM orders o CROSS JOIN bounds b
+          WHERE o.coffee_shop_id = $1 AND o.status = $6::order_status
+            AND o.status_changed_at >= b.previous_start AND o.status_changed_at < b.current_end
+          GROUP BY o.client_id
+        ), classified AS (
+          SELECT p.*, f.first_at, b.previous_start, b.current_start
+          FROM period_customers p JOIN first_purchase f USING (client_id) CROSS JOIN bounds b
+        )
+        SELECT COALESCE(SUM(current_revenue::bigint), 0)::text AS "currentRevenue",
+               COALESCE(SUM(current_orders::bigint), 0)::text AS "currentOrders",
+               COUNT(*) FILTER (WHERE current_orders::bigint > 0)::text AS "currentCustomers",
+               COUNT(*) FILTER (WHERE current_orders::bigint > 0 AND first_at >= current_start)::text AS "currentNew",
+               COUNT(*) FILTER (WHERE current_orders::bigint > 0 AND first_at < current_start)::text AS "currentReturning",
+               COALESCE(SUM(current_revenue::bigint) FILTER (WHERE current_orders::bigint > 0 AND first_at >= current_start), 0)::text AS "currentNewRevenue",
+               COALESCE(SUM(current_revenue::bigint) FILTER (WHERE current_orders::bigint > 0 AND first_at < current_start), 0)::text AS "currentReturningRevenue",
+               COALESCE(SUM(previous_revenue::bigint), 0)::text AS "previousRevenue",
+               COALESCE(SUM(previous_orders::bigint), 0)::text AS "previousOrders",
+               COUNT(*) FILTER (WHERE previous_orders::bigint > 0)::text AS "previousCustomers",
+               COUNT(*) FILTER (WHERE previous_orders::bigint > 0 AND first_at >= previous_start)::text AS "previousNew",
+               COUNT(*) FILTER (WHERE previous_orders::bigint > 0 AND first_at < previous_start)::text AS "previousReturning"
+        FROM classified
+      `, params),
+      this.customerTrends(coffeeShopId, ranges, granularity),
+      this.customerRankings(coffeeShopId, ranges, timezone, query.limit),
+    ]);
+    const summary = summaryRows[0]!;
+    const currentRevenue = BigInt(summary.currentRevenue), previousRevenue = BigInt(summary.previousRevenue);
+    const currentOrders = BigInt(summary.currentOrders), previousOrders = BigInt(summary.previousOrders);
+    const currentCustomers = BigInt(summary.currentCustomers), previousCustomers = BigInt(summary.previousCustomers);
+    const currentNew = BigInt(summary.currentNew), previousNew = BigInt(summary.previousNew);
+    const currentReturning = BigInt(summary.currentReturning), previousReturning = BigInt(summary.previousReturning);
+    const averageRevenue = (revenue: bigint, customers: bigint) => customers === 0n ? 0n : (revenue + customers / 2n) / customers;
+    const ratioMetric = (numerator: bigint, denominator: bigint, oldNumerator: bigint, oldDenominator: bigint) => {
+      const scaled = (n: bigint, d: bigint) => d === 0n ? 0n : (n * 100n + d / 2n) / d;
+      const value = scaled(numerator, denominator), previousValue = scaled(oldNumerator, oldDenominator), change = value - previousValue;
+      const absolute = change < 0n ? -change : change;
+      const changePercent = previousValue === 0n ? null : `${change < 0n ? "-" : ""}${(absolute * 10000n / previousValue) / 100n}.${String((absolute * 10000n / previousValue) % 100n).padStart(2, "0")}`;
+      const decimal = (amount: bigint) => `${amount / 100n}.${String(amount % 100n).padStart(2, "0")}`;
+      return { value: decimal(value), previousValue: decimal(previousValue), change: `${change < 0n ? "-" : ""}${decimal(absolute)}`, changePercent };
+    };
+    const rateMetric = (numerator: bigint, denominator: bigint, oldNumerator: bigint, oldDenominator: bigint) => {
+      const scaled = (n: bigint, d: bigint) => d === 0n ? 0n : n * 10000n / d;
+      const value = scaled(numerator, denominator), previousValue = scaled(oldNumerator, oldDenominator), change = value - previousValue;
+      const absolute = change < 0n ? -change : change;
+      const relative = previousValue === 0n ? null : absolute * 10000n / previousValue;
+      const decimal = (amount: bigint) => `${amount / 100n}.${String(amount % 100n).padStart(2, "0")}`;
+      return {
+        value: decimal(value), previousValue: decimal(previousValue),
+        change: `${change < 0n ? "-" : ""}${decimal(absolute)}`,
+        changePercent: relative === null ? null : `${change < 0n ? "-" : ""}${decimal(relative)}`,
+      };
+    };
+    const ranking = (row: CustomerRankingRow) => ({
+      customerId: row.customerId!, displayName: row.displayName || "نامشخص",
+      revenueToman: row.revenue!, orderCount: row.orders!, averageOrderValueToman: row.averageOrderValue!,
+      firstOrderAt: row.firstOrderAt, lastOrderAt: row.lastOrderAt, daysSinceLastOrder: row.daysSinceLastOrder!,
+      lifetimeRevenueToman: row.lifetimeRevenue!, lifetimeOrderCount: row.lifetimeOrders!,
+    });
+    const activeRows = rankingRows.filter((row) => row.customerId !== null);
+    const oneTimeCustomers = BigInt(rankingRows[0]?.oneTimeCustomers ?? "0");
+    const repeatCustomers = BigInt(rankingRows[0]?.repeatCustomers ?? "0");
+    const distribution = [
+      { key: "one", label: "۱ سفارش", customers: oneTimeCustomers.toString() },
+      { key: "twoToThree", label: "۲ تا ۳ سفارش", customers: rankingRows[0]?.distribution2to3 ?? "0" },
+      { key: "fourToFive", label: "۴ تا ۵ سفارش", customers: rankingRows[0]?.distribution4to5 ?? "0" },
+      { key: "sixToTen", label: "۶ تا ۱۰ سفارش", customers: rankingRows[0]?.distribution6to10 ?? "0" },
+      { key: "elevenPlus", label: "۱۱ سفارش یا بیشتر", customers: rankingRows[0]?.distribution11plus ?? "0" },
+    ];
+    const trendSeries = (key: string, label: string, field: "uniqueCustomers" | "newCustomers" | "returningCustomers") => ({
+      key, label, points: trends.map((point) => ({ bucket: point.bucket, label: point.bucket, value: point[field] })),
+    });
+    return {
+      period: query.period, timezone, current: ranges.current, previous: ranges.previous, granularity,
+      metrics: {
+        uniqueCustomers: compareMetric(currentCustomers, previousCustomers),
+        newCustomers: compareMetric(currentNew, previousNew),
+        returningCustomers: compareMetric(currentReturning, previousReturning),
+        returningCustomerRate: rateMetric(currentReturning, currentCustomers, previousReturning, previousCustomers),
+        averageRevenuePerCustomerToman: compareMetric(averageRevenue(currentRevenue, currentCustomers), averageRevenue(previousRevenue, previousCustomers)),
+        averageOrdersPerCustomer: ratioMetric(currentOrders, currentCustomers, previousOrders, previousCustomers),
+        knownCustomerRevenueToman: compareMetric(currentRevenue, previousRevenue),
+      },
+      newVsReturning: [
+        { key: "new", label: "جدید", customers: currentNew.toString(), customerSharePercent: percentOf(currentNew, currentCustomers), revenueToman: summary.currentNewRevenue, revenueSharePercent: percentOf(BigInt(summary.currentNewRevenue), currentRevenue) },
+        { key: "returning", label: "بازگشتی", customers: currentReturning.toString(), customerSharePercent: percentOf(currentReturning, currentCustomers), revenueToman: summary.currentReturningRevenue, revenueSharePercent: percentOf(BigInt(summary.currentReturningRevenue), currentRevenue) },
+      ],
+      coverage: {
+        identifiedRevenuePercent: currentRevenue === 0n ? null : "100.00",
+        identifiedOrderPercent: currentOrders === 0n ? null : "100.00",
+        anonymousRevenueToman: "0", anonymousOrders: "0",
+      },
+      behavior: {
+        averageDaysBetweenOrders: rankingRows[0]?.averageDaysBetweenOrders ?? null,
+        oneTimeCustomers: oneTimeCustomers.toString(), repeatCustomers: repeatCustomers.toString(), orderCountDistribution: distribution,
+        topTenRevenueSharePercent: percentOf(BigInt(rankingRows[0]?.topTenRevenue ?? "0"), BigInt(rankingRows[0]?.knownRevenue ?? "0")),
+      },
+      trends: {
+        uniqueCustomers: trendSeries("uniqueCustomers", "مشتریان یکتا", "uniqueCustomers"),
+        newCustomers: trendSeries("newCustomers", "مشتریان جدید", "newCustomers"),
+        returningCustomers: trendSeries("returningCustomers", "مشتریان بازگشتی", "returningCustomers"),
+      },
+      rankings: {
+        byRevenue: activeRows.filter((row) => Number(row.revenueRank) <= query.limit).sort((a, b) => Number(a.revenueRank) - Number(b.revenueRank)).map(ranking),
+        byOrderCount: activeRows.filter((row) => Number(row.orderRank) <= query.limit).sort((a, b) => Number(a.orderRank) - Number(b.orderRank)).map(ranking),
+      },
+    };
+  }
+
+  private customerTrends(coffeeShopId: string, ranges: AnalyticsRanges, granularity: AnalyticsGranularity): Promise<CustomerTrendRow[]> {
+    const { slots, bucket, textBucket } = this.seriesParts(granularity);
+    return this.dataSource.query<CustomerTrendRow[]>(`
+      WITH bounds AS (
+        SELECT $2::date AS local_start, $3::date AS local_end,
+               $2::timestamp AT TIME ZONE $5 AS current_start,
+               $3::timestamp AT TIME ZONE $5 AS current_end
+      ), slots AS (${slots}), active AS (
+        SELECT o.client_id, ${bucket} AS bucket
+        FROM orders o CROSS JOIN bounds b
+        WHERE o.coffee_shop_id = $1 AND o.status = $4::order_status
+          AND o.status_changed_at >= b.current_start AND o.status_changed_at < b.current_end
+        GROUP BY o.client_id, ${bucket}
+      ), first_purchase AS (
+        SELECT o.client_id, MIN(o.status_changed_at) AS status_changed_at
+        FROM orders o CROSS JOIN bounds b
+        WHERE o.coffee_shop_id = $1 AND o.status = $4::order_status
+          AND o.status_changed_at < b.current_end
+        GROUP BY o.client_id
+      ), first_buckets AS (
+        SELECT f.client_id, f.status_changed_at,
+               CASE WHEN f.status_changed_at < b.current_start THEN NULL ELSE ${bucket.replaceAll("o.", "f.")} END AS bucket
+        FROM first_purchase f CROSS JOIN bounds b
+      ), totals AS (
+        SELECT a.bucket, COUNT(*)::text AS unique_customers,
+               COUNT(*) FILTER (WHERE f.bucket = a.bucket)::text AS new_customers,
+               COUNT(*) FILTER (WHERE f.status_changed_at < b.current_start OR f.bucket < a.bucket)::text AS returning_customers
+        FROM active a JOIN first_buckets f USING (client_id) CROSS JOIN bounds b
+        GROUP BY a.bucket
+      )
+      SELECT ${textBucket} AS bucket, COALESCE(t.unique_customers, '0') AS "uniqueCustomers",
+             COALESCE(t.new_customers, '0') AS "newCustomers", COALESCE(t.returning_customers, '0') AS "returningCustomers"
+      FROM slots s LEFT JOIN totals t ON t.bucket = s.bucket ORDER BY s.bucket
+    `, [coffeeShopId, ranges.current.start, ranges.current.endExclusive, COMPLETED_ORDER_STATUS, ranges.timezone]);
+  }
+
+  private customerRankings(coffeeShopId: string, ranges: AnalyticsRanges, timezone: string, limit: number): Promise<CustomerRankingRow[]> {
+    return this.dataSource.query<CustomerRankingRow[]>(`
+      WITH bounds AS (
+        SELECT $2::timestamp AT TIME ZONE $4 AS current_start,
+               $3::timestamp AT TIME ZONE $4 AS current_end
+      ), active AS (
+        SELECT o.client_id, SUM(o.total_amount_toman)::bigint AS revenue, COUNT(*)::bigint AS orders
+        FROM orders o CROSS JOIN bounds b
+        WHERE o.coffee_shop_id = $1 AND o.status = $5::order_status
+          AND o.status_changed_at >= b.current_start AND o.status_changed_at < b.current_end
+        GROUP BY o.client_id
+      ), lifetime AS (
+        SELECT o.client_id, SUM(o.total_amount_toman)::bigint AS revenue, COUNT(*)::bigint AS orders,
+               MIN(o.status_changed_at) AS first_at, MAX(o.status_changed_at) AS last_at
+        FROM orders o JOIN active a USING (client_id)
+        WHERE o.coffee_shop_id = $1 AND o.status = $5::order_status
+        GROUP BY o.client_id
+      ), ranked AS (
+        SELECT a.client_id, NULLIF(TRIM(CONCAT_WS(' ', c.first_name, c.last_name)), '') AS display_name,
+               a.revenue, a.orders, l.revenue AS lifetime_revenue, l.orders AS lifetime_orders,
+               l.first_at, l.last_at,
+               ((now() AT TIME ZONE $4)::date - (l.last_at AT TIME ZONE $4)::date)::text AS days_since_last,
+               ROW_NUMBER() OVER (ORDER BY a.revenue DESC, a.orders DESC, a.client_id) AS revenue_rank,
+               ROW_NUMBER() OVER (ORDER BY a.orders DESC, a.revenue DESC, a.client_id) AS order_rank
+        FROM active a JOIN lifetime l USING (client_id)
+        LEFT JOIN clients c ON c.id = a.client_id AND c.coffee_shop_id = $1
+      ), stats AS (
+        SELECT COUNT(*) FILTER (WHERE lifetime_orders = 1)::text AS one_time,
+               COUNT(*) FILTER (WHERE lifetime_orders >= 2)::text AS repeat,
+               COUNT(*) FILTER (WHERE lifetime_orders BETWEEN 2 AND 3)::text AS distribution_2_3,
+               COUNT(*) FILTER (WHERE lifetime_orders BETWEEN 4 AND 5)::text AS distribution_4_5,
+               COUNT(*) FILTER (WHERE lifetime_orders BETWEEN 6 AND 10)::text AS distribution_6_10,
+               COUNT(*) FILTER (WHERE lifetime_orders >= 11)::text AS distribution_11_plus,
+               COALESCE(SUM(revenue), 0)::text AS known_revenue,
+               COALESCE((SELECT SUM(top.revenue) FROM (SELECT revenue FROM ranked ORDER BY revenue DESC, client_id LIMIT 10) top), 0)::text AS top_ten_revenue
+        FROM ranked
+      ), order_gaps AS (
+        SELECT o.status_changed_at - LAG(o.status_changed_at) OVER (PARTITION BY o.client_id ORDER BY o.status_changed_at) AS gap
+        FROM orders o
+        WHERE o.coffee_shop_id = $1 AND o.status = $5::order_status
+      ), average_gap AS (
+        SELECT ROUND(AVG(EXTRACT(EPOCH FROM gap) / 86400)::numeric, 1)::text AS average_days
+        FROM order_gaps WHERE gap IS NOT NULL
+      )
+      SELECT r.client_id AS "customerId", r.display_name AS "displayName", r.revenue::text AS revenue,
+             r.orders::text AS orders,
+             CASE WHEN r.orders IS NULL OR r.orders = 0 THEN '0'
+                  ELSE ((r.revenue + r.orders / 2) / r.orders)::text END AS "averageOrderValue",
+             r.first_at AS "firstOrderAt", r.last_at AS "lastOrderAt", r.days_since_last AS "daysSinceLastOrder",
+             r.lifetime_revenue::text AS "lifetimeRevenue", r.lifetime_orders::text AS "lifetimeOrders",
+             r.revenue_rank::text AS "revenueRank", r.order_rank::text AS "orderRank",
+             s.one_time AS "oneTimeCustomers", s.repeat AS "repeatCustomers",
+             s.distribution_2_3 AS "distribution2to3", s.distribution_4_5 AS "distribution4to5",
+             s.distribution_6_10 AS "distribution6to10", s.distribution_11_plus AS "distribution11plus",
+             s.top_ten_revenue AS "topTenRevenue", s.known_revenue AS "knownRevenue", g.average_days AS "averageDaysBetweenOrders"
+      FROM stats s CROSS JOIN average_gap g
+      LEFT JOIN ranked r ON r.revenue_rank <= $6 OR r.order_rank <= $6
+      ORDER BY r.revenue_rank NULLS LAST, r.order_rank NULLS LAST
+    `, [coffeeShopId, ranges.current.start, ranges.current.endExclusive, timezone, COMPLETED_ORDER_STATUS, limit]);
   }
 
   async products(coffeeShopId: string, timezone: string, query: ProductAnalyticsQueryDto) {
