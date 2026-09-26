@@ -13,6 +13,7 @@ export class CrmContact {
   @Column({ name: "phone_hash", type: "char", length: 64, nullable: true }) phoneHash!: string | null;
   @Column({ name: "email_encrypted", type: "text", nullable: true, select: false }) emailEncrypted!: string | null;
   @Column({ name: "email_hash", type: "char", length: 64, nullable: true }) emailHash!: string | null;
+  @Column({ name: "custom_fields", type: "jsonb", default: () => "'{}'::jsonb" }) customFields!: Record<string, unknown>;
   @Column({ name: "created_by_user_id", type: "uuid", nullable: true }) createdByUserId!: string | null;
   @Column({ name: "updated_by_user_id", type: "uuid", nullable: true }) updatedByUserId!: string | null;
   @Column({ name: "archived_at", type: "timestamptz", nullable: true }) archivedAt!: Date | null;

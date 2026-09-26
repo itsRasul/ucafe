@@ -1,6 +1,6 @@
 # CRM testing plan
 
-Phases 1–6 add API unit, controller metadata, and PostgreSQL integration tests using the existing Node test runner, TypeScript, and node:assert. The web has typecheck/build checks but no durable component or browser E2E suite. See [TESTING.md](../TESTING.md).
+Phases 1–7 add API unit, controller metadata, and PostgreSQL integration tests using the existing Node test runner, TypeScript, and node:assert. The web has typecheck/build checks but no durable component or browser E2E suite. See [TESTING.md](../TESTING.md).
 
 Run `npm test --workspace=@ucafe/api` for the API suite. The PostgreSQL CRM integration cases require `CRM_INTEGRATION_DATABASE_URL` and use a dedicated database connection; without it, those cases are skipped. Run `npm run typecheck` and `npm run build` from the workspace root for the API and web.
 
@@ -16,6 +16,8 @@ Coverage includes canonical phone/email and URL/Instagram normalization, encrypt
 - Test Lead conversion retries and conflicts with duplicate Organization/Contact candidates; assert one canonical conversion and preserved Lead history. Phase 2 creates no Deal.
 - Test Lead status plus history atomicity, actor attribution, archived filtering, and duplicate source requests.
 - Test Deal stage ordering, skip/backtrack reasons, stale-stage rejection, won/lost terminal rules, loss reasons, same-Organization Contact and qualified/converted-Lead constraints, estimate/date validation, stage totals, and history/audit atomicity.
+- Test the Phase 7 filter compiler with parameterized hostile values, rejected unknown fields/operators, field-specific select-option validation, multi-select containment, active Tag criteria, AND/OR grouping, and condition limits. Exercise typed values, partial required-field PATCH behavior, option ownership/stable IDs, archived-value retention, Tag normalization/assignment, private/shared view visibility and rename, metadata/read-write permission guards, and dynamic Segment counts against current records.
+- Verify list filtering is applied in SQL before limit/offset, that Segments store criteria rather than members, and that audit summaries omit custom values and Tag names.
 - The CRM Deal PostgreSQL integration creates and converts linked records, checks single-origin enforcement and stage history, moves stages, closes Won/Lost, exercises filters, and verifies archive/restore.
 - The CRM work PostgreSQL integration covers Activity/Task/Note persistence, allowed and cross-Organization associations, Lead-only work across conversion, Task assignment/filter/lifecycle/archive rules, audit privacy, and archive restoration.
 - The Phase 5 CRM PostgreSQL integration covers a mixed-source Timeline, equal-time stable order, category/date filters, offset page traversal, pre-conversion Lead history, relationship-based Activity deduplication, organization isolation, selected Task audit lifecycle entries, Deal outcome timestamps, archived source/Organization reads, Note current-source content, and derived 360 summary/bounded previews.

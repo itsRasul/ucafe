@@ -18,4 +18,6 @@ Deal estimated value and closed-won counts are sales measures, not collected rev
 
 Phase 3 retains stage history from the first Deal release. The current stage alone cannot support time-in-stage, historical funnels, or conversion-by-stage reports. Preserve a stable Lead source key and avoid overwriting source attribution when a Lead changes status.
 
+Phase 7 Segments are operational saved criteria, not analytics or campaign audiences. Their counts are current matches only; they do not provide historical membership, funnel attribution, scoring, or outcome measures.
+
 Analytics should begin in Phase 10 after enough CRM data exists. Use bounded SQL aggregates over indexed histories, return business measures rather than UI colors, and define periods/timezone before reporting. Do not add a CRM Analytics plan feature or couple to tenant Analytics without a product decision.

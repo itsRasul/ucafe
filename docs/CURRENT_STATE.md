@@ -1,6 +1,6 @@
 # Current state
 
-**Reviewed:** 2026-09-26 (Asia/Tehran)
+**Reviewed:** 2026-09-27 (Asia/Tehran)
 
 ## Implemented
 
@@ -16,12 +16,18 @@
 - Inventory Phase 1 adds tenant-scoped item/category/location management, transactional opening balances and adjustments, stock/count/history views, and the configurable feature gate. See [INVENTORY.md](INVENTORY.md) and [PROGRESS.md](PROGRESS.md).
 - PostgreSQL/Redis/MinIO readiness, security headers, request IDs, backup/restore scripts, Docker development/production targets.
 
-## Platform CRM Phases 2–6
+## Platform CRM Phases 2–7
 
-- Phases 0–6 are complete. CRM includes Organizations, Contacts, Leads, Deals/Pipeline, Activities, Tasks/follow-ups, Notes, status/stage history, assignment, audit, a query-time Unified Timeline, Organization 360, explicit Tenant linking, and read-only Tenant/Trial/Subscription context; see [docs/crm/README.md](crm/README.md), [API.md](crm/API.md), and [PROGRESS.md](PROGRESS.md).
+- Phases 0–7 are complete. CRM includes Organizations, Contacts, Leads, Deals/Pipeline, Activities, Tasks/follow-ups, Notes, status/stage history, assignment, audit, a query-time Unified Timeline, Organization 360, explicit Tenant linking, read-only Tenant/Trial/Subscription context, typed custom fields, CRM-wide Tags, saved views, and dynamic Segments; see [docs/crm/README.md](crm/README.md), [API.md](crm/API.md), and [PROGRESS.md](PROGRESS.md).
 - A CRM Organization may link to one existing Tenant, and each Tenant to at most one Organization. This does not backfill existing Tenants or change their lifecycle.
 - Accepted public consultation requests create a linked `LANDING_FORM` Lead in the same transaction; existing requests are not backfilled and the public/request inbox contracts are unchanged.
-- Lead conversion itself creates no Deal. Phase 4 Activities, Tasks, and Notes use explicit CRM associations and transactional audit writes. Phases 5–6 compose CRM records and selected durable customer facts at read time; no Timeline table, Sales Engine, general domain-event bus, reminders, or fabricated Tenant/Subscription lifecycle transitions were added.
+- Lead conversion itself creates no Deal. Phase 4 Activities, Tasks, and Notes use explicit CRM associations and transactional audit writes. Phases 5–6 compose CRM records and selected durable customer facts at read time. Phase 7 stores typed values and query definitions, not static Segment membership. No Timeline table, Sales Engine, campaigns, workflow engine, general domain-event bus, reminders, or fabricated Tenant/Subscription lifecycle transitions were added.
+
+## Platform CRM Phase 7
+
+- Added typed custom fields for Organizations, Contacts, Leads, and Deals; CRM-wide Tags; owner-scoped PRIVATE and SHARED saved views; and dynamic Segments with server-side preview/count/paged records. Filter criteria use a bounded flat AND/OR AST and whitelisted parameterized SQL; no full-list browser filtering.
+- Custom field option IDs remain stable when labels change. Values and Tag assignments persist across archive; inactive definitions/options are excluded from new edits and filters. Record detail pages expose metadata editors with the same `crm.manage` permission as existing CRM mutations.
+- Migration `1790560000000-PlatformCrmFieldsTagsViewsSegments` adds four JSONB `custom_fields` objects plus relational definitions, options, tags/assignments, saved views, and segments. Promotion customer segments and Plan feature definitions remain separate systems.
 
 ## Platform CRM Phase 3
 

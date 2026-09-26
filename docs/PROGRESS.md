@@ -2,6 +2,14 @@
 
 Last updated: 2026-09-27
 
+## UCafe Platform CRM Phase 7: Custom fields, Tags, saved views, and Segments
+
+Added migration `1790560000000-PlatformCrmFieldsTagsViewsSegments`: typed custom field definitions/options and JSONB values for Organizations, Contacts, Leads, and Deals; normalized Tags with explicit target foreign keys; owner-scoped saved views; and dynamic Segment criteria. Field and Tag archives preserve historical values and assignments. Filter ASTs are flat, versioned AND/OR conditions with a 20-rule cap; the compiler uses allowlisted SQL expressions and parameterized user values. Record list filtering happens before pagination. Segments store criteria only and read current counts and pages.
+
+The platform CRM adds `/platform/crm/settings` and `/platform/crm/segments`, record-detail metadata editors, and filter builders/saved-view controls on Organization, Lead, and Deal directories. Contacts are filterable through the Segment/API surface and do not gain a second, standalone directory. CRM `crm.read`/`crm.manage` guards cover reads and writes; audit summaries contain counts, not field values or Tag names. Promotion customer segments and Plan feature metadata remain independent.
+
+Verification: migration `1790560000000-PlatformCrmFieldsTagsViewsSegments` is applied and `migration:show` reports all migrations applied. The full API suite passed (146 passed, 22 database-gated skips); the focused PostgreSQL Phase 7 integration passed (4/4), and the broader CRM PostgreSQL integration suite passed (6/6). API and web typechecks and the root production build (API, web, worker) passed; `git diff --check` passed. After restarting stale dev services, Settings and Segment list/detail returned 200, and the unauthenticated filter-fields API request returned the expected 401. The in-app browser confirmed the expected access-denied state because it has no `crm.read` session, so authenticated interactions were not visually exercised. A local JSONB filter `EXPLAIN (ANALYZE, BUFFERS)` used a sequential scan and took 0.085 ms with one Organization row; this dev dataset is too small to justify production index conclusions. There is no lint command.
+
 ## UCafe Platform CRM Phase 6: Tenant, Trial & Subscription Integration
 
 CRM Organizations now link to Tenants only through explicit, transactional link/unlink actions with audit history. Organization 360 reads a privacy-limited current Tenant and Subscription projection from the owning modules; it shows Trial, plan, subscription status/period, grace, and pending plan context without copying state or exposing payment details. The query-time Customer Timeline adds durable Tenant creation/link changes, Trial starts, and successful paid Subscription operations. It does not infer status history that the source systems do not store. Context and Timeline require `crm.read` plus `subscriptions.read`; link/unlink requires `crm.manage` plus `tenants.read`.

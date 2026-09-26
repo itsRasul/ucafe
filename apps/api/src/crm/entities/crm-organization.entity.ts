@@ -14,6 +14,7 @@ export class CrmOrganization {
   @Column({ type: "varchar", length: 500, nullable: true }) website!: string | null;
   @Column({ name: "website_host", type: "varchar", length: 255, nullable: true }) websiteHost!: string | null;
   @Column({ name: "instagram_handle", type: "varchar", length: 30, nullable: true }) instagramHandle!: string | null;
+  @Column({ name: "custom_fields", type: "jsonb", default: () => "'{}'::jsonb" }) customFields!: Record<string, unknown>;
   @Column({ name: "coffee_shop_id", type: "uuid", nullable: true }) coffeeShopId!: string | null;
   @Column({ name: "created_by_user_id", type: "uuid", nullable: true }) createdByUserId!: string | null;
   @Column({ name: "updated_by_user_id", type: "uuid", nullable: true }) updatedByUserId!: string | null;

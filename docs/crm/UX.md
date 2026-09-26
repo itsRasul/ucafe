@@ -1,6 +1,6 @@
 # Platform CRM information architecture
 
-This document records the implemented Phase 1–5 placement and the deferred roadmap UX. Organization, Contact, Lead, Deal, Activity, Task, and Note workflows use nested App Router pages inside the existing platform application.
+This document records the implemented Phase 1–7 placement and the deferred roadmap UX. Organization, Contact, Lead, Deal, Activity, Task, Note, metadata, saved-view, and Segment workflows use nested App Router pages inside the existing platform application.
 
 ## Current platform surface
 
@@ -20,9 +20,9 @@ CRM navigation:
 - Leads
 - Contacts remain reachable from Organization detail and have record-specific deep links rather than a separate top-level destination.
 
-Implemented routes include `/platform/crm`, Organization and Lead list/detail/create pages, `/platform/crm/contacts/:contactId`, `/platform/crm/deals` and `/platform/crm/pipeline`, and `/platform/crm/tasks`. Organization, Contact, Lead, and Deal detail pages show separate Activity, Task, and Note sections. The organization detail page also shows paginated/searchable Contacts and read-only linked Tenant information. Operators with both `crm.read` and `tenants.read` can link or unlink an available Tenant. All CRM pages use the same platform session, same-origin API, RTL CSS, and permission contract.
+Implemented routes also include `/platform/crm/segments` and `/platform/crm/settings`. Organization, Contact, Lead, and Deal details show record custom fields and Tags alongside their Activity, Task, and Note sections. The organization detail page shows paginated/searchable Contacts and read-only linked Tenant information. Operators with both `crm.read` and `tenants.read` can link or unlink an available Tenant. All CRM pages use the same platform session, same-origin API, RTL CSS, and permission contract.
 
-The Pipeline destination is `/platform/crm/pipeline`; the Tasks queue is `/platform/crm/tasks`. Keep CRM Settings out because stages are code-defined. Avoid duplicating a flat list of every CRM object in the mobile bottom navigation.
+The Pipeline destination is `/platform/crm/pipeline`; the Tasks queue is `/platform/crm/tasks`; saved dynamic groups live at `/platform/crm/segments`; metadata administration lives at `/platform/crm/settings`. Settings configures only typed fields and Tags; Pipeline stages remain code-defined. Avoid duplicating a flat list of every CRM object in the mobile bottom navigation.
 
 ## Page structure
 
@@ -51,6 +51,12 @@ The Tasks queue at `/platform/crm/tasks` provides Today, Overdue, Upcoming, All 
 Organization detail composes a Persian-first 360 workspace above the existing Contact and work sections. It shows derived Contact/Lead/Deal/open-Deal/open-Task counts, last Activity, next Task, bounded recent Lead and Deal lists, open Task previews, recent Activity and Note previews, an authorized Tenant/Trial/Subscription panel, and the separately paginated Timeline. Current Tenant status and subscription dates come from owning-module read projections; customer-context loading errors remain separate from the CRM overview. Link/unlink refreshes the customer panel and Timeline. The Contact directory retains its existing search, pagination, archive, and edit flow; Contacts have no Organization-wide primary flag, so the 360 view does not invent one. Existing Activity/Task/Note forms remain the quick actions. Expected Plan on a Deal is labeled as expected and remains separate from the current Plan. Leads, Deals, Tasks, Contacts, and authorized Tenant records link to their existing pages.
 
 Timeline filtering supports one CRM/customer category and inclusive local-day date bounds. Pages contain 20 items by default, with an API maximum of 100. Mixed event types render from stable machine types and metadata into Persian text, display masked operator labels or an explicit system/source label, and link back to the associated Lead, Deal, Contact, work section, or Tenant record when permitted. Customer context and Timeline require `subscriptions.read`; linking requires both `crm.manage` and `tenants.read`. Loading, empty, retryable error, and overview section-error states are kept local to the affected area. The section navigation and timeline controls remain keyboard labeled and responsive in RTL layouts.
+
+### Custom fields, Tags, saved views, and Segments
+
+`/platform/crm/settings` groups definition controls by supported record type and manages CRM-wide Tags. Field keys are fixed after creation; definitions expose deterministic display ordering. Record detail pages show existing metadata and expose an edit form only for mutable records and `crm.manage` users. Select options use stable IDs; archive feedback explains that history and existing assignments remain. Record Tag assignment has a searchable checkbox list, and controls use native input types, responsive wrapping, keyboard-visible focus, and 44px touch targets.
+
+The Organization, Lead, and Deal directories provide a server-backed filter builder and saved-view selector above the existing list filters. Saved views restore the typed AST, ordinary search/status/archive filters, core sorting, and selected view ID in the URL. The builder limits the operator to flat AND/OR rules, uses per-field operators and options, and shows removable condition chips. `/platform/crm/segments` lets an operator choose a record type, compose the same rules, request a live count plus a small sample, and save criteria. Each Segment has a detail page with a human-readable criteria summary, current count, and paginated matching records. The UI does not load a full record set to filter in the browser.
 
 ## Existing design and implementation guidance
 

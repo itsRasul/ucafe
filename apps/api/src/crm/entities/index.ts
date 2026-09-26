@@ -7,3 +7,7 @@ export { CrmDealStageHistory } from "./crm-deal-stage-history.entity";
 export { CrmActivity, CrmActivityType, CrmCallOutcome, CrmMeetingOutcome } from "./crm-activity.entity";
 export { CrmTask, CrmTaskKind, CrmTaskPriority, CrmTaskStatus } from "./crm-task.entity";
 export { CrmNote } from "./crm-note.entity";
+export { CrmCustomFieldDefinition, CrmCustomFieldOption, CrmCustomFieldEntityType, CrmCustomFieldType } from "./crm-custom-field.entity";
+export { CrmTag, CrmEntityTag } from "./crm-tag.entity";
+export { CrmSavedView } from "./crm-saved-view.entity";
+export { CrmSegment } from "./crm-segment.entity";

@@ -4,6 +4,7 @@ import { IsEmail, IsIn, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLe
 const trim = ({ value }: { value: unknown }) => typeof value === "string" ? value.trim() : value;
 
 export class CrmListQueryDto {
+  @IsOptional() @Transform(trim) @IsString() @MaxLength(6000) filter?: string;
   @IsOptional() @Transform(trim) @IsString() @MaxLength(160) q?: string;
   @IsOptional() @Transform(trim) @IsString() @MaxLength(100) city?: string;
   @IsOptional() @IsUUID() coffeeShopId?: string;

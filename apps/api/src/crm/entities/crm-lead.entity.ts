@@ -76,6 +76,7 @@ export class CrmLead {
   @Column({ name: "qualification_notes", type: "varchar", length: 2000, nullable: true }) qualificationNotes!: string | null;
   @Column({ name: "unqualified_reason", type: "varchar", length: 32, nullable: true }) unqualifiedReason!: CrmLeadUnqualifiedReason | null;
   @Column({ name: "unqualified_reason_detail", type: "varchar", length: 500, nullable: true }) unqualifiedReasonDetail!: string | null;
+  @Column({ name: "custom_fields", type: "jsonb", default: () => "'{}'::jsonb" }) customFields!: Record<string, unknown>;
   @Column({ name: "qualified_at", type: "timestamptz", nullable: true }) qualifiedAt!: Date | null;
   @Column({ name: "converted_at", type: "timestamptz", nullable: true }) convertedAt!: Date | null;
   @Column({ name: "created_by_user_id", type: "uuid", nullable: true }) createdByUserId!: string | null;

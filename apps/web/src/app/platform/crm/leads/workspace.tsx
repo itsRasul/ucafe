@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { PlatformApi as Api, usePlatformSession } from "../../use-platform-session";
 import { CrmWorkSections } from "../work";
+import { CrmRecordMetadata } from "../metadata-controls";
+import { CrmFilterBuilder, CrmSavedViews, FilterDefinition, initialFilter, isFilterReady } from "../metadata-controls";
 
 type Page<T> = { items: T[]; total: number; page: number; pageSize: number };
 type Lead = {
@@ -52,7 +54,7 @@ export function CrmLeadsWorkspace({ mode, leadId }: Props) {
 
 function LeadShell({ children, canManage }: { children: React.ReactNode; canManage: boolean }) {
   return <main className="platform-app crm-app"><div className="platform-frame">
-    <aside className="platform-sidebar"><div><div className="platform-brand"><span><strong>CRM یو کافه</strong><small>مدیریت ارتباط‌های تجاری</small></span></div><p className="platform-nav-label">فضای کاری CRM</p><nav aria-label="ناوبری CRM"><Link className="platform-crm-link" href="/platform/crm">سازمان‌ها</Link><Link className="platform-crm-link" href="/platform/crm/leads">سرنخ‌ها</Link><Link className="platform-crm-link" href="/platform/crm/tasks">وظایف</Link>{canManage && <Link className="platform-crm-link" href="/platform/crm/leads/new">افزودن سرنخ</Link>}</nav></div><Link className="crm-back" href="/platform">بازگشت به پلتفرم</Link></aside>
+    <aside className="platform-sidebar"><div><div className="platform-brand"><span><strong>CRM یو کافه</strong><small>مدیریت ارتباط‌های تجاری</small></span></div><p className="platform-nav-label">فضای کاری CRM</p><nav aria-label="ناوبری CRM"><Link className="platform-crm-link" href="/platform/crm">سازمان‌ها</Link><Link className="platform-crm-link" href="/platform/crm/leads">سرنخ‌ها</Link><Link className="platform-crm-link" href="/platform/crm/deals">فرصت‌ها</Link><Link className="platform-crm-link" href="/platform/crm/segments">بخش‌بندی‌ها</Link><Link className="platform-crm-link" href="/platform/crm/tasks">وظایف</Link>{canManage && <><Link className="platform-crm-link" href="/platform/crm/settings">فیلدها و برچسب‌ها</Link><Link className="platform-crm-link" href="/platform/crm/leads/new">افزودن سرنخ</Link></>}</nav></div><Link className="crm-back" href="/platform">بازگشت به پلتفرم</Link></aside>
     <section className="platform-shell"><header className="platform-topbar"><strong>مدیریت ارتباط‌های تجاری</strong><Link href="/platform">پنل پلتفرم</Link></header><div className="crm-content">{children}</div><nav className="platform-bottom-nav" aria-label="ناوبری موبایل CRM"><Link className="platform-crm-link" href="/platform/crm">سازمان‌ها</Link><Link className="platform-crm-link" href="/platform/crm/leads">سرنخ‌ها</Link><Link className="platform-crm-link" href="/platform/crm/tasks">وظایف</Link>{canManage && <Link className="platform-crm-link" href="/platform/crm/leads/new">افزودن سرنخ</Link>}</nav></section>
   </div></main>;
 }
@@ -69,16 +71,18 @@ function LeadDirectory({ api, canManage }: { api: Api; canManage: boolean }) {
   const [archiveStatus, setArchiveStatus] = useState("ACTIVE");
   const [sort, setSort] = useState("createdAt");
   const [direction, setDirection] = useState("DESC");
+  const [filter, setFilter] = useState<FilterDefinition>(initialFilter());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   useEffect(() => { void api<UserOption[]>("/platform/crm/leads/assignees").then(setAssignees).catch(() => setAssignees([])); }, [api]);
   useEffect(() => {
     let cancelled = false;
     setLoading(true); setError("");
-    const query = encode({ q, status, source, priority, ownerId, archiveStatus, sort, direction, page: String(page), pageSize: "25" });
+    const filterJson = filter.conditions.length && isFilterReady(filter) ? JSON.stringify(filter) : "";
+    const query = encode({ q, status, source, priority, ownerId, archiveStatus, sort, direction, filter: filterJson, page: String(page), pageSize: "25" });
     void api<Page<Lead>>(`/platform/crm/leads?${query}`).then((value) => { if (!cancelled) setResult(value); }).catch((reason) => { if (!cancelled) setError((reason as Error).message); }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [api, q, status, source, priority, ownerId, archiveStatus, sort, direction, page]);
+  }, [api, q, status, source, priority, ownerId, archiveStatus, sort, direction, page, filter]);
   const reset = (setter: (value: string) => void) => (value: string) => { setter(value); setPage(1); };
   return <>
     <header className="crm-heading"><div><p className="platform-nav-label">پلتفرم / CRM</p><h1>سرنخ‌ها</h1><p>پیگیری کسب‌وکارهای علاقه‌مند به UCafe.</p></div>{canManage && <Link className="crm-button" href="/platform/crm/leads/new">افزودن سرنخ</Link>}</header>
@@ -91,6 +95,8 @@ function LeadDirectory({ api, canManage }: { api: Api; canManage: boolean }) {
       <label>نمایش<select value={archiveStatus} onChange={(event) => reset(setArchiveStatus)(event.target.value)}><option value="ACTIVE">فعال</option><option value="ARCHIVED">بایگانی‌شده</option><option value="ALL">همه</option></select></label>
       <label>مرتب‌سازی<select value={`${sort}:${direction}`} onChange={(event) => { const [nextSort, nextDirection] = event.target.value.split(":"); setSort(nextSort!); setDirection(nextDirection!); setPage(1); }}><option value="createdAt:DESC">جدیدترین</option><option value="createdAt:ASC">قدیمی‌ترین</option><option value="updatedAt:DESC">آخرین تغییر</option><option value="priority:ASC">اولویت زیاد به کم</option><option value="status:ASC">وضعیت</option></select></label>
     </form>
+    <CrmSavedViews api={api} entityType="LEAD" canManage={canManage} filter={filter} queryDefinition={{ q, status, source, priority, ownerId, archiveStatus }} sort={{ field: sort, direction: direction as "ASC" | "DESC" }} onApply={(view) => { setFilter(view.filterDefinition); setQ(view.queryDefinition.q ?? ""); setStatus(view.queryDefinition.status ?? ""); setSource(view.queryDefinition.source ?? ""); setPriority(view.queryDefinition.priority ?? ""); setOwnerId(view.queryDefinition.ownerId ?? ""); setArchiveStatus(view.queryDefinition.archiveStatus ?? "ACTIVE"); if (view.sortDefinition) { setSort(view.sortDefinition.field); setDirection(view.sortDefinition.direction); } setPage(1); }} />
+    <CrmFilterBuilder api={api} entityType="LEAD" value={filter} onChange={(value) => { setFilter(value); setPage(1); }} />
     {error && <p className="message error" role="alert">{error}</p>}
     {loading ? <p className="empty" role="status">در حال دریافت سرنخ‌ها…</p> : result.items.length === 0 ? <div className="empty"><strong>{archiveStatus === "ACTIVE" ? "هنوز سرنخی ثبت نشده است." : "سرنخی با این شرایط پیدا نشد."}</strong><p>{archiveStatus === "ACTIVE" ? "فرم مشاوره سایت به‌صورت خودکار یک سرنخ ایجاد می‌کند." : "فیلترها را تغییر دهید یا سرنخ دیگری جست‌وجو کنید."}</p>{canManage && archiveStatus === "ACTIVE" && <Link className="crm-button" href="/platform/crm/leads/new">افزودن اولین سرنخ</Link>}</div> : <div className="crm-lead-list" aria-label="فهرست سرنخ‌ها">{result.items.map((lead) => <Link className="crm-lead-row" key={lead.id} href={`/platform/crm/leads/${lead.id}`}>
       <span className="crm-lead-main"><strong>{lead.businessName}</strong><small>{lead.contactName || "فرد رابط ثبت نشده"}{lead.city ? ` · ${lead.city}` : ""}</small>{lead.organizationName && <small>سازمان: {lead.organizationName}</small>}</span>
@@ -236,6 +242,7 @@ function LeadDetail({ api, canManage, leadId }: { api: Api; canManage: boolean; 
       {lead.unqualifiedReason && <section className="crm-lead-context"><h2>دلیل نامتناسب بودن</h2><p>{reasons[lead.unqualifiedReason] ?? lead.unqualifiedReason}{lead.unqualifiedReasonDetail ? ` · ${lead.unqualifiedReasonDetail}` : ""}</p></section>}
       {lead.organizationId && <section className="crm-lead-context"><h2>سازمان متصل</h2><p><Link href={`/platform/crm/organizations/${lead.organizationId}`}>{lead.organizationName}</Link></p>{lead.primaryContact && <p>فرد رابط: {lead.primaryContact.name}{lead.primaryContact.role ? ` · ${lead.primaryContact.role}` : ""}</p>}</section>}
     </section>}
+    <CrmRecordMetadata api={api} entityType="LEAD" recordId={lead.id} editable={canManage && !lead.archivedAt && lead.status !== "CONVERTED"} />
     {canManage && !editing && !lead.archivedAt && <section className="crm-lead-panel"><header className="crm-section-heading"><div><h2>اقدام بعدی</h2><p>وضعیت‌ها بر اساس چرخه سرنخ کنترل می‌شوند.</p></div></header>
       {next.length > 0 && <div className="crm-lead-action-row"><button type="button" onClick={() => setChanging((value) => !value)}>تغییر وضعیت</button>{canQualify && <button type="button" onClick={() => setQualifying((value) => !value)}>احراز شرایط</button>}{canUnqualify && <button type="button" className="crm-secondary" onClick={() => setUnqualifying((value) => !value)}>نامتناسب</button>}</div>}
       {lead.status === "QUALIFIED" && <div className="crm-lead-action-row"><button type="button" onClick={() => setConverting((value) => !value)}>تبدیل به سازمان و ارتباط</button>{canUnqualify && <button type="button" className="crm-secondary" onClick={() => setUnqualifying((value) => !value)}>نامتناسب</button>}</div>}

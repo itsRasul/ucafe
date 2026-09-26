@@ -11,6 +11,7 @@ Platform CRM stays inside the current UCafe modular monolith and shares PostgreS
 | Lead source, status, qualification, assignment, Organization/Contact links, conversion timestamp | CRM | Own | Sales workflow and reporting. Conversion resolves Organization and Contact; Deal remains Phase 3. Source request remains linked intake evidence. |
 | Deal estimated value, expected close date, stage, outcome, loss reason | CRM | Own as sales estimate/judgment | Pipeline board and operational forecast only; never payment or revenue authority. |
 | Activity, Task, and Note content and lifecycle | CRM | Own | Manually recorded past interactions, future work/follow-ups, and plain-text internal context. No external channel sync or reminders. |
+| Custom field definitions, typed record values, Tags, saved views, and Segments | CRM | Own | Phase 7 metadata for Organizations, Contacts, Leads, and Deals. Segments are dynamic CRM query definitions, not client/customer segments or campaign audiences. |
 | Unified Timeline | CRM read model over CRM histories/work and selected durable customer facts | No | Query-time Organization-scoped view; reads Tenant creation, link/unlink audit, Trial start, and successful paid Subscription operation facts. |
 | Organization 360 summary and previews | CRM read model over Organization, Contact, Lead, Deal, Activity, Task, and Note | No | Bounded composed overview; customer panel separately composes owner-module projections. Contact pages remain the source for paginated Contact detail. |
 | Tenant identity, branch/domain, Tenant lifecycle | Tenants / coffee_shops | No | Optional explicit Organization link; read current Tenant identity/status/durable dates and navigate to platform Tenant administration. |
@@ -19,7 +20,7 @@ Platform CRM stays inside the current UCafe modular monolith and shares PostgreS
 | Invoice/payment intent, gateway status, amount, verified reference | Payments / payment_intents | No | No Phase 6 CRM display; those records stay in their existing guarded APIs. |
 | Successful subscription payment and paid-entitlement period | Subscriptions / subscription_payments and subscription_periods | No | Timeline uses only paid operation/plan snapshot/period end; never expose amounts/provider refs or create/reconcile financial records. |
 | Platform operators and roles | Identity / users and RBAC tables | No | Actor and assignee references. CRM permission is granted through platform roles. |
-| Tenant Clients, orders, customer segments | Clients / Ordering / Promotions | No | Not CRM contacts or prospects. Cross-link only after a separately justified, privacy-reviewed workflow. |
+| Tenant Clients, orders, customer segments | Clients / Ordering / Promotions | No | Not CRM contacts or prospects. Promotion customer segments remain tenant-scoped and independent from Phase 7 CRM Segments. Cross-link only after a separately justified, privacy-reviewed workflow. |
 | Public platform form submission | PlatformOrders / platform_order_requests | No for original payload | Each accepted consultation request creates one CRM Lead in the same transaction, linked by unique source_request_id. The request remains immutable intake evidence. |
 | System/operator audit | Audit / platform_audit_events | No | General audit remains selective and is not a Timeline feed. Timeline reads Task completed/canceled/reopened actions for lifecycle timestamps/actors and the matching Deal win/loss action for actor only; source Task/Deal rows supply the current record context and Deal outcome time. |
 | SMS delivery | Notifications / notification_deliveries | No | Phase 4 does not send Task reminders. Delivery status is not CRM activity or domain event. |
@@ -37,9 +38,11 @@ Platform CRM stays inside the current UCafe modular monolith and shares PostgreS
 | Deal expected Plan | Subscriptions / `subscription_plans` | CRM | Store an optional restrictive reference and read the current plan name; no price snapshot, selection, subscription, trial, invoice, or payment mutation. | Read-only `deal-plans` projection; existing Plan remains authoritative. |
 | Audit | Audit | CRM | CRM writes consequential operator changes, including Tenant link/unlink, to platform_audit_events with non-sensitive summaries. | Append-only platform_audit_events; link association IDs are used only to retain factual Timeline history. Protected for operator audit view by audit.read. |
 | Notifications | Notifications | CRM | No Phase 4 Task reminder integration. Do not write CRM domain events as notification jobs. | Encrypted, deduplicated phone-delivery outbox; API-hosted dispatcher. |
-| Analytics | Analytics | CRM | Phase 5 exposes operational Organization counts only; no CRM reporting or history aggregates are implemented. Tenant reports stay in the tenant Analytics domain. | /admin/analytics is tenant-authenticated and plan-gated. |
+| Analytics | Analytics | CRM | Phase 5 exposes operational Organization counts; Phase 7 adds live query-based Segments only. No CRM reporting or history aggregates are implemented. Tenant reports stay in the tenant Analytics domain. | /admin/analytics is tenant-authenticated and plan-gated. |
 
 When a source module lacks a stable read projection, add a narrow read-only application service or response projection in that owning module. Do not clone subscription effective-status logic, payment verification, or Tenant provisioning inside CRM. Avoid direct cross-module writes.
+
+Phase 7 filters the direct Organization-to-Tenant association (`tenantLinked`). It does not filter on effective Subscription status, Trial state, or current Plan yet: those are computed by the Subscriptions owner projection, including time and pending-plan rules. Add those filters only when the owner module exposes a query projection that keeps list and Segment counts authoritative without copying or reimplementing its lifecycle.
 
 ## Consultation request adoption
 

@@ -51,6 +51,7 @@ export class CrmDeal {
   @Column({ name: "closed_at", type: "timestamptz", nullable: true }) closedAt!: Date | null;
   @Column({ name: "won_at", type: "timestamptz", nullable: true }) wonAt!: Date | null;
   @Column({ name: "lost_at", type: "timestamptz", nullable: true }) lostAt!: Date | null;
+  @Column({ name: "custom_fields", type: "jsonb", default: () => "'{}'::jsonb" }) customFields!: Record<string, unknown>;
   @Column({ name: "created_by_user_id", type: "uuid", nullable: true }) createdByUserId!: string | null;
   @Column({ name: "updated_by_user_id", type: "uuid", nullable: true }) updatedByUserId!: string | null;
   @Column({ name: "archived_at", type: "timestamptz", nullable: true }) archivedAt!: Date | null;

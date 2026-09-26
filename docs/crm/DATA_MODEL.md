@@ -1,6 +1,6 @@
 # Conceptual data model
 
-Phase 1 adds `crm_organizations` and `crm_contacts` through migration `1790510000000-CreatePlatformCrmOrganizationsAndContacts`. Phase 2 adds `crm_leads` and `crm_lead_status_history` through `1790520000000-CreatePlatformCrmLeads`. Phase 3 adds `crm_deals` and `crm_deal_stage_history` through `1790530000000-CreatePlatformCrmDeals`. Phase 4 adds `crm_activities`, `crm_tasks`, and `crm_notes` through `1790540000000-CreatePlatformCrmWorkRecords`. Phase 6 adds the platform `subscriptions.read` permission in `1790550000000-CrmCustomerContext`; it adds no CRM customer-state tables or copied subscription fields.
+Phase 1 adds `crm_organizations` and `crm_contacts` through migration `1790510000000-CreatePlatformCrmOrganizationsAndContacts`. Phase 2 adds Leads, Phase 3 adds Deals, Phase 4 adds work records, and Phase 6 adds the `subscriptions.read` permission without copied customer-state columns. Phase 7 adds typed metadata, tags, saved views, and dynamic segments in `1790560000000-PlatformCrmFieldsTagsViewsSegments`.
 
 ~~~mermaid
 erDiagram
@@ -43,6 +43,11 @@ All new CRM primary keys should be UUIDs. Use explicit snake_case table/column n
 | CRM Task (`crm_tasks`) | id, optional organization_id/contact_id/lead_id/deal_id, title, optional description, kind, status, priority, optional due_at/assignee, completion/cancellation actors and timestamps, creator/updater/archiver, timestamps, archived_at | Future work and retained completion/cancellation. `FOLLOW_UP` is a Task kind; overdue is derived from OPEN plus due time. |
 | CRM Note (`crm_notes`) | id, optional organization_id/contact_id/lead_id/deal_id, plain-text body, author/updater/archiver, timestamps, archived_at | Internal context, editable while active and archived/restored explicitly. No hard-delete/redaction operation is implemented. |
 | CRM DealStageHistory (`crm_deal_stage_history`) | id, deal_id, pipeline_key, nullable from_stage, to_stage, optional reason, actor_user_id, created_at | Append-only transition history and source for time-in-stage analytics. Initial creation records a null previous stage. |
+| CRM custom field definition/option | `crm_custom_field_definitions`, `crm_custom_field_options` | Stable field key and type per entity type; stable UUID per select option. Definitions and options may be deactivated/archived; option IDs are never replaced when labels change. |
+| CRM record custom values | `custom_fields` JSONB object on Organization, Contact, Lead, Deal | Values are validated against the active definition and option table on write. Unknown keys are rejected; unset values are omitted. Archived values remain readable and are not silently removed. |
+| CRM Tag and assignment | `crm_tags`, `crm_entity_tags` | Normalized, unique CRM-wide tags. A check plus four nullable FKs requires each assignment to target exactly one supported record. Archiving a Tag retains assignments. |
+| CRM Saved View (`crm_saved_views`) | name, entity type, PRIVATE/SHARED visibility, owner, filter/query/sort JSONB, archive state | Private views are visible to their owner; shared views are visible to CRM readers. Only the owner can update/archive. Stores criteria, never result IDs. |
+| CRM Segment (`crm_segments`) | name, entity type, filter JSONB, optional description, creator, archive state | Dynamic named filter; preview and record queries execute against current CRM rows. No membership table or outbound campaign integration. |
 
 ### Phase 3 schema actually installed
 
@@ -60,6 +65,14 @@ All new CRM primary keys should be UUIDs. Use explicit snake_case table/column n
 - Work changes and their PII-safe `platform_audit_events` rows commit together. Activity subjects/details, Task titles/descriptions, and Note bodies are excluded from audit summaries.
 
 Do not store a second copy of Tenant status, subscription dates, plan features, invoice status, or payment state.
+
+### Phase 7 metadata schema
+
+- `custom_fields` is a NOT NULL JSONB object with a database type check on each supported record table. The API writes only active keys and validates text/URL length, finite numeric range, boolean/date format, and select option ownership. The JSON object holds stable option UUIDs, not mutable labels.
+- Field `key` and `data_type` are immutable after creation. Definitions and options can be deactivated or archived; archival preserves historical values. A required value is enforced only when that field is included in a PATCH, so older records can remain incomplete and a change to another field stays partial.
+- `crm_entity_tags` uses explicit target columns and foreign keys (one of Organization, Contact, Lead, or Deal); this avoids a polymorphic reference with no database integrity. `crm_tags.normalized_name` is unique. Tag archive is soft and keeps assignments.
+- Saved View filters and Segment filters share one versioned, flat AND/OR AST, with at most 20 conditions and no nested expressions. SQL field expressions and sort fields come from a per-entity allowlist; all user values are SQL parameters. List row access remains bounded and server-side.
+- Saved Views persist query-state values (such as status/search/archive filters) separately from the typed AST and sort. PRIVATE/SHARED visibility is not record-level CRM access control. Segment rows store criteria only; previews/counts and paged records are recalculated on read.
 
 ## Relationships and constraints
 

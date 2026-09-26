@@ -1,6 +1,6 @@
 # Platform CRM API
 
-Phases 1–6 APIs are implemented under `/api/v1/platform/crm`. Every route uses `AccessTokenGuard` and `PlatformPermissionGuard`. Resource IDs are UUID-validated, request DTOs use the global whitelist/forbid/transform validation pipe, and results use parameterized SQL.
+Phases 1–7 APIs are implemented under `/api/v1/platform/crm`. Every route uses `AccessTokenGuard` and `PlatformPermissionGuard`. Resource IDs are UUID-validated, request DTOs use the global whitelist/forbid/transform validation pipe, and results use parameterized SQL.
 
 ## Implemented routes
 
@@ -162,6 +162,44 @@ Every work record must reference at least one Organization, Contact, Lead, or De
 - **Notes:** create/update accepts a plain-text `body` and association IDs. List filters include association IDs, archive state, sort (`createdAt|updatedAt`) and direction. Notes have no hard-delete route.
 
 Completing a Task does not create an Activity. Follow-up quick actions create a regular Task with kind `FOLLOW_UP`; Phase 5 exposes the selected CRM histories and work records through a read-only Organization Timeline. It does not schedule reminders or include Tenant, Subscription, or Payment events.
+
+## Phase 7 metadata, saved views, and Segments
+
+~~~text
+GET    /api/v1/platform/crm/custom-fields?entityType=ORGANIZATION&includeInactive=false
+POST   /api/v1/platform/crm/custom-fields
+GET    /api/v1/platform/crm/custom-fields/:id
+PATCH  /api/v1/platform/crm/custom-fields/:id
+POST   /api/v1/platform/crm/custom-fields/:id/archive
+GET    /api/v1/platform/crm/records/:entityType/:recordId/custom-fields
+PATCH  /api/v1/platform/crm/records/:entityType/:recordId/custom-fields
+GET    /api/v1/platform/crm/tags
+POST   /api/v1/platform/crm/tags
+PATCH  /api/v1/platform/crm/tags/:id
+POST   /api/v1/platform/crm/tags/:id/archive
+GET    /api/v1/platform/crm/records/:entityType/:recordId/tags
+PUT    /api/v1/platform/crm/records/:entityType/:recordId/tags
+GET    /api/v1/platform/crm/filter-fields?entityType=DEAL
+GET    /api/v1/platform/crm/saved-views?entityType=DEAL
+POST   /api/v1/platform/crm/saved-views
+GET    /api/v1/platform/crm/saved-views/:id
+PATCH  /api/v1/platform/crm/saved-views/:id
+POST   /api/v1/platform/crm/saved-views/:id/archive
+GET    /api/v1/platform/crm/segments?entityType=LEAD
+POST   /api/v1/platform/crm/segments
+POST   /api/v1/platform/crm/segments/preview
+GET    /api/v1/platform/crm/segments/:id
+GET    /api/v1/platform/crm/segments/:id/preview
+GET    /api/v1/platform/crm/segments/:id/records?page=1&pageSize=25
+PATCH  /api/v1/platform/crm/segments/:id
+POST   /api/v1/platform/crm/segments/:id/archive
+~~~
+
+Organization, Contact, Lead, and Deal list routes accept an optional `filter` query parameter containing the same JSON AST used by saved views and Segments. The AST is `{version:1,logic:"AND"|"OR",conditions:[{field,operator,value}]}`; it is flat and capped at 20 conditions. Field/operator pairs and sort keys are allowlisted per entity type. User values are parameters, never SQL fragments. List filtering stays in PostgreSQL before pagination.
+
+`crm.read` grants field/tag/filter-field and Segment reads, record metadata reads, and views visible to the caller. `crm.manage` grants metadata/tag writes, record metadata updates, Segment writes, and saved-view writes. PRIVATE views are owner-only; SHARED views are readable by CRM readers, but only the owner may update/archive. Segments are dynamic and store definitions only.
+
+Selecting a Saved View adds its ID as the list URL's `savedView` parameter; refreshing that URL restores the view and reruns its current query. The raw ad-hoc AST remains in list component state until saved. Segment detail is rendered at `/platform/crm/segments/:id`; its member list uses the paginated records endpoint.
 
 ## Errors and archive behavior
 

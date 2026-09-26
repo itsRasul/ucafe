@@ -9,6 +9,7 @@ const reasons = Object.values(CrmLeadUnqualifiedReason);
 const statuses = Object.values(CrmLeadStatus);
 
 export class CrmLeadListQueryDto {
+  @IsOptional() @Transform(trim) @IsString() @MaxLength(6000) filter?: string;
   @IsOptional() @Transform(trim) @IsString() @MaxLength(160) q?: string;
   @IsOptional() @IsIn(statuses) status?: CrmLeadStatus;
   @IsOptional() @IsIn(sources) source?: CrmLeadSource;

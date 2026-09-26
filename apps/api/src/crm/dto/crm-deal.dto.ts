@@ -8,6 +8,7 @@ const statuses = Object.values(CrmDealStatus);
 const lossReasons = Object.values(CrmDealLossReason);
 
 export class CrmDealListQueryDto {
+  @IsOptional() @Transform(trim) @IsString() @MaxLength(6000) filter?: string;
   @IsOptional() @Transform(trim) @IsString() @MaxLength(200) q?: string;
   @IsOptional() @IsIn(statuses) status?: CrmDealStatus;
   @IsOptional() @IsIn(stages) stage?: CrmDealStage;

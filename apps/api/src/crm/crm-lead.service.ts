@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { DataSource, EntityManager } from "typeorm";
 import { AuthCryptoService } from "../auth/auth-crypto.service";
@@ -14,6 +14,8 @@ import {
 import { canQualifyLead, canTransitionLead, canUnqualifyLead } from "./crm-lead-lifecycle.util";
 import { escapeLike, normalizeContactEmail, normalizeContactPhone, normalizeCrmComparable, normalizeCrmName, normalizeInstagramHandle, normalizeCrmWebsite } from "./crm-normalization.util";
 import { CrmLeadPriority, CrmLeadSource, CrmLeadStatus, CrmLeadUnqualifiedReason } from "./entities/crm-lead.entity";
+import { CrmFilterService } from "./crm-filter.service";
+import { CrmCustomFieldEntityType } from "./entities/crm-custom-field.entity";
 
 type DbRow = Record<string, any>;
 type LeadInput = Pick<CreateCrmLeadDto, "businessName" | "contactName" | "phone" | "email" | "city" | "website" | "instagram" | "description">;
@@ -25,7 +27,7 @@ type LeadValues = {
 
 @Injectable()
 export class CrmLeadService {
-  constructor(private readonly dataSource: DataSource, private readonly crypto: AuthCryptoService) {}
+  constructor(private readonly dataSource: DataSource, private readonly crypto: AuthCryptoService, @Optional() private readonly filters?: CrmFilterService) {}
 
   async list(query: CrmLeadListQueryDto) {
     const where: string[] = [];
@@ -51,6 +53,8 @@ export class CrmLeadService {
       }
       where.push(`(${matches.join(" OR ")})`);
     }
+    const filter = await this.filters?.compile(CrmCustomFieldEntityType.Lead, query.filter, values, { entity: "l", organization: "o" }) ?? "";
+    if (filter) where.push(filter);
     const predicate = where.length ? `WHERE ${where.join(" AND ")}` : "";
     const counts = await this.dataSource.query<Array<{ total: string }>>(`SELECT count(*)::text AS total FROM crm_leads l LEFT JOIN crm_organizations o ON o.id=l.organization_id ${predicate}`, values);
     const sort = {

@@ -6,6 +6,8 @@ import { FormEvent, useEffect, useState } from "react";
 import { PlatformApi as Api, usePlatformSession } from "../../use-platform-session";
 import { CrmShell } from "../workspace";
 import { CrmWorkSections } from "../work";
+import { CrmRecordMetadata } from "../metadata-controls";
+import { CrmFilterBuilder, CrmSavedViews, FilterDefinition, initialFilter, isFilterReady } from "../metadata-controls";
 
 type Page<T> = { items: T[]; total: number; page: number; pageSize: number; stageTotals?: { stage: Stage; count: number; estimatedAmountToman: string }[] };
 type Stage = "DISCOVERY" | "DEMO_SCHEDULED" | "DEMO_COMPLETED" | "TRIAL_PROPOSED" | "TRIAL_ACTIVE" | "DECISION";
@@ -26,7 +28,7 @@ type Owner = { id: string; label: string };
 type Plan = { id: string; key: string; name: string };
 type ConvertedLead = { id: string; status: string; businessName: string; organizationId: string | null; organizationName: string | null; primaryContactId: string | null; primaryContact: Contact | null };
 type Options = { organizations: Organization[]; owners: Owner[]; plans: Plan[] };
-type Filters = { q: string; status: string; ownerId: string; organizationId: string; expectedPlanId: string; expectedCloseFrom: string; expectedCloseTo: string; archiveStatus: string; sort: string; direction: string };
+type Filters = { q: string; status: string; stage: string; ownerId: string; organizationId: string; expectedPlanId: string; expectedCloseFrom: string; expectedCloseTo: string; archiveStatus: string; sort: string; direction: string };
 type Props = { mode: "list" | "pipeline" | "create" | "detail"; dealId?: string; leadId?: string };
 
 const stages: Stage[] = ["DISCOVERY", "DEMO_SCHEDULED", "DEMO_COMPLETED", "TRIAL_PROPOSED", "TRIAL_ACTIVE", "DECISION"];
@@ -86,12 +88,14 @@ function useContacts(api: Api, organizationId: string) {
 }
 
 function DealDirectory({ api, canManage }: { api: Api; canManage: boolean }) {
-  const [filters, setFilters] = useState<Filters>({ q: "", status: "", ownerId: "", organizationId: "", expectedPlanId: "", expectedCloseFrom: "", expectedCloseTo: "", archiveStatus: "ACTIVE", sort: "updatedAt", direction: "DESC" });
+  const [filters, setFilters] = useState<Filters>({ q: "", status: "", stage: "", ownerId: "", organizationId: "", expectedPlanId: "", expectedCloseFrom: "", expectedCloseTo: "", archiveStatus: "ACTIVE", sort: "updatedAt", direction: "DESC" });
+  const [filter, setFilter] = useState<FilterDefinition>(initialFilter());
   const [page, setPage] = useState(1);
   const [result, setResult] = useState<Page<Deal>>({ items: [], total: 0, page: 1, pageSize: 25 });
   const [loading, setLoading] = useState(true); const [error, setError] = useState("");
   const { options, error: optionsError } = useOptions(api);
-  const query = encode({ ...filters, page: String(page), pageSize: "25" });
+  const filterJson = filter.conditions.length && isFilterReady(filter) ? JSON.stringify(filter) : "";
+  const query = encode({ ...filters, filter: filterJson, page: String(page), pageSize: "25" });
   useEffect(() => {
     let cancelled = false;
     setLoading(true); setError("");
@@ -103,6 +107,8 @@ function DealDirectory({ api, canManage }: { api: Api; canManage: boolean }) {
   return <>
     <header className="crm-section-heading"><div><h1>فرص فروش</h1><p>فرصت‌های باز و نتیجه‌های ثبت‌شده در CRM پلتفرم.</p></div><div className="crm-deal-heading-actions"><Link className="crm-button crm-secondary-link" href="/platform/crm/pipeline">نمای کانبان</Link>{canManage && <Link className="crm-button" href="/platform/crm/deals/new">فرصت جدید</Link>}</div></header>
     <DealFilters filters={filters} options={options} mode="list" onChange={update} />
+    <CrmSavedViews api={api} entityType="DEAL" canManage={canManage} filter={filter} queryDefinition={{ q: filters.q, status: filters.status, stage: filters.stage, ownerId: filters.ownerId, organizationId: filters.organizationId, expectedPlanId: filters.expectedPlanId, expectedCloseFrom: filters.expectedCloseFrom, expectedCloseTo: filters.expectedCloseTo, archiveStatus: filters.archiveStatus }} sort={{ field: filters.sort, direction: filters.direction as "ASC" | "DESC" }} onApply={(view) => { setFilter(view.filterDefinition); setFilters((current) => ({ ...current, q: view.queryDefinition.q ?? "", status: view.queryDefinition.status ?? "", stage: view.queryDefinition.stage ?? "", ownerId: view.queryDefinition.ownerId ?? "", organizationId: view.queryDefinition.organizationId ?? "", expectedPlanId: view.queryDefinition.expectedPlanId ?? "", expectedCloseFrom: view.queryDefinition.expectedCloseFrom ?? "", expectedCloseTo: view.queryDefinition.expectedCloseTo ?? "", archiveStatus: view.queryDefinition.archiveStatus ?? "ACTIVE", sort: view.sortDefinition?.field ?? current.sort, direction: view.sortDefinition?.direction ?? current.direction })); setPage(1); }} />
+    <CrmFilterBuilder api={api} entityType="DEAL" value={filter} onChange={(value) => { setFilter(value); setPage(1); }} />
     {optionsError && <p className="message error" role="alert">{optionsError}</p>}{error && <p className="message error" role="alert">{error}</p>}
     {loading ? <p className="empty" role="status">در حال دریافت فرصت‌ها…</p> : result.items.length === 0 ? <p className="empty crm-empty">هنوز هیچ فرصت فروشی ثبت نشده است.</p> : <>
       <div className="crm-deal-table-wrap"><table className="crm-deal-table"><thead><tr><th>فرصت</th><th>سازمان</th><th>مرحله</th><th>مسئول</th><th>طرح پیشنهادی</th><th>برآورد</th><th>تاریخ احتمالی</th><th>وضعیت</th><th>آخرین تغییر</th></tr></thead><tbody>
@@ -114,7 +120,7 @@ function DealDirectory({ api, canManage }: { api: Api; canManage: boolean }) {
 }
 
 function PipelineBoard({ api, canManage }: { api: Api; canManage: boolean }) {
-  const [filters, setFilters] = useState<Filters>({ q: "", status: "", ownerId: "", organizationId: "", expectedPlanId: "", expectedCloseFrom: "", expectedCloseTo: "", archiveStatus: "ACTIVE", sort: "updatedAt", direction: "DESC" });
+  const [filters, setFilters] = useState<Filters>({ q: "", status: "", stage: "", ownerId: "", organizationId: "", expectedPlanId: "", expectedCloseFrom: "", expectedCloseTo: "", archiveStatus: "ACTIVE", sort: "updatedAt", direction: "DESC" });
   const [page, setPage] = useState(1); const [refresh, setRefresh] = useState(0);
   const [result, setResult] = useState<Page<Deal>>({ items: [], total: 0, page: 1, pageSize: 100 });
   const [loading, setLoading] = useState(true); const [pendingId, setPendingId] = useState(""); const [error, setError] = useState("");
@@ -176,6 +182,7 @@ function DealFilters({ filters, options, mode, onChange }: { filters: Filters; o
   return <section className="crm-deal-filters" aria-label="فیلتر فرصت‌ها">
     <label>جست‌وجو<input value={filters.q} onChange={(event) => onChange("q", event.target.value)} placeholder="عنوان، سازمان یا فرد رابط" /></label>
     {mode === "list" && <label>وضعیت<select value={filters.status} onChange={(event) => onChange("status", event.target.value)}><option value="">همه وضعیت‌ها</option>{Object.entries(statusNames).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>}
+    {mode === "list" && <label>مرحله<select value={filters.stage} onChange={(event) => onChange("stage", event.target.value)}><option value="">همه مرحله‌ها</option>{stages.map((stage) => <option key={stage} value={stage}>{stageNames[stage]}</option>)}</select></label>}
     <label>مسئول<select value={filters.ownerId} onChange={(event) => onChange("ownerId", event.target.value)}><option value="">همه مسئول‌ها</option><option value="UNASSIGNED">بدون مسئول</option>{options.owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.label}</option>)}</select></label>
     <label>سازمان<select value={filters.organizationId} onChange={(event) => onChange("organizationId", event.target.value)}><option value="">همه سازمان‌ها</option>{options.organizations.map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}</select></label>
     <label>طرح مورد انتظار<select value={filters.expectedPlanId} onChange={(event) => onChange("expectedPlanId", event.target.value)}><option value="">همه طرح‌ها</option>{options.plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select></label>
@@ -295,6 +302,7 @@ function DealDetail({ api, canManage, dealId }: { api: Api; canManage: boolean; 
       <dl className="crm-facts"><div><dt>وضعیت</dt><dd>{statusNames[deal.status]}</dd></div><div><dt>مرحله</dt><dd>{stageNames[deal.stage]}</dd></div><div><dt>سازمان</dt><dd><Link href={`/platform/crm/organizations/${deal.organizationId}`}>{deal.organizationName}</Link></dd></div><div><dt>فرد رابط</dt><dd>{deal.primaryContact ? `${deal.primaryContact.name}${deal.primaryContact.role ? ` · ${deal.primaryContact.role}` : ""}` : "ثبت نشده"}</dd></div><div><dt>سرنخ مبدأ</dt><dd>{deal.originatingLeadId ? <Link href={`/platform/crm/leads/${deal.originatingLeadId}`}>{deal.originatingLeadName}</Link> : "ثبت نشده"}</dd></div><div><dt>مسئول</dt><dd>{deal.ownerLabel || "بدون مسئول"}</dd></div><div><dt>طرح مورد انتظار</dt><dd>{deal.expectedPlanName || "ثبت نشده"}</dd></div><div><dt>برآورد ارزش</dt><dd>{formatToman(deal.estimatedAmountToman)}</dd></div><div><dt>تاریخ احتمالی بستن</dt><dd>{formatDate(deal.expectedCloseDate)}</dd></div><div><dt>تاریخ ثبت</dt><dd>{formatDate(deal.createdAt)}</dd></div><div><dt>تاریخ بسته‌شدن</dt><dd>{formatDate(deal.closedAt)}</dd></div>{deal.lossReason && <div><dt>دلیل ازدست‌رفتن</dt><dd>{lossNames[deal.lossReason] ?? deal.lossReason}{deal.lossReasonDetail ? ` · ${deal.lossReasonDetail}` : ""}</dd></div>}</dl>
       {editable && <StageControl api={api} deal={deal} onDone={(value) => { setDeal(value); setNotice("مرحله فرصت تغییر کرد."); }} onError={setError} />}
     </section>}
+    <CrmRecordMetadata api={api} entityType="DEAL" recordId={deal.id} editable={editable} />
     <section className="crm-lead-panel" aria-labelledby="crm-deal-history-title"><header className="crm-section-heading"><div><h2 id="crm-deal-history-title">تاریخچه مراحل</h2><p>هر ورود و جابه‌جایی مرحله با زمان و مسئول نگهداری می‌شود.</p></div></header>{deal.stageHistory?.length ? <ol className="crm-deal-history">{[...deal.stageHistory].reverse().map((item) => <li key={item.id}><span className="crm-status">{stageNames[item.toStage]}</span><small>{formatDate(item.createdAt)} · {item.actorLabel || "ثبت سامانه"}{item.fromStage ? ` · از ${stageNames[item.fromStage]}` : " · مرحله آغازین"}</small>{item.reason && <p>{item.reason}</p>}</li>)}</ol> : <p className="empty crm-empty">تاریخچه مرحله‌ای ثبت نشده است.</p>}</section>
     <CrmWorkSections api={api} canManage={canManage && !deal.archivedAt} context={{ organizationId: deal.organizationId, contactId: deal.primaryContactId, leadId: deal.originatingLeadId, dealId: deal.id, displayName: deal.title }} />
   </>;

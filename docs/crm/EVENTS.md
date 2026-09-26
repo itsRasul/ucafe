@@ -33,6 +33,8 @@ These audit actions remain audit records, not published events. Phase 5 reads on
 
 Phase 6 adds transactional `crm.organization.tenant_linked` and `crm.organization.tenant_unlinked` audit rows with only the Tenant UUID in the summary. They document explicit CRM association changes; they are not Tenant lifecycle events. The Timeline reads them with Tenant `created_at`, Subscription `trial_started_at`, and successful non-legacy `subscription_payments` rows. Payment Timeline items contain operation and paid-period end only. They omit amount, payment provider, authority, provider reference, and invoice intent details. The customer-context panel reads an owner-module projection and does not write or reconcile Subscription state.
 
+Phase 7 metadata and Tag/view/Segment writes add selective PII-safe operator audit rows. Field-value updates record the changed field count without keys or values; Tag assignment audit records only added/removed counts. Definitions and query criteria are configuration, not CRM domain events. These rows are not added to the Organization Timeline, and no event publisher, automation, campaign, or delivery path is introduced.
+
 The Organization Timeline is an API read model, not an event catalog or delivery contract. It normalizes source rows for display and never publishes or stores a second copy. See [TIMELINE.md](TIMELINE.md).
 
 ## Durable customer facts now shown

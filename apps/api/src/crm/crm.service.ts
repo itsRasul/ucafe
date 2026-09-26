@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import { DataSource, EntityManager } from "typeorm";
 import { AuthCryptoService } from "../auth/auth-crypto.service";
 import {
@@ -12,13 +12,15 @@ import {
   UpdateOrganizationDto,
 } from "./dto/crm.dto";
 import { escapeLike, normalizeContactEmail, normalizeContactPhone, normalizeCrmComparable, normalizeCrmName, normalizeInstagramHandle, normalizeCrmWebsite } from "./crm-normalization.util";
+import { CrmFilterService } from "./crm-filter.service";
+import { CrmCustomFieldEntityType } from "./entities/crm-custom-field.entity";
 
 type DbRow = Record<string, any>;
 type ArchiveStatus = "ACTIVE" | "ARCHIVED" | "ALL";
 
 @Injectable()
 export class CrmService {
-  constructor(private readonly dataSource: DataSource, private readonly crypto: AuthCryptoService) {}
+  constructor(private readonly dataSource: DataSource, private readonly crypto: AuthCryptoService, @Optional() private readonly filters?: CrmFilterService) {}
 
   async listOrganizations(query: CrmListQueryDto) {
     const where: string[] = [];
@@ -32,6 +34,8 @@ export class CrmService {
     if (query.coffeeShopId) { values.push(query.coffeeShopId); where.push(`o.coffee_shop_id = $${values.length}`); }
     if (query.tenantLink === "LINKED") where.push("o.coffee_shop_id IS NOT NULL");
     if (query.tenantLink === "UNLINKED") where.push("o.coffee_shop_id IS NULL");
+    const filter = await this.filters?.compile(CrmCustomFieldEntityType.Organization, query.filter, values, { entity: "o", organization: "o" }) ?? "";
+    if (filter) where.push(filter);
     const predicate = where.length ? `WHERE ${where.join(" AND ")}` : "";
     const counts = await this.dataSource.query<Array<{ total: string }>>(`SELECT count(*)::text AS total FROM crm_organizations o ${predicate}`, values);
     const sort = { createdAt: "o.created_at", name: "o.name_normalized", city: "o.city_normalized" }[query.sort];
@@ -204,8 +208,10 @@ export class CrmService {
       }
       where.push(`(c.name ILIKE $${textIndex} ESCAPE '!' OR COALESCE(c.role, '') ILIKE $${textIndex} ESCAPE '!'${identifiers.length ? ` OR ${identifiers.join(" OR ")}` : ""})`);
     }
+    const filter = await this.filters?.compile(CrmCustomFieldEntityType.Contact, query.filter, values, { entity: "c", organization: "o" }) ?? "";
+    if (filter) where.push(filter);
     const predicate = where.length ? `WHERE ${where.join(" AND ")}` : "";
-    const counts = await this.dataSource.query<Array<{ total: string }>>(`SELECT count(*)::text AS total FROM crm_contacts c ${predicate}`, values);
+    const counts = await this.dataSource.query<Array<{ total: string }>>(`SELECT count(*)::text AS total FROM crm_contacts c JOIN crm_organizations o ON o.id=c.organization_id ${predicate}`, values);
     const sort = { createdAt: "c.created_at", name: "c.name", city: "o.city" }[query.sort];
     const pageValues = [...values, query.pageSize, (query.page - 1) * query.pageSize];
     const items = await this.dataSource.query<DbRow[]>(`

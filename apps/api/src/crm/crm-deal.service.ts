@@ -1,17 +1,19 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import { DataSource, EntityManager } from "typeorm";
 import { CrmLeadService } from "./crm-lead.service";
 import { escapeLike, normalizeCrmName } from "./crm-normalization.util";
 import { CRM_DEFAULT_PIPELINE, crmDealStageRequiresReason, isValidCrmDealAmount, isValidCrmDealDate } from "./crm-deal-lifecycle.util";
 import { CreateCrmDealDto, ChangeCrmDealStageDto, CrmDealListQueryDto, LoseCrmDealDto, UpdateCrmDealDto } from "./dto/crm-deal.dto";
 import { CRM_DEFAULT_PIPELINE_KEY, CrmDealLossReason, CrmDealStage, CrmDealStatus } from "./entities/crm-deal.entity";
+import { CrmFilterService } from "./crm-filter.service";
+import { CrmCustomFieldEntityType } from "./entities/crm-custom-field.entity";
 
 type Row = Record<string, any>;
 type ArchiveStatus = "ACTIVE" | "ARCHIVED" | "ALL";
 
 @Injectable()
 export class CrmDealService {
-  constructor(private readonly dataSource: DataSource, private readonly leads: CrmLeadService) {}
+  constructor(private readonly dataSource: DataSource, private readonly leads: CrmLeadService, @Optional() private readonly filters?: CrmFilterService) {}
 
   pipeline() { return CRM_DEFAULT_PIPELINE; }
 
@@ -26,6 +28,8 @@ export class CrmDealService {
     const where: string[] = [];
     const values: unknown[] = [];
     this.addFilters(where, values, query);
+    const filter = await this.filters?.compile(CrmCustomFieldEntityType.Deal, query.filter, values, { entity: "d", organization: "o" }) ?? "";
+    if (filter) where.push(filter);
     const from = this.joins();
     const predicate = where.length ? `WHERE ${where.join(" AND ")}` : "";
     const counts = await this.dataSource.query<Array<{ total: string }>>(`SELECT count(*)::text AS total ${from} ${predicate}`, values);
@@ -54,6 +58,8 @@ export class CrmDealService {
     const summaryWhere: string[] = [];
     const summaryValues: unknown[] = [];
     this.addFilters(summaryWhere, summaryValues, { ...query, status: CrmDealStatus.Open });
+    const summaryFilter = await this.filters?.compile(CrmCustomFieldEntityType.Deal, query.filter, summaryValues, { entity: "d", organization: "o" }) ?? "";
+    if (summaryFilter) summaryWhere.push(summaryFilter);
     const summaryPredicate = summaryWhere.length ? `WHERE ${summaryWhere.join(" AND ")}` : "";
     const totals = await this.dataSource.query<Array<{ stage: CrmDealStage; count: number; estimatedAmountToman: string }>>(`
       SELECT d.stage,count(*)::int AS count,COALESCE(sum(d.estimated_amount_toman),0)::text AS "estimatedAmountToman"
