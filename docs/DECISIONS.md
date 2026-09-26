@@ -555,7 +555,7 @@ The footer location map uses the classic keyless Google Maps embed (`https://map
 
 ## D-073 — Platform CRM is an internal bounded domain
 
-- **Status:** accepted for the planned CRM architecture on 2026-09-26; documentation only
+- **Status:** implemented in Platform CRM Phases 1–2 on 2026-09-26
 - **Context:** UCafe already has separate platform operations, tenant administration, tenant Clients, and public consultation intake. No CRM or Sales Engine exists.
 - **Decision:** Platform CRM manages UCafe's commercial relationships with café businesses inside the existing modular monolith. CRM Organizations, Contacts, Leads, Deals, Activities, Tasks, and Notes are platform-scoped. Tenant CRM and Sales Engine behavior are excluded.
 - **Alternatives considered:** reuse cafe Clients or Users as CRM Contacts; make CRM a tenant-owned feature; add an external CRM service or Sales Engine dependency.
@@ -563,15 +563,15 @@ The footer location map uses the classic keyless Google Maps embed (`https://map
 
 ## D-074 — Consultation requests remain intake records and domain state stays with its owner
 
-- **Status:** accepted for the planned CRM architecture on 2026-09-26; documentation only
+- **Status:** implemented in Platform CRM Phase 2 on 2026-09-26
 - **Context:** platform_order_requests already stores public request contact/business facts and a partial status, while Tenant and subscription/payment modules have authoritative records and operations.
-- **Decision:** preserve the current consultation request table and routes as source intake. A future CRM Lead may reference one request through a unique optional link; CRM Lead status owns sales follow-up and is not mapped from PlatformOrderStatus. Keep Organization distinct from Tenant, Contact from User/Client, and Deal from Subscription/invoice/payment.
+- **Decision:** preserve the current consultation request table and routes as source intake. Each newly accepted consultation request transactionally creates at most one CRM Lead through a unique optional link; CRM Lead status owns sales follow-up and is not mapped from PlatformOrderStatus. Keep Organization distinct from Tenant, Contact from User/Client, and Deal from Subscription/invoice/payment.
 - **Alternatives considered:** duplicate every form submission into a parallel Lead inbox; merge request, Tenant, User, Subscription, and Deal into shared records; rewrite current public request contracts.
-- **Consequences:** source records and public APIs remain compatible. CRM may read or link to existing state but does not duplicate lifecycle or financial authority. See [docs/crm/DISCOVERY.md](crm/DISCOVERY.md) and [docs/crm/INTEGRATIONS.md](crm/INTEGRATIONS.md).
+- **Consequences:** the original source record and public API remain compatible, and existing requests are not backfilled. CRM keeps a PII-protected origin reference and does not duplicate request lifecycle or financial authority. See [docs/crm/DISCOVERY.md](crm/DISCOVERY.md) and [docs/crm/INTEGRATIONS.md](crm/INTEGRATIONS.md).
 
 ## D-075 — CRM history is relational; event infrastructure is deferred
 
-- **Status:** accepted for the planned CRM architecture on 2026-09-26; documentation only
+- **Status:** implemented for Lead history in Platform CRM Phase 2 on 2026-09-26; Deal-stage history remains planned
 - **Context:** UCafe has a selected-action platform audit log and encrypted SMS delivery outbox, but no general domain-event bus. Neither existing facility is a complete CRM timeline source.
 - **Decision:** store CRM-owned Lead status and Deal stage history as append-only relational records. Assemble the future Organization timeline as a bounded read projection over CRM history and authorized source-domain facts. Keep the initial pipeline code-defined and use the existing PostgreSQL modular monolith.
 - **Alternatives considered:** use platform audit or notification records as the timeline; introduce CQRS, event sourcing, a broker, or a separate CRM database.
@@ -583,3 +583,11 @@ The footer location map uses the classic keyless Google Maps embed (`https://map
 - **Decision:** keep CRM Organization separate from `coffee_shops`, with an optional nullable `coffee_shop_id` unique FK using `ON DELETE RESTRICT`. A Tenant may be associated with at most one CRM Organization, and no existing Tenant is backfilled. CRM reads Tenant name/status and offers a link/unlink through `crm.manage` plus `tenants.read`; it does not mutate Tenant lifecycle.
 - **Reasoning:** UCafe tenants map to an independently provisioned cafe. The Phase 0 business-group question was reviewed against current provisioning and platform UX; no existing group-of-tenants concept justified adding an organization-to-many-tenants abstraction.
 - **Consequences:** multiple physical branches remain within their Tenant and need no extra CRM mapping. Revisit the link cardinality only if UCafe introduces independent business groups that own multiple Tenants. The foreign key prevents hard-deleting a linked Tenant; unlink or archive through the owning flow first. See [docs/crm/DATA_MODEL.md](crm/DATA_MODEL.md) and [docs/crm/INTEGRATIONS.md](crm/INTEGRATIONS.md).
+
+## D-077 — Phase 2 Lead conversion resolves Organization and Contact; Deals stay in Phase 3
+
+- **Status:** implemented in Platform CRM Phase 2 on 2026-09-26
+- **Context:** the Phase 0 lifecycle prose described conversion as creating an initial Deal, while the Phase 2 task explicitly excludes Deals and requires conversion into Phase 1 Organizations and Contacts. Public `platform_order_requests` also remains an authoritative intake record under D-074.
+- **Decision:** Phase 2 conversion is available only for QUALIFIED Leads. In one transaction it links or creates an Organization and a Contact, marks the Lead CONVERTED, timestamps it, appends status history, and records a PII-free audit action. Conversion requires both canonical records, is row-locked/idempotent, and never creates a Deal. Accepted public consultation submissions create one `LANDING_FORM`/`NEW` Lead in the same transaction as the request and notification enqueue; existing requests are not backfilled.
+- **Reasoning:** this follows the user's explicit Phase 2 boundary while retaining the underlying source-record split and status-history decision. It keeps both the original Lead snapshot and the public intake row for traceability without introducing a parallel request inbox or prematurely adding Pipeline state.
+- **Consequences:** update the lifecycle contract: `CONVERTED` means canonical Organization + Contact links and a conversion timestamp, with no Deal requirement. Phase 3 adds Deal/Pipeline and may reference a converted Lead; it does not repeat Lead conversion. Duplicate candidates require an explicit link or confirmation to create separate records. Public intake rolls back if Lead creation or existing notification enqueue fails. See [docs/crm/LIFECYCLE.md](crm/LIFECYCLE.md), [docs/crm/INTEGRATIONS.md](crm/INTEGRATIONS.md), and [docs/crm/API.md](crm/API.md).

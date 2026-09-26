@@ -9,6 +9,7 @@ import { CreatePlatformOrderRequestDto } from "./dto/create-platform-order-reque
 import { PlatformOrderRequest, PlatformOrderStatus } from "./entities";
 import { NotificationsService } from "../notifications/notifications.service";
 import { NotificationType } from "../notifications/notification-type";
+import { CrmLeadService } from "../crm/crm-lead.service";
 
 const DUPLICATE_WINDOW_MS = 15 * 60 * 1000;
 
@@ -19,6 +20,7 @@ export class PlatformOrdersService {
     @InjectRepository(SubscriptionPlan) private readonly plans: Repository<SubscriptionPlan>,
     private readonly crypto: AuthCryptoService,
     private readonly notifications: NotificationsService,
+    private readonly crmLeads: CrmLeadService,
   ) {}
 
   async getPublicOffering() {
@@ -60,17 +62,27 @@ export class PlatformOrdersService {
       source: "platform_landing",
     });
     if (!request.contactName || !request.coffeeShopName || !request.city) throw new BadRequestException("Required text fields cannot be blank");
-    const saved = await this.requests.save(request);
-    await this.notifications.enqueue(this.requests.manager, {
-      coffeeShopId: null,
-      type: NotificationType.RequestCounseling,
-      relatedEntityType: "platform_order_request",
-      relatedEntityId: saved.id,
-      deduplicationKey: `${NotificationType.RequestCounseling}:${saved.id}`,
-      phone,
-      payload: { customerName: saved.contactName },
+    return this.requests.manager.transaction(async (manager) => {
+      const saved = await manager.getRepository(PlatformOrderRequest).save(request);
+      await this.crmLeads.createFromRequest(manager, {
+        id: saved.id,
+        businessName: saved.coffeeShopName,
+        contactName: saved.contactName,
+        phone,
+        city: saved.city,
+        description: null,
+      });
+      await this.notifications.enqueue(manager, {
+        coffeeShopId: null,
+        type: NotificationType.RequestCounseling,
+        relatedEntityType: "platform_order_request",
+        relatedEntityId: saved.id,
+        deduplicationKey: `${NotificationType.RequestCounseling}:${saved.id}`,
+        phone,
+        payload: { customerName: saved.contactName },
+      });
+      return { id: saved.id, status: saved.status, createdAt: saved.createdAt };
     });
-    return { id: saved.id, status: saved.status, createdAt: saved.createdAt };
   }
 
   async list() {

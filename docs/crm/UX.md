@@ -1,6 +1,6 @@
 # Platform CRM information architecture
 
-This document records Phase 1's implemented placement and the deferred roadmap UX. Phase 1 adds the Organization directory, form, detail page, and Contact management inside the existing platform application.
+This document records the implemented Phase 1/2 placement and the deferred roadmap UX. Organization, Contact, and Lead workflows use nested App Router pages inside the existing platform application.
 
 ## Current platform surface
 
@@ -14,20 +14,21 @@ The platform surface reuses its existing brand, admin, and CSS patterns. Platfor
 
 The `/platform` sidebar and mobile navigation expose one CRM destination to users with `crm.read`. CRM uses URL-backed App Router pages rather than adding each CRM view to the current PlatformAdmin view union.
 
-Initial Phase 1 navigation:
+CRM navigation:
 
 - Organizations
-- Contacts as an Organization detail tab/list, not a second top-level destination unless usage proves that a global Contacts queue is needed.
+- Leads
+- Contacts remain scoped to Organization detail rather than a separate top-level destination.
 
-Implemented routes are `/platform/crm`, `/platform/crm/organizations/new`, and `/platform/crm/organizations/:organizationId`. The organization detail page shows the business profile, a paginated/searchable Contact list, inline Contact creation/editing, and archive/restore actions. It displays linked Tenant name/status read-only; operators with both `crm.read` and `tenants.read` can link or unlink an available Tenant from the concise Organization form.
+Implemented routes include `/platform/crm`, `/platform/crm/organizations/new`, `/platform/crm/organizations/:organizationId`, `/platform/crm/leads`, `/platform/crm/leads/new`, and `/platform/crm/leads/:leadId`. The organization detail page shows the business profile, paginated/searchable Contacts, inline Contact creation/editing, archive/restore, and read-only linked Tenant information. Operators with both `crm.read` and `tenants.read` can link or unlink an available Tenant. Lead pages use the same platform session, same-origin API, RTL CSS, and permission contract.
 
-Later, add Leads in Phase 2, Pipeline in Phase 3, Tasks in Phase 4, and reports in Phase 10. Keep CRM Settings out until stages, tags, or other configuration actually exist. Avoid duplicating a flat list of every CRM object in the mobile bottom navigation.
+Pipeline is a later Phase 3 destination; Tasks are Phase 4 and reports Phase 10. Keep CRM Settings out until stages, tags, or other configuration actually exist. Avoid duplicating a flat list of every CRM object in the mobile bottom navigation.
 
 ## Page structure
 
 ### Organizations
 
-The implemented list supports name/city/website/Instagram search, city, Tenant-link and archive filters, allowlisted sorting, and 25-row pagination. Create/edit forms use associated labels and server validation. Exact duplicate candidates are shown before save and require an explicit continue action; records are never merged automatically. The detail page summarizes the business profile and Contacts and shows linked Tenant context as read-only. The CRM shell links back to the platform home; a direct Tenant operations link is deferred to Phase 6. No future Lead, Deal, Task, Activity, or timeline tabs are shown.
+The implemented list supports name/city/website/Instagram search, city, Tenant-link and archive filters, allowlisted sorting, and 25-row pagination. Create/edit forms use associated labels and server validation. Exact duplicate candidates are shown before save and require an explicit continue action; records are never merged automatically. The detail page summarizes the business profile and Contacts and shows linked Tenant context as read-only. The CRM shell links back to the platform home; a direct Tenant operations link is deferred to Phase 6. Deal, Task, Activity, and timeline tabs are not shown.
 
 ### Contacts
 
@@ -35,7 +36,7 @@ Contacts are shown within an Organization. Contact search supports name/role tex
 
 ### Leads
 
-When Phase 2 arrives, provide a work queue with status, source, assignee, next follow-up, and age; detail should preserve original intake data separately from CRM qualification and history. Let an operator select a duplicate Organization/Contact explicitly.
+The implemented queue filters by status, source, priority, assignee (including unassigned), archive state, and text search; it supports allowlisted sorting and 25-row paging. Create/edit forms include source, priority, assignment, snapshot fields, and optional Organization/Contact links. Exact duplicate candidates show record type, display label, matching fields, and status without exposing phone/email; an operator can link an existing record or explicitly continue with a separate Lead. Detail shows protected contact fields, source-request stage/services, qualification and unqualification context, linked Organization/Contact, timestamps, and append-only status history. Separate actions change ordinary status, qualify, unqualify with a reason, convert, archive, and restore. Conversion requires a canonical Organization and Contact and does not create a Deal. Loading, empty, error, and success feedback use accessible status/alert regions; forms provide visible keyboard focus and mobile touch targets.
 
 ### Pipeline and Tasks
 
@@ -53,4 +54,4 @@ Use an organization-level page as the stable destination. Keep Tenant and Subscr
 - Reuse the current visual patterns for split list/detail, compact badges, feedback, and CSS tokens where they fit. Avoid turning local class selectors into a generic component library before a second concrete consumer exists.
 - Keep responsive controls labeled and keyboard usable, use text/icon as well as color for state, and test mobile widths and reduced motion. There is no shared table or form primitive to assume.
 
-The CRM uses Persian-first RTL copy, the existing Vazir typography and platform colors, visible focus, responsive row cards, and labeled controls. Its single navigation entry preserves space in the platform mobile navigation. `crm.manage` controls mutation affordances; the API still enforces permissions on every operation.
+The CRM uses Persian-first RTL copy, the existing Vazir typography and platform colors, visible focus, responsive row cards, and labeled controls. CRM adds one navigation destination; Leads and Organizations remain inside the CRM workspace. `crm.manage` controls mutation affordances; the API still enforces permissions on every operation.

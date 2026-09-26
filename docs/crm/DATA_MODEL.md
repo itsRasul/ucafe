@@ -1,6 +1,6 @@
 # Conceptual data model
 
-The Lead-and-later rows below remain proposed. Phase 1 adds `crm_organizations` and `crm_contacts` to the existing PostgreSQL database through forward TypeORM migration `1790510000000-CreatePlatformCrmOrganizationsAndContacts`.
+Phase 1 adds `crm_organizations` and `crm_contacts` through migration `1790510000000-CreatePlatformCrmOrganizationsAndContacts`. Phase 2 adds `crm_leads` and `crm_lead_status_history` through `1790520000000-CreatePlatformCrmLeads`. Deal and work-record rows remain future-phase proposals.
 
 ~~~mermaid
 erDiagram
@@ -8,7 +8,7 @@ erDiagram
     CRM_ORGANIZATION ||--o{ CRM_LEAD : tracks
     CRM_CONTACT o|--o{ CRM_LEAD : primary_contact
     CRM_ORGANIZATION ||--o{ CRM_DEAL : has
-    CRM_LEAD o|--o| CRM_DEAL : converts_to
+    CRM_LEAD o|--o| CRM_DEAL : may_seed_in_phase_3
     CRM_CONTACT o|--o{ CRM_DEAL : primary_contact
     CRM_ORGANIZATION ||--o{ CRM_ACTIVITY : records
     CRM_CONTACT o|--o{ CRM_ACTIVITY : relates_to
@@ -28,7 +28,7 @@ erDiagram
     CRM_LEAD o|--o| PLATFORM_ORDER_REQUEST : optional_intake_source
 ~~~
 
-## Proposed record shape
+## Record shape
 
 All new CRM primary keys should be UUIDs. Use explicit snake_case table/column names and timestamptz audit timestamps, matching current UCafe conventions.
 
@@ -36,32 +36,32 @@ All new CRM primary keys should be UUIDs. Use explicit snake_case table/column n
 |---|---|---|
 | CRM Organization (`crm_organizations`) | id, name and normalized name, optional city and normalized city, optional website and host, optional canonical Instagram handle, optional unique `coffee_shop_id`, created/updated actor and timestamps, `archived_at` | CRM-owned profile. Archive it; never cascade-delete Contacts. A linked Tenant is optional and read-only. |
 | CRM Contact (`crm_contacts`) | id, `organization_id`, name, optional role/title, optional AES-GCM encrypted phone/email and keyed exact-match hashes, created/updated actor and timestamps, `archived_at` | CRM-owned business contact. One Organization per Contact, with multiple Contacts per Organization. Archive while preserving the Organization. |
-| CRM Lead | id, optional organization_id until intake is normalized, optional contact_id, optional unique source_request_id, source, status, assigned_to_user_id, qualification/unqualified fields, created/qualified/converted timestamps, converted_deal_id, created/updated actor and timestamps, archived_at | CRM-owned sales engagement. A linked form request remains the intake source. Status changes also write LeadStatusHistory in the same transaction. |
-| CRM Deal | id, organization_id, optional primary_contact_id and originating_lead_id, name, optional estimated_amount_toman, stage, outcome, loss_reason, created/updated actor and timestamps, closed_at, won_at/lost_at, archived_at | CRM-owned opportunity estimate and explicit sales decision. Stage changes also write DealStageHistory transactionally. |
+| CRM Lead (`crm_leads`) | id, business name and normalized name, optional contact name, encrypted phone/email with keyed hashes, optional normalized city, website/host and Instagram, optional description, code-defined source/status/priority, nullable platform owner, optional Organization and primary Contact, optional unique source request, qualification/unqualified fields, qualified/converted timestamps, creator/updater, timestamps, `archived_at` | CRM-owned prospect snapshot retained after conversion. Conversion requires an Organization and Contact; Phase 2 does not create a Deal. |
+| CRM LeadStatusHistory (`crm_lead_status_history`) | id, lead_id, previous_status, next_status, optional reason, nullable actor, created_at | Append-only transition history. Initial creation records a null previous status; public intake has a null actor. |
+| CRM Deal | id, organization_id, optional primary_contact_id and originating_lead_id, name, optional estimated_amount_toman, stage, outcome, loss_reason, created/updated actor and timestamps, closed_at, won_at/lost_at, archived_at | Future Phase 3 opportunity estimate and explicit sales decision. Stage changes should write DealStageHistory transactionally. |
 | CRM Activity | id, organization_id, optional contact/lead/deal/task ids, type, occurred_at, summary, actor_user_id, created_at | Historical interaction. Append-only except a narrowly audited correction/redaction path. |
 | CRM Task | id, organization_id, optional contact/lead/deal ids, type, title, due_at, assigned_to_user_id, status, completed_at/by, canceled_at/by, created/updated actor and timestamps, archived_at | Future work and retained completion/cancellation. |
 | CRM Note | id, organization_id, optional lead/deal ids, body, author_user_id, created/updated timestamps, archived_at | Internal context, access-controlled and retained; redact sensitive content deliberately instead of cascade deletion. |
-| CRM LeadStatusHistory | id, lead_id, previous_status, next_status, reason, actor_user_id, created_at | Append-only transition history. |
 | CRM DealStageHistory | id, deal_id, previous_stage, next_stage, reason, actor_user_id, created_at | Append-only transition history and source for time-in-stage analytics. |
 
-Names and field details are candidates for implementation review. Do not store a second copy of Tenant status, subscription dates, plan features, invoice status, or payment state.
+Deal, Activity, Task, Note, and DealStageHistory field details remain candidates for implementation review. Do not store a second copy of Tenant status, subscription dates, plan features, invoice status, or payment state.
 
 ## Relationships and constraints
 
-- Every Contact, Deal, Activity, Task, and Note is rooted in one Organization. A Lead may be temporarily unlinked while its intake is being normalized, but it must resolve to one Organization before qualification/conversion. A Contact belongs to one Organization in the first release; duplicate people across Organizations remain separate commercial contexts.
+- Every Contact, Deal, Activity, Task, and Note is rooted in one Organization. A Lead may start without canonical links and can optionally link an Organization and Contact. Conversion requires a matched or newly created Organization and a Contact belonging to it. A Contact belongs to one Organization; duplicate people across Organizations remain separate commercial contexts.
 - CRM Organization to coffee_shop is optional one-to-one for the initial UCafe model. Use a nullable unique Tenant FK with RESTRICT semantics; do not add a reverse owner field to coffee_shops.
-- CRM Lead to platform_order_request is optional one-to-one and unique on source_request_id. Do not move or duplicate the public form payload. Preserve the current table and endpoints.
-- CRM Lead to its initial Deal is idempotent and traceable. One converted Lead must not create multiple initial Deals on retries. Later opportunities use new Leads/Deals.
+- CRM Lead to platform_order_request is optional one-to-one and unique on source_request_id. Public consultation acceptance creates one linked Lead in the same transaction; prior requests are not backfilled. Preserve the current table and endpoints.
+- Conversion locks the Lead row. Organization, Contact, status, timestamp, history, and audit changes commit in one transaction; retry returns existing links without creating duplicates. Phase 3 can add a Deal relationship without changing Lead conversion history.
 - Use foreign keys and constraints for Organization ownership, unique tenant/source links, enum/check validity, valid amount ranges, and required terminal timestamps.
 - Never hard-delete a parent whose CRM history depends on it. A Tenant soft deletion must not cascade into CRM.
 
 ## Indexing and duplicate checks
 
-Use only indexes required by actual list and duplicate workflows:
+Use indexes required by the active list and duplicate workflows:
 
 - Organizations: active/archive state plus name, city, linked Tenant; optional normalized domain or social handle lookup.
 - Contacts: organization_id plus name; organization-scoped indexes for normalized phone/email hashes.
-- Leads: status/created_at, assigned_to_user_id/status/due follow-up, source, organization_id, source_request_id unique.
+- Leads: active status/created_at, owner/status, source/created_at, organization_id, primary_contact_id, normalized name/city, normalized city, phone/email hashes, source_request_id unique.
 - Deals: organization_id/created_at, outcome/stage, assigned owner if introduced; unique initial conversion reference.
 - Activities: organization_id/occurred_at and related record/time.
 - Tasks: assignee/status/due_at, organization_id/status/due_at.
@@ -77,11 +77,19 @@ Exact normalized matches should show duplicate candidates. Do not make organizat
 - Installed indexes: Organization normalized name/city, website host, Instagram handle, active created time, and unique linked Tenant; Contact Organization/name, Organization/phone hash, Organization/email hash, and active created time. No Organization name uniqueness or Contact channel uniqueness is imposed.
 - Contact phone/email ciphertext and hashes must be jointly null or jointly present. The existing `AuthCryptoService` uses AES-256-GCM for encryption and HMAC-SHA256 keyed hashes for exact duplicate lookup.
 
+### Phase 2 schema actually installed
+
+- `crm_leads` stores the prospect snapshot, code-defined `source`, `status`, and `priority`, nullable owner and canonical links, optional unique `source_request_id`, qualification and unqualification context, lifecycle timestamps, actor references, and archive state.
+- Sources: `OUTBOUND_CALL`, `LANDING_FORM`, `SEO`, `INSTAGRAM`, `REFERRAL`, `SMS`, `PARTNER`, `MANUAL`, `OTHER`. Priorities: `LOW`, `NORMAL`, `HIGH`. Statuses: `NEW`, `ATTEMPTING_CONTACT`, `CONTACTED`, `QUALIFIED`, `NURTURING`, `UNQUALIFIED`, `CONVERTED`.
+- `crm_lead_status_history` retains each transition's previous/next status, reason, actor, and timestamp. Indexes cover active status/creation time, active owner/status, active source/creation time, Organization, Contact, normalized business name/city, normalized city, phone/email hashes, and unique source request. Lead phone/email use the existing AES-256-GCM encryption and keyed HMAC helpers.
+- Converted Leads require an Organization, Contact, and `converted_at`; nonconverted Leads cannot have a conversion timestamp. Qualified/converted states retain `qualified_at`, and a Contact link requires an Organization.
+- `source_request_id` points to one `platform_order_requests` row with `ON DELETE RESTRICT`; only `LANDING_FORM` Leads may carry this source reference. Historical requests are not backfilled.
+
 Normalization: Organization display name and city use NFC, trim, and collapsed whitespace; comparison keys are lowercase. Website input may omit a scheme (HTTPS is assumed), only HTTP/HTTPS is accepted, and query/fragment/trailing root slash are removed. Instagram is stored as a lowercase handle without `@`, including when submitted as a profile URL. Contact email is trimmed and lowercased. Contact phone uses UCafe's Iranian mobile normalizer and is stored encrypted in `+98…` form. Contact list projections omit phone/email; authorized detail/edit projections return them decrypted.
 
 ## PII, time, and money
 
-Contact phone and email are PII. Normalize before comparison, keep plaintext out of logs and list projections, and use the existing `AuthCryptoService` AES-256-GCM encryption plus keyed HMAC-SHA256 hashes for exact lookup. Show full values only to authorized platform staff who need them.
+Contact and Lead phone/email are PII. Normalize before comparison, keep plaintext out of logs and list/duplicate projections, and use the existing `AuthCryptoService` AES-256-GCM encryption plus keyed HMAC-SHA256 hashes for exact lookup. Authorized CRM detail/edit projections may reveal values.
 
 Use UTC timestamptz values for CRM timestamps and render Persian-local dates in the web UI. Any Deal estimate is an optional integer Toman amount represented as a string at API boundaries. It is a forecast only, never recognized revenue.
 

@@ -65,7 +65,7 @@ The product is aimed at independent cafes that need a professional storefront, e
 
 ## Platform capability: Platform CRM
 
-Phase 1 implements a platform CRM foundation for UCafe's relationships with café businesses: Organizations and their Contacts, exact duplicate warnings, archive/restore, and an optional unique link to an existing Tenant. It is platform staff functionality, not a Tenant CRM for a café's own customers. Leads, Deals, activities, and sales follow-up history remain planned; the public consultation form and read-only platform request inbox remain the only acquisition intake workflow. See [docs/crm/README.md](crm/README.md).
+Platform CRM manages UCafe's commercial relationships with café businesses as internal platform staff functionality, not a Tenant CRM. Phases 1 and 2 provide Organizations, Contacts, Leads, exact duplicate review, assignment, qualification, status history, archive/restore, safe conversion to Organization + Contact, and an optional unique Organization link to an existing Tenant. Accepted public consultation submissions create a linked Lead in the same transaction while preserving the existing request, response, notification, and inbox contracts. Deals and Pipeline are Phase 3; activities, tasks, and reporting remain later work. See [docs/crm/README.md](crm/README.md).
 
 ## Product constraints
 
@@ -79,7 +79,7 @@ Phase 1 implements a platform CRM foundation for UCafe's relationships with caf�
 ## Not currently supported
 
 - recurring or automatic subscription billing, refunds UI, and customer online order payment
-- Platform CRM workflows for Leads, Deals, activities, and follow-up tasks; Organizations and Contacts are available in Phase 1. Consultation requests still have no CRM Lead workflow.
+- Platform CRM Deals/Pipeline, activities, tasks, and sales analytics; Organizations, Contacts, and Lead management are available in Phases 1 and 2.
 - customer self-service reservation cancellation
 - physical table/floor assignment and overnight opening-hour ranges
 - an operational custom-domain onboarding/verification workflow

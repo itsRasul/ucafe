@@ -47,3 +47,11 @@ There is no current `docs/PROJECT_SPEC.md` or `docs/PLAN.md`. Decision D-049 rec
 - UCafe has no validated sales playbook or Sales Engine. The proposed Lead statuses and pipeline are defaults for Phase 2/3, not discovered current operations.
 - The initial Organization-to-Tenant one-to-one link matches the current tenant/branch model. Revisit only if one managed business is intentionally split across independently provisioned Tenants.
 - CRM contact PII needs purpose-limited access and retention rules before implementation. Existing platform intake encryption is a useful pattern, not an automatic complete CRM policy.
+
+## Phase 2 implementation discoveries and resolutions
+
+- Phase 1 persists Organization and Contact records in `CrmService`; it does not provide an existing Lead or prospect model. Phase 2 therefore adds CRM-owned Lead and LeadStatusHistory tables rather than converting or replacing `platform_order_requests`.
+- Public request creation is owned by `PlatformOrdersService`. It now creates a one-to-one LANDING_FORM Lead using the same transaction manager as the request and the existing REQUEST_COUNSELING enqueue. The public response, phone repeat limit, honeypot, and inbox remain unchanged. Historical requests are not backfilled.
+- Phase 0 `LIFECYCLE.md` had described conversion as creating a Deal, but the Phase 2 task explicitly defers Deals. D-077 updates the implemented contract: conversion requires a qualified Lead, resolves/creates Organization and Contact atomically, and records CONVERTED without a Deal. Phase 3 adds Deals against those records.
+- CRM phone/email normalization and encrypted keyed-hash storage reuse `AuthCryptoService` and the Phase 1 CRM normalization utilities. Potential duplicates are exact signals and require an explicit link or confirmation; the system never auto-merges.
+- CRM remains a modular-monolith domain. The implementation uses status history and the existing operator audit table; it introduces no domain-event framework, broker, Sales Engine, or CRM-wide timeline.

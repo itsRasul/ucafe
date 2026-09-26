@@ -12,6 +12,6 @@ export async function platformRaw<T>(path: string, token?: string, init?: Reques
   });
   if (response.ok && response.headers.get("content-type")?.startsWith("image/")) return await response.blob() as T;
   const body = response.status === 204 ? {} : await response.json().catch(() => ({}));
-  if (!response.ok) throw Object.assign(new Error(Array.isArray(body.message) ? body.message[0] : body.message || "ارتباط با سرور برقرار نشد."), { status: response.status });
+  if (!response.ok) throw Object.assign(new Error(Array.isArray(body.message) ? body.message[0] : body.message || "ارتباط با سرور برقرار نشد."), { status: response.status, data: body });
   return body as T;
 }

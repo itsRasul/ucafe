@@ -8,9 +8,10 @@ import { PublicPlatformOrdersController } from "./public-platform-orders.control
 import { PlatformOrdersController } from "./platform-orders.controller";
 import { NotificationsModule } from "../notifications/notifications.module";
 import { AuthorizationModule } from "../authorization/authorization.module";
+import { CrmModule } from "../crm/crm.module";
 
 @Module({
-  imports: [TypeOrmModule.forFeature([PlatformOrderRequest, SubscriptionPlan]), AuthModule, AuthorizationModule, NotificationsModule],
+  imports: [TypeOrmModule.forFeature([PlatformOrderRequest, SubscriptionPlan]), AuthModule, AuthorizationModule, NotificationsModule, CrmModule],
   controllers: [PublicPlatformOrdersController, PlatformOrdersController],
   providers: [PlatformOrdersService],
 })

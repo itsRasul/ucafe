@@ -16,11 +16,12 @@
 - Inventory Phase 1 adds tenant-scoped item/category/location management, transactional opening balances and adjustments, stock/count/history views, and the configurable feature gate. See [INVENTORY.md](INVENTORY.md) and [PROGRESS.md](PROGRESS.md).
 - PostgreSQL/Redis/MinIO readiness, security headers, request IDs, backup/restore scripts, Docker development/production targets.
 
-## Platform CRM Phase 1
+## Platform CRM Phase 2
 
-- Phase 0 architecture and Phase 1 Organizations & Contacts are complete. The API, platform permissions, PostgreSQL tables, migration, and Persian RTL platform routes are implemented; see [docs/crm/README.md](crm/README.md), [API.md](crm/API.md), and [PROGRESS.md](PROGRESS.md).
+- Phases 0–2 are complete. CRM includes Organizations, Contacts, Leads, assignment, qualification/unqualification, status history, duplicate handling, archive/restore, and atomic conversion to Organization + Contact; see [docs/crm/README.md](crm/README.md), [API.md](crm/API.md), and [PROGRESS.md](PROGRESS.md).
 - A CRM Organization may link to one existing Tenant, and each Tenant to at most one Organization. This does not backfill existing Tenants or change their lifecycle.
-- Leads, Deals, activities, tasks, notes, consultation-request conversion, and CRM analytics remain future phases. Consultation intake stays in the existing platform request inbox.
+- Accepted public consultation requests create a linked `LANDING_FORM` Lead in the same transaction; existing requests are not backfilled and the public/request inbox contracts are unchanged.
+- Phase 3 Deals/Pipeline, activities, tasks, notes, unified timeline, and CRM analytics remain future work. Lead conversion creates no Deal. No Sales Engine or general domain-event bus was added.
 
 ## Production blockers
 
@@ -45,6 +46,6 @@ The software is not production-ready until [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIS
 
 ## Immediate next work
 
-1. Implement Platform CRM Phase 2 — Lead management only after defining its intake-link and lifecycle behavior in [docs/crm/PHASES.md](crm/PHASES.md).
+1. Scope Platform CRM Phase 3 — Deals & Sales Pipeline, building on the Phase 2 converted Lead and Organization/Contact links in [docs/crm/PHASES.md](crm/PHASES.md).
 2. Complete provider and hosting acceptance without adding unrelated product scope.
 3. Move the dispatcher to a coordinated worker before horizontal API scaling.

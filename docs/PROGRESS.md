@@ -2,6 +2,16 @@
 
 Last updated: 2026-09-26
 
+## UCafe Platform CRM Phase 2: Lead management
+
+Implemented platform-scoped Leads on the Phase 1 Organization/Contact foundation. Leads retain a normalized prospect snapshot, encrypted phone/email and keyed lookup hashes, code-defined source/status/priority, active CRM owner, optional Organization/Contact links, qualification notes, controlled unqualified reason/detail, lifecycle timestamps, source-request link, archive state, and append-only status history. Platform staff can create, search/filter/sort/page, edit, assign/reassign, change status, qualify, unqualify, archive/restore, inspect source context/history, and safely convert a qualified Lead into an Organization plus Contact. Duplicate candidates are shown without phone/email; an explicit link or confirmation is required. Conversion is row-locked, transactional, idempotent, and creates no Deal.
+
+Accepted public consultation requests now create one `LANDING_FORM`/`NEW` Lead in the existing request transaction, alongside the unchanged REQUEST_COUNSELING enqueue and response. The request remains the source record; historical requests are not backfilled. Full lifecycle and integration semantics are recorded in D-077 and `docs/crm`.
+
+Migration `1790520000000-CreatePlatformCrmLeads` adds `crm_leads`, `crm_lead_status_history`, restrictive request/Organization/Contact references, lifecycle and PII checks, and list/duplicate indexes. New routes and Persian RTL pages are documented in [docs/crm/API.md](crm/API.md) and [docs/crm/UX.md](crm/UX.md). No Sales Engine, general event bus, Deal, or Pipeline was added.
+
+Verification: migration `1790520000000-CreatePlatformCrmLeads` applied locally; all 155 API tests pass (139 passed, 16 skipped, 0 failed); root typecheck and production build pass. The local Leads route renders its permission/session gate; authenticated CRUD could not be exercised because this browser session has no platform login.
+
 ## UCafe Platform CRM Phase 1: Organizations & Contacts
 
 Implemented a platform-scoped Organization directory and Contact management in the existing NestJS/PostgreSQL and Next.js applications. Organizations support normalized business name, optional city/site/Instagram, an optional unique read-only Tenant association, search/filters/sorting/pagination, exact duplicate warnings, edits, and archive/restore. Contacts belong to one Organization and support name/title, optional mobile/email, per-Organization exact duplicate warnings, protected detail editing, and archive/restore. Duplicate matches require an explicit operator choice; no automatic merge or hard-delete route exists.

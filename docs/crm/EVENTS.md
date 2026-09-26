@@ -9,29 +9,20 @@ UCafe has no general internal domain-event bus, message broker, or CRM event pub
 - Tenant, Subscription, and Payment state is stored in their owning tables/services. Their current writes do not publish the event names below as a public contract.
 - The worker workspace is a bootstrap scaffold and does not currently coordinate these jobs.
 
-## Planned CRM-owned facts
+## Phase 2 records, not published events
 
-The following names are proposals for a future internal contract. They do not exist in code.
+Phase 2 adds no event bus, publisher, outbox, or inter-module event contract. The actual Lead workflow persists history and operator audit records:
 
-| Planned event | When it should be emitted |
+| Record | When it is written |
 |---|---|
-| crm.organization.created / crm.organization.updated / crm.organization.archived | A CRM Organization changes through an authorized CRM operation. |
-| crm.contact.created / crm.contact.updated / crm.contact.archived | A CRM Contact changes through an authorized CRM operation. |
-| crm.lead.created | A Lead is created, including its source identifier where applicable. |
-| crm.lead.status_changed | Lead status changes and its history row commits. |
-| crm.lead.qualified | A Lead enters QUALIFIED. |
-| crm.lead.converted | The conversion and its Organization/Contact/Deal references commit. |
-| crm.deal.created | A Deal is created. |
-| crm.deal.stage_changed | Deal stage and stage history commit. |
-| crm.deal.won / crm.deal.lost | A Deal outcome is explicitly closed. |
-| crm.activity.created | A historical interaction is recorded. |
-| crm.task.created / crm.task.completed | A Task is created or marked complete. |
+| `crm_lead_status_history` | Every manual Lead creation, public intake Lead creation, status change, qualification, unqualification, and conversion. It records previous/next status, optional reason, actor (nullable for public intake), and time. |
+| `platform_audit_events` | Authenticated Lead create/update, status change, qualification, unqualification, conversion, assignment, archive, and restore. Audit summaries exclude phone/email and other contact PII. |
 
-CRM entity writes and their required history must commit atomically. If a future consumer requires durable delivery beyond in-process callers, introduce the smallest transactional outbox required for domain events; do not repurpose notification_deliveries.
+Each Lead state change and its history/audit write commit in the same transaction. A consultation submission and its linked Lead are committed together with the existing notification enqueue. Audit action strings are records for audit review, not messages that other modules consume.
 
 ## Planned external facts of interest
 
-These event names are also conceptual only; no current publisher contract exists. CRM may eventually consume or read the corresponding source records:
+No current publisher contract exists. CRM may eventually read the corresponding source records:
 
 - tenant.provisioned and tenant.status_changed
 - trial.started and trial.expired
@@ -45,4 +36,3 @@ Until a stable event contract exists, the source module remains authoritative an
 Publish only after the source transaction commits. Include stable IDs, event type/version, occurred-at time, and actor/source metadata as needed. Do not put contact phone/email, notes, OTPs, payment secrets, or full customer details in an event payload; consumers should load an authorized projection. Event replay must not repeat a Tenant, Subscription, or Payment mutation.
 
 CRM may also expose its own APIs for a future external consumer, including a Sales Engine only if UCafe later builds or connects one. No Sales Engine is assumed or included in this roadmap.
-
