@@ -65,7 +65,7 @@ The product is aimed at independent cafes that need a professional storefront, e
 
 ## Platform capability: Platform CRM
 
-Platform CRM manages UCafe's commercial relationships with café businesses as internal platform staff functionality, not a Tenant CRM. Phases 1–5 provide Organizations, Contacts, Leads, exact duplicate review, assignment, qualification, status history, safe conversion to Organization + Contact, a single code-defined Deal pipeline, Activities, Tasks/follow-ups, Notes, audit, a derived Timeline, and Organization 360. Accepted public consultation submissions create a linked Lead in the same transaction while preserving the existing request, response, notification, and inbox contracts. CRM analytics and deeper Tenant/Subscription integration remain later work. See [docs/crm/README.md](crm/README.md).
+Platform CRM manages UCafe's commercial relationships with café businesses as internal platform staff functionality, not a Tenant CRM. Phases 1–6 provide Organizations, Contacts, Leads, exact duplicate review, assignment, qualification, status history, safe conversion to Organization + Contact, a single code-defined Deal pipeline, Activities, Tasks/follow-ups, Notes, audit, a derived Timeline, Organization 360, explicit optional Tenant linking, and read-only Tenant/Trial/Subscription context. Accepted public consultation submissions create a linked Lead in the same transaction while preserving the existing request, response, notification, and inbox contracts. CRM analytics remains later work. See [docs/crm/README.md](crm/README.md).
 
 ## Product constraints
 

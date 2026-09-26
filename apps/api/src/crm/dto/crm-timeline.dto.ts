@@ -1,7 +1,7 @@
 import { Type } from "class-transformer";
 import { IsIn, IsISO8601, IsOptional, Max, Min } from "class-validator";
 
-export const CRM_TIMELINE_CATEGORIES = ["LEAD", "DEAL", "ACTIVITY", "TASK", "NOTE"] as const;
+export const CRM_TIMELINE_CATEGORIES = ["LEAD", "DEAL", "ACTIVITY", "TASK", "NOTE", "CUSTOMER"] as const;
 export type CrmTimelineCategory = typeof CRM_TIMELINE_CATEGORIES[number];
 
 export class CrmTimelineQueryDto {
@@ -15,7 +15,9 @@ export class CrmTimelineQueryDto {
 export type CrmTimelineType =
   | "LEAD_CREATED" | "LEAD_STATUS_CHANGED" | "LEAD_QUALIFIED" | "LEAD_UNQUALIFIED" | "LEAD_CONVERTED"
   | "DEAL_CREATED" | "DEAL_STAGE_CHANGED" | "DEAL_WON" | "DEAL_LOST"
-  | "ACTIVITY_LOGGED" | "TASK_CREATED" | "TASK_COMPLETED" | "TASK_CANCELED" | "TASK_REOPENED" | "NOTE_ADDED";
+  | "ACTIVITY_LOGGED" | "TASK_CREATED" | "TASK_COMPLETED" | "TASK_CANCELED" | "TASK_REOPENED" | "NOTE_ADDED"
+  | "TENANT_CREATED" | "TENANT_LINKED" | "TENANT_UNLINKED" | "TRIAL_STARTED"
+  | "SUBSCRIPTION_ACTIVATED" | "SUBSCRIPTION_RENEWED" | "SUBSCRIPTION_REACTIVATED" | "SUBSCRIPTION_PLAN_CHANGED";
 
 export interface CrmTimelineItem {
   id: string;

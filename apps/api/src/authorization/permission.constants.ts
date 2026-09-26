@@ -3,6 +3,7 @@ export const PlatformPermissions = {
   TenantsRead: "tenants.read",
   TenantsUpdate: "tenants.update",
   TenantsLifecycleManage: "tenants.lifecycle.manage",
+  SubscriptionsRead: "subscriptions.read",
   SubscriptionsManage: "subscriptions.manage",
   AuditRead: "audit.read",
   UsersRead: "users.read",

@@ -22,13 +22,15 @@ Tenant roles may be global system roles (`coffee_shop_id` null) or cafe-specific
 
 Platform permissions:
 
-`tenants.create`, `tenants.read`, `tenants.update`, `tenants.lifecycle.manage`, `subscriptions.manage`, `audit.read`, `users.read`, `users.manage`, `roles.read`, `roles.manage`, `permissions.read`, `consultation_requests.read`.
+`tenants.create`, `tenants.read`, `tenants.update`, `tenants.lifecycle.manage`, `subscriptions.read`, `subscriptions.manage`, `audit.read`, `users.read`, `users.manage`, `roles.read`, `roles.manage`, `permissions.read`, `consultation_requests.read`, `crm.read`, `crm.manage`.
 
 Tenant permissions:
 
 `site.manage`, `menu.read`, `menu.manage`, `reservations.read`, `reservations.manage`, `orders.read`, `orders.manage`, `analytics.read`, `staff.manage`, `subscription.read`, `subscription.checkout`.
 
 Controllers may require more than one permission; platform invoice detail/list requires both subscription management and user-read authority because the detail includes full admin contact data.
+
+Platform `subscriptions.read` grants only the CRM's limited read-only Tenant/Trial/Subscription projection and mixed customer Timeline. It does not grant `subscriptions.manage` or full payment/invoice detail. Existing CRM-reader roles receive it through migration `1790550000000-CrmCustomerContext`; later custom roles require an explicit assignment.
 
 ## Role management
 

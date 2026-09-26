@@ -1,6 +1,6 @@
 # Platform CRM API
 
-Phases 1–5 APIs are implemented under `/api/v1/platform/crm`. Every route uses `AccessTokenGuard` and `PlatformPermissionGuard`. Resource IDs are UUID-validated, request DTOs use the global whitelist/forbid/transform validation pipe, and results use parameterized SQL.
+Phases 1–6 APIs are implemented under `/api/v1/platform/crm`. Every route uses `AccessTokenGuard` and `PlatformPermissionGuard`. Resource IDs are UUID-validated, request DTOs use the global whitelist/forbid/transform validation pipe, and results use parameterized SQL.
 
 ## Implemented routes
 
@@ -11,7 +11,10 @@ GET    /api/v1/platform/crm/organizations/duplicate-candidates
 GET    /api/v1/platform/crm/organizations/:organizationId
 GET    /api/v1/platform/crm/organizations/:organizationId/overview
 GET    /api/v1/platform/crm/organizations/:organizationId/timeline
+GET    /api/v1/platform/crm/organizations/:organizationId/customer-context
 PATCH  /api/v1/platform/crm/organizations/:organizationId
+POST   /api/v1/platform/crm/organizations/:organizationId/tenant-link
+DELETE /api/v1/platform/crm/organizations/:organizationId/tenant-link
 POST   /api/v1/platform/crm/organizations/:organizationId/archive
 POST   /api/v1/platform/crm/organizations/:organizationId/restore
 
@@ -74,7 +77,7 @@ There is no CRM `DELETE` route. Public consultation intake keeps its existing co
 
 `GET /organizations/:organizationId/overview` requires `crm.read` and composes existing CRM tables into a bounded Organization 360 response. It returns `summary` (active Contact count, linked Lead count, active Deal count, active OPEN Deal count, open Task count, latest active Activity, and next open Task), up to six recent `leads`, six recent `deals`, six `openTasks`, six `recentActivities`, six `recentNotes`, and `sectionErrors`. Summary count fields are `null` if their query fails; a failed preview section is named in `sectionErrors` while other sections remain available. Contact details continue to come from the existing paginated Contacts endpoint.
 
-`GET /organizations/:organizationId/timeline` requires `crm.read` and returns `{ items, total, page, pageSize }`; defaults are page `1` and pageSize `20`, maximum `100`. Optional filters are `category=LEAD|DEAL|ACTIVITY|TASK|NOTE`, `dateFrom`, and `dateTo` (ISO-8601 timestamps; lower bound inclusive, upper bound exclusive). The UI's native date controls convert the selected local days to ISO timestamp boundaries. Items use stable IDs/types, source occurrence time, actor projection, source/related record IDs, localized-at-render-time metadata, and current source text where the source has no edit history. Results are ordered by `occurredAt DESC, category ASC, id ASC`. Offset pagination is stable for an unchanged result set; concurrent inserts can shift offsets. No entire-history load or Timeline write endpoint exists.
+`GET /organizations/:organizationId/timeline` requires `crm.read` and `subscriptions.read` and returns `{ items, total, page, pageSize }`; defaults are page `1` and pageSize `20`, maximum `100`. Optional filters are `category=LEAD|DEAL|ACTIVITY|TASK|NOTE|CUSTOMER`, `dateFrom`, and `dateTo` (ISO-8601 timestamps; lower bound inclusive, upper bound exclusive). The UI's native date controls convert the selected local days to ISO timestamp boundaries. Items use stable IDs/types, source occurrence time, actor projection, source/related record IDs, localized-at-render-time metadata, and current source text where the source has no edit history. Results are ordered by `occurredAt DESC, category ASC, id ASC`. Offset pagination is stable for an unchanged result set; concurrent inserts can shift offsets. No entire-history load or Timeline write endpoint exists.
 
 Example:
 
@@ -82,11 +85,13 @@ Example:
 GET /api/v1/platform/crm/organizations/8f6252a7-2b68-4e0e-b0c4-5b8896e7eaab/timeline?category=TASK&dateFrom=2026-09-01T00%3A00%3A00.000Z&page=1&pageSize=20
 ~~~
 
-The Timeline includes Lead creation/status, Deal creation/stage/outcome, Activity creation, Task creation/completion/cancellation/reopen, and Note creation. Task lifecycle attribution uses only transactional `crm.task.completed|canceled|reopened` audit records; Deal outcome time/status comes from the Deal row and the matching audit action supplies its actor. See [TIMELINE.md](TIMELINE.md) for association, archive, and timestamp details.
+The Timeline includes Lead creation/status, Deal creation/stage/outcome, Activity creation, Task creation/completion/cancellation/reopen, Note creation, Tenant creation and explicit CRM link/unlink, Trial start, and successful paid Subscription operations. Customer facts are source-backed and read-only; status changes without durable transition history are not fabricated. Customer events require `subscriptions.read`. Task lifecycle attribution uses only transactional `crm.task.completed|canceled|reopened` audit records; Deal outcome time/status comes from the Deal row and the matching audit action supplies its actor. See [TIMELINE.md](TIMELINE.md) for association, archive, and timestamp details.
 
 ## Organizations
 
-Create and patch accept `name`, optional `city`, `website`, `instagram`, and optional `coffeeShopId`. The Tenant link is unique per Organization/Tenant and is validated against a non-deleted Tenant. CRM returns a read-only linked Tenant name/status projection. Candidate Tenant listing requires both `crm.read` and `tenants.read`.
+Create and patch accept `name`, optional `city`, `website`, and `instagram`; Tenant identity is not accepted as a profile field. `POST /organizations/:organizationId/tenant-link` accepts `{ "coffeeShopId": "<uuid>" }` and requires `crm.manage` plus `tenants.read`. `DELETE` on the same route clears only the CRM link under the same permissions. Both actions are transactional, audited, and idempotent. The unique Organization/Tenant relationship is validated against a non-deleted Tenant. Candidate listing requires `crm.read` and `tenants.read` and returns bounded Tenant choices with name, slug, status, and active primary hostname.
+
+`GET /organizations/:organizationId/customer-context` requires `crm.read` and `subscriptions.read`. It returns the linked Tenant's current name, slug, status, active primary hostname, and durable lifecycle timestamps plus a narrow read-only Subscription projection (effective status, current/pending Plan, Trial state/dates, current period, and grace window). It omits payment amounts, provider references, invoice intents, owner membership/contact data, and plan feature configuration. It does not reconcile or mutate state. Existing CRM Organizations remain valid without a Tenant; archived Organizations cannot be linked, and unlinking never changes or deletes the Tenant.
 
 The organization list returns `{ items, total, page, pageSize }`, with page default `1`, pageSize default `25` and maximum `100`. Filters are `q`, exact normalized `city`, `coffeeShopId`, `tenantLink=LINKED|UNLINKED`, and `archiveStatus=ACTIVE|ARCHIVED|ALL` (default `ACTIVE`). Sort is allowlisted to `createdAt|name|city` and direction to `ASC|DESC`; ID is the stable tie-breaker. Search covers name, city, website, and Instagram handle.
 

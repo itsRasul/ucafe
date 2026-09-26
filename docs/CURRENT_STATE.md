@@ -16,12 +16,12 @@
 - Inventory Phase 1 adds tenant-scoped item/category/location management, transactional opening balances and adjustments, stock/count/history views, and the configurable feature gate. See [INVENTORY.md](INVENTORY.md) and [PROGRESS.md](PROGRESS.md).
 - PostgreSQL/Redis/MinIO readiness, security headers, request IDs, backup/restore scripts, Docker development/production targets.
 
-## Platform CRM Phases 2–5
+## Platform CRM Phases 2–6
 
-- Phases 0–5 are complete. CRM includes Organizations, Contacts, Leads, Deals/Pipeline, Activities, Tasks/follow-ups, Notes, status/stage history, assignment, audit, a query-time Unified Timeline, and Organization 360; see [docs/crm/README.md](crm/README.md), [API.md](crm/API.md), and [PROGRESS.md](PROGRESS.md).
+- Phases 0–6 are complete. CRM includes Organizations, Contacts, Leads, Deals/Pipeline, Activities, Tasks/follow-ups, Notes, status/stage history, assignment, audit, a query-time Unified Timeline, Organization 360, explicit Tenant linking, and read-only Tenant/Trial/Subscription context; see [docs/crm/README.md](crm/README.md), [API.md](crm/API.md), and [PROGRESS.md](PROGRESS.md).
 - A CRM Organization may link to one existing Tenant, and each Tenant to at most one Organization. This does not backfill existing Tenants or change their lifecycle.
 - Accepted public consultation requests create a linked `LANDING_FORM` Lead in the same transaction; existing requests are not backfilled and the public/request inbox contracts are unchanged.
-- Lead conversion itself creates no Deal. Phase 4 Activities, Tasks, and Notes use explicit CRM associations and transactional audit writes. Phase 5 composes current CRM data and selected durable histories at read time; no Timeline table, Sales Engine, general domain-event bus, reminders, or Tenant/Subscription timeline events were added.
+- Lead conversion itself creates no Deal. Phase 4 Activities, Tasks, and Notes use explicit CRM associations and transactional audit writes. Phases 5–6 compose CRM records and selected durable customer facts at read time; no Timeline table, Sales Engine, general domain-event bus, reminders, or fabricated Tenant/Subscription lifecycle transitions were added.
 
 ## Platform CRM Phase 3
 
@@ -39,7 +39,7 @@
 
 - Organization detail now composes a bounded overview with derived active Contact, linked Lead, active Deal, open Deal, and open Task counts; last Activity; next Task; and recent Lead/Deal/Task/Activity/Note previews. The existing Contact directory remains paginated and authoritative.
 - The Organization Timeline is a filtered, paginated query-time `UNION ALL` across Lead/Deal creation and history, Deal outcomes, Activities, Tasks, selected Task lifecycle audit actions, and Notes. It preserves pre-conversion Lead history, deduplicates multi-linked source records, and includes archived historical sources. No Timeline table or migration was added.
-- New read routes are `GET /api/v1/platform/crm/organizations/:organizationId/overview` and `/timeline`; both require `crm.read`. Phase 6 Tenant/Trial/Subscription event integration and CRM analytics remain deferred.
+- New read routes are `GET /api/v1/platform/crm/organizations/:organizationId/overview`, `/timeline`, and `/customer-context`. Context and Timeline require `crm.read` plus `subscriptions.read`; explicit Tenant link/unlink requires `crm.manage` plus `tenants.read`. Timeline uses only Tenant creation/link facts, Trial start, and successful paid Subscription operations. CRM analytics remains deferred.
 
 ## Production blockers
 
@@ -65,5 +65,5 @@ The software is not production-ready until [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIS
 ## Immediate next work
 
 1. Complete provider and hosting acceptance without adding unrelated product scope.
-2. Begin Phase 6 Tenant/Trial/Subscription CRM integration only after confirming owner-module read projections and permissions.
+2. Define any further Tenant status or Subscription lifecycle history in the owning modules before adding corresponding CRM Timeline facts.
 3. Move the dispatcher to a coordinated worker before horizontal API scaling.

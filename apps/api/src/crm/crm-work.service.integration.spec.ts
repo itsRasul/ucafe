@@ -4,7 +4,11 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { ConfigService } from "@nestjs/config";
 import { DataSource } from "typeorm";
+import { Branch, CoffeeShop, Domain } from "../database/entities";
 import { AuthCryptoService } from "../auth/auth-crypto.service";
+import { SubscriptionsService } from "../subscriptions/subscriptions.service";
+import { Subscription, SubscriptionPlan } from "../subscriptions/entities";
+import { TenantsService } from "../tenants/tenants.service";
 import { CrmActivityService } from "./crm-activity.service";
 import { CrmDealService } from "./crm-deal.service";
 import { CrmLeadService } from "./crm-lead.service";
@@ -13,12 +17,13 @@ import { CrmTaskService } from "./crm-task.service";
 import { CrmService } from "./crm.service";
 import { CrmOrganization360Service } from "./crm-organization-360.service";
 import { CrmTimelineService } from "./crm-timeline.service";
+import { CrmCustomerContextService } from "./crm-customer-context.service";
 import { CrmActivity, CrmContact, CrmDeal, CrmDealStageHistory, CrmLead, CrmLeadStatusHistory, CrmNote, CrmOrganization, CrmTask } from "./entities";
 import { CrmLeadSource } from "./entities/crm-lead.entity";
 import { CrmTaskKind, CrmTaskPriority, CrmTaskStatus } from "./entities/crm-task.entity";
 
 const integrationUrl = process.env.CRM_INTEGRATION_DATABASE_URL;
-const entities = [CrmOrganization, CrmContact, CrmLead, CrmLeadStatusHistory, CrmDeal, CrmDealStageHistory, CrmActivity, CrmTask, CrmNote];
+const entities = [CoffeeShop, Branch, Domain, SubscriptionPlan, Subscription, CrmOrganization, CrmContact, CrmLead, CrmLeadStatusHistory, CrmDeal, CrmDealStageHistory, CrmActivity, CrmTask, CrmNote];
 const cryptoConfig = {
   AUTH_PEPPER: "crm-work-integration-test-pepper-value-long-enough",
   PII_ENCRYPTION_KEY: Buffer.alloc(32, 31).toString("base64"),
@@ -33,6 +38,8 @@ test("CRM work persists relations, lifecycle, filters, Lead conversion, and priv
     const activityIds: string[] = [];
   const taskIds: string[] = [];
   const noteIds: string[] = [];
+  const tenantIds: string[] = [];
+  const subscriptionIds: string[] = [];
   let actorId = "";
   try {
     await dataSource.initialize();
@@ -54,10 +61,37 @@ test("CRM work persists relations, lifecycle, filters, Lead conversion, and priv
     const deals = new CrmDealService(dataSource, leads);
     const organization360 = new CrmOrganization360Service(dataSource);
     const timeline = new CrmTimelineService(dataSource);
+    const customerContext = new CrmCustomerContextService(dataSource, new TenantsService(dataSource, new ConfigService({})), new SubscriptionsService(dataSource, null as never));
     const marker = `crm-work-${randomUUID()}`;
 
     const organization = await crm.createOrganization({ name: `${marker}-one` }, actorId);
     organizationIds.push(organization.id);
+    const plan = (await dataSource.query<Array<{ id: string }>>("SELECT id FROM subscription_plans WHERE key='silver' LIMIT 1"))[0];
+    assert.ok(plan, "CRM customer context integration test requires a subscription plan");
+    const tenant = (await dataSource.query<Array<{ id: string }>>(`INSERT INTO coffee_shops(name,slug,status) VALUES($1,$2,'PREVIEW') RETURNING id`, [`${marker} cafe`, `${marker.slice(0, 45).toLowerCase().replaceAll(/[^a-z0-9-]/g, "-")}-tenant`]))[0]!;
+    tenantIds.push(tenant.id);
+    const subscription = (await dataSource.query<Array<{ id: string }>>(`INSERT INTO subscriptions(coffee_shop_id,plan_id,status,trial_started_at,trial_ends_at) VALUES($1,$2,'TRIALING',now()-interval '1 day',now()+interval '5 days') RETURNING id`, [tenant.id, plan.id]))[0]!;
+    subscriptionIds.push(subscription.id);
+    await crm.linkOrganizationTenant(organization.id, tenant.id, actorId);
+    const contextBefore = await customerContext.get(organization.id);
+    assert.equal(contextBefore.tenant?.id, tenant.id);
+    assert.equal(contextBefore.subscription?.status, "TRIALING");
+    assert.equal(contextBefore.subscription?.trial?.status, "ACTIVE");
+    assert.ok((contextBefore.subscription?.trial?.daysRemaining ?? 0) > 0);
+    const unchanged = (await dataSource.query<Array<{ updated_at: Date }>>("SELECT updated_at FROM subscriptions WHERE id=$1", [subscription.id]))[0]!;
+    const customerEvents = (await timeline.list(organization.id, { page: 1, pageSize: 100, category: "CUSTOMER" as never })).items;
+    assert.deepEqual(customerEvents.map((item) => item.type).sort(), ["TENANT_CREATED", "TENANT_LINKED", "TRIAL_STARTED"].sort());
+    assert.equal((await dataSource.query<Array<{ updated_at: Date }>>("SELECT updated_at FROM subscriptions WHERE id=$1", [subscription.id]))[0]!.updated_at.getTime(), unchanged.updated_at.getTime(), "CRM context reads do not reconcile or mutate the subscription");
+    await dataSource.query("UPDATE subscriptions SET status='ACTIVE',current_period_started_at=now(),current_period_ends_at=now()+interval '1 month',paid_through_at=now()+interval '1 month' WHERE id=$1", [subscription.id]);
+    await dataSource.query(`INSERT INTO subscription_payments(subscription_id,amount_toman,operation,plan_key_snapshot,plan_name_snapshot,period_started_at,period_ends_at,paid_at) VALUES($1,1,'TRIAL_TO_PAID','silver','نقره‌ای',now(),now()+interval '1 month',now())`, [subscription.id]);
+    const paidContext = await customerContext.get(organization.id);
+    assert.equal(paidContext.subscription?.status, "ACTIVE");
+    assert.equal(paidContext.subscription?.trial?.status, "CONVERTED");
+    const paidEvent = (await timeline.list(organization.id, { page: 1, pageSize: 100, category: "CUSTOMER" as never })).items.find((item) => item.type === "SUBSCRIPTION_ACTIVATED");
+    assert.ok(paidEvent);
+    assert.equal(paidEvent.metadata?.operation, "TRIAL_TO_PAID");
+    assert.equal("amountToman" in (paidEvent.metadata ?? {}), false, "Timeline omits payment amounts");
+    assert.equal("providerReference" in (paidEvent.metadata ?? {}), false, "Timeline omits payment provider references");
     const contact = await crm.createContact(organization.id, { name: "Work Test Contact" }, actorId);
     contactIds.push(contact.id);
     const otherOrganization = await crm.createOrganization({ name: `${marker}-two` }, actorId);
@@ -217,6 +251,9 @@ test("CRM work persists relations, lifecycle, filters, Lead conversion, and priv
       }
       if (contactIds.length) await dataSource.query("DELETE FROM crm_contacts WHERE id=ANY($1::uuid[])", [contactIds]);
       if (organizationIds.length) await dataSource.query("DELETE FROM crm_organizations WHERE id=ANY($1::uuid[])", [organizationIds]);
+      if (subscriptionIds.length) await dataSource.query("DELETE FROM subscription_payments WHERE subscription_id=ANY($1::uuid[])", [subscriptionIds]);
+      if (subscriptionIds.length) await dataSource.query("DELETE FROM subscriptions WHERE id=ANY($1::uuid[])", [subscriptionIds]);
+      if (tenantIds.length) await dataSource.query("DELETE FROM coffee_shops WHERE id=ANY($1::uuid[])", [tenantIds]);
       await dataSource.destroy();
     }
   }

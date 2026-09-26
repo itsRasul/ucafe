@@ -71,6 +71,36 @@ export class SubscriptionsService {
     return { subscription, payments: payments.map((payment) => ({ id: payment.id, status: payment.status, operation: payment.operation, amountToman: payment.amountToman, planKeySnapshot: payment.planKeySnapshot, planNameSnapshot: payment.planNameSnapshot, periodStartedAt: payment.periodStartedAt, periodEndsAt: payment.periodEndsAt, provider: payment.provider, providerReference: payment.providerReference, paidAt: payment.paidAt })) };
   }
 
+  async getCrmContext(coffeeShopId: string, now = new Date()) {
+    const subscription = await this.dataSource.getRepository(Subscription).findOne({ where: { coffeeShopId }, relations: { plan: true, pendingPlan: true } });
+    if (!subscription) return null;
+    const pendingIsDue = Boolean(subscription.pendingPlan && subscription.pendingPlanEffectiveAt && subscription.pendingPlanEffectiveAt <= now);
+    const plan = pendingIsDue ? subscription.pendingPlan! : subscription.plan;
+    const effective = effectiveSubscriptionStatus(subscription, now, plan.graceDays);
+    const trialStatus = !subscription.trialStartedAt ? null : effective.status === SubscriptionStatus.Trialing ? "ACTIVE"
+      : subscription.paidThroughAt || subscription.currentPeriodStartedAt ? "CONVERTED"
+      : effective.status === SubscriptionStatus.Canceled ? "CANCELED" : "ENDED";
+    return {
+      id: subscription.id,
+      status: effective.status,
+      plan: { key: plan.key, name: plan.name },
+      trial: subscription.trialStartedAt ? {
+        status: trialStatus,
+        startedAt: subscription.trialStartedAt,
+        endsAt: subscription.trialEndsAt,
+        daysRemaining: trialStatus === "ACTIVE" ? renewalWindow(subscription.trialEndsAt, now).daysUntilPeriodEnd : 0,
+      } : null,
+      currentPeriodStartedAt: subscription.currentPeriodStartedAt,
+      currentPeriodEndsAt: subscription.paidThroughAt ?? subscription.currentPeriodEndsAt,
+      graceEndsAt: effective.status === SubscriptionStatus.Grace ? effective.graceEndsAt : null,
+      graceDaysRemaining: effective.status === SubscriptionStatus.Grace ? renewalWindow(effective.graceEndsAt, now).daysUntilPeriodEnd : null,
+      pendingChange: !pendingIsDue && subscription.pendingPlan ? {
+        plan: { key: subscription.pendingPlan.key, name: subscription.pendingPlan.name },
+        effectiveAt: subscription.pendingPlanEffectiveAt,
+      } : null,
+    };
+  }
+
   async getTenantSummary(coffeeShopId: string, now = new Date()) {
     await this.reconcileIfNeeded(coffeeShopId, now);
     const subscription = await this.getForTenant(coffeeShopId);

@@ -153,6 +153,52 @@ export class CrmTimelineService {
       LEFT JOIN crm_leads l ON l.id=n.lead_id LEFT JOIN crm_deals d ON d.id=n.deal_id
       LEFT JOIN users u ON u.id=n.author_user_id
       WHERE COALESCE(n.organization_id,c.organization_id,l.organization_id,d.organization_id)=$1 ${filter("NOTE").replaceAll("event_time", "n.created_at")}
+
+      UNION ALL
+      SELECT 'tenant-created:'||s.id,'TENANT_CREATED','CUSTOMER',s.created_at,NULL::uuid,NULL::text,s.name,NULL::text,
+        o.id,NULL::uuid,NULL::uuid,NULL::uuid,'TENANT',s.id::text,jsonb_build_object('tenantId',s.id)
+      FROM crm_organizations o JOIN coffee_shops s ON s.id=o.coffee_shop_id OR EXISTS (
+        SELECT 1 FROM platform_audit_events history WHERE history.target_type='crm_organization' AND history.target_id=o.id::text
+          AND history.action IN ('crm.organization.tenant_linked','crm.organization.tenant_unlinked')
+          AND history.summary->>'coffeeShopId'=s.id::text
+      )
+      WHERE o.id=$1 ${filter("CUSTOMER").replaceAll("event_time", "s.created_at")}
+
+      UNION ALL
+      SELECT 'tenant-link:'||e.id,CASE e.action WHEN 'crm.organization.tenant_linked' THEN 'TENANT_LINKED' ELSE 'TENANT_UNLINKED' END,
+        'CUSTOMER',e.created_at,e.actor_user_id,${actorLabel("u")},
+        CASE e.action WHEN 'crm.organization.tenant_linked' THEN 'Tenant linked' ELSE 'Tenant unlinked' END,NULL::text,
+        $1::uuid,NULL::uuid,NULL::uuid,NULL::uuid,'TENANT_LINK',e.id::text,
+        jsonb_build_object('tenantId',e.summary->>'coffeeShopId')
+      FROM platform_audit_events e LEFT JOIN users u ON u.id=e.actor_user_id
+      WHERE e.target_type='crm_organization' AND e.target_id=$1::text
+        AND e.action IN ('crm.organization.tenant_linked','crm.organization.tenant_unlinked') ${filter("CUSTOMER").replaceAll("event_time", "e.created_at")}
+
+      UNION ALL
+      SELECT 'trial-started:'||s.id,'TRIAL_STARTED','CUSTOMER',s.trial_started_at,NULL::uuid,NULL::text,'Trial started',NULL::text,
+        o.id,NULL::uuid,NULL::uuid,NULL::uuid,'TRIAL',s.id::text,jsonb_build_object('endsAt',s.trial_ends_at)
+      FROM crm_organizations o JOIN subscriptions s ON s.coffee_shop_id=o.coffee_shop_id OR EXISTS (
+        SELECT 1 FROM platform_audit_events history WHERE history.target_type='crm_organization' AND history.target_id=o.id::text
+          AND history.action IN ('crm.organization.tenant_linked','crm.organization.tenant_unlinked')
+          AND history.summary->>'coffeeShopId'=s.coffee_shop_id::text
+      )
+      WHERE o.id=$1 AND s.trial_started_at IS NOT NULL ${filter("CUSTOMER").replaceAll("event_time", "s.trial_started_at")}
+
+      UNION ALL
+      SELECT 'subscription-payment:'||p.id,
+        CASE p.operation WHEN 'RENEWAL' THEN 'SUBSCRIPTION_RENEWED' WHEN 'REACTIVATION' THEN 'SUBSCRIPTION_REACTIVATED'
+          WHEN 'UPGRADE' THEN 'SUBSCRIPTION_PLAN_CHANGED' ELSE 'SUBSCRIPTION_ACTIVATED' END,
+        'CUSTOMER',p.paid_at,p.recorded_by_user_id,${actorLabel("u")},p.plan_name_snapshot,NULL::text,
+        o.id,NULL::uuid,NULL::uuid,NULL::uuid,'SUBSCRIPTION_PAYMENT',p.id::text,
+        jsonb_build_object('operation',p.operation,'periodEndsAt',p.period_ends_at)
+      FROM crm_organizations o JOIN subscriptions s ON s.coffee_shop_id=o.coffee_shop_id OR EXISTS (
+        SELECT 1 FROM platform_audit_events history WHERE history.target_type='crm_organization' AND history.target_id=o.id::text
+          AND history.action IN ('crm.organization.tenant_linked','crm.organization.tenant_unlinked')
+          AND history.summary->>'coffeeShopId'=s.coffee_shop_id::text
+      )
+      JOIN subscription_payments p ON p.subscription_id=s.id LEFT JOIN users u ON u.id=p.recorded_by_user_id
+      WHERE o.id=$1 AND p.status='PAID' AND p.operation IN ('PURCHASE','TRIAL_TO_PAID','RENEWAL','REACTIVATION','UPGRADE')
+        ${filter("CUSTOMER").replaceAll("event_time", "p.paid_at")}
     `;
   }
 }

@@ -42,6 +42,7 @@ explicit start -> TRIALING -> SUSPENDED (trial expires unpaid)
 ## APIs and authority
 
 - Platform `subscriptions.manage`: list/edit plans; read tenant summary; start trial; record manual prepaid payment; reconcile lifecycle.
+- Platform `subscriptions.read`: read only the CRM customer-context projection and mixed Timeline. It omits amount, invoice intents, provider references, and payment details, and its reads never reconcile the Subscription or Tenant.
 - Tenant `subscription.read`: view a reconciled summary, active-plan catalog/virtual trial card, authoritative previews, and scoped invoices.
 - Tenant `subscription.checkout`: create checkout and schedule/change/cancel a pending downgrade.
 - Platform manual payments require an idempotency key and use the same action/pricing engine as gateway settlement.

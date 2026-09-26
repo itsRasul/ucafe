@@ -53,13 +53,45 @@ export class CrmService {
   async listTenantLinkCandidates(organizationId?: string) {
     // ponytail: cap the initial selector at 100; add search or pagination if Tenants outgrow it.
     return this.dataSource.query<DbRow[]>(`
-      SELECT s.id, s.name, s.status
-      FROM coffee_shops s
+      SELECT s.id, s.name, s.slug, s.status, d.hostname
+      FROM coffee_shops s LEFT JOIN domains d ON d.coffee_shop_id=s.id AND d.is_primary=TRUE
+        AND d.status='ACTIVE' AND d.deleted_at IS NULL
       LEFT JOIN crm_organizations linked ON linked.coffee_shop_id=s.id
       WHERE s.deleted_at IS NULL AND (linked.id IS NULL OR linked.id=$1)
       ORDER BY s.name, s.id
       LIMIT 100
     `, [organizationId ?? null]);
+  }
+
+  async linkOrganizationTenant(id: string, coffeeShopId: string, actorId: string) {
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        const tenants = await manager.query<Array<{ id: string }>>(
+          "SELECT id FROM coffee_shops WHERE id=$1 AND deleted_at IS NULL FOR UPDATE", [coffeeShopId],
+        );
+        if (!tenants[0]) throw new NotFoundException("Tenant not found");
+        const current = await this.findOrganization(manager, id, true);
+        if (!current) throw new NotFoundException("CRM organization not found");
+        if (current.archived_at) throw new ConflictException("Restore this organization before linking a Tenant");
+        if (current.coffee_shop_id === coffeeShopId) return this.organizationProjection(current);
+        if (current.coffee_shop_id) throw new ConflictException("Unlink the current Tenant before linking another");
+        await manager.query("UPDATE crm_organizations SET coffee_shop_id=$2,updated_by_user_id=$3,updated_at=now() WHERE id=$1", [id, coffeeShopId, actorId]);
+        await this.auditWithSummary(manager, actorId, "crm.organization.tenant_linked", id, { coffeeShopId });
+        return this.organizationProjection((await this.findOrganization(manager, id))!);
+      });
+    } catch (error) { this.rethrowDatabaseConflict(error); }
+  }
+
+  async unlinkOrganizationTenant(id: string, actorId: string) {
+    return this.dataSource.transaction(async (manager) => {
+      const current = await this.findOrganization(manager, id, true);
+      if (!current) throw new NotFoundException("CRM organization not found");
+      if (!current.coffee_shop_id) return this.organizationProjection(current);
+      const coffeeShopId = current.coffee_shop_id as string;
+      await manager.query("UPDATE crm_organizations SET coffee_shop_id=NULL,updated_by_user_id=$2,updated_at=now() WHERE id=$1", [id, actorId]);
+      await this.auditWithSummary(manager, actorId, "crm.organization.tenant_unlinked", id, { coffeeShopId });
+      return this.organizationProjection((await this.findOrganization(manager, id))!);
+    });
   }
 
   async organizationDuplicateCandidates(input: OrganizationDuplicateQueryDto) {
@@ -110,12 +142,11 @@ export class CrmService {
     const normalized = this.organizationValues(input);
     try {
       return await this.dataSource.transaction(async (manager) => {
-        await this.assertTenant(manager, normalized.coffeeShopId);
         const rows = await manager.query<DbRow[]>(`
-          INSERT INTO crm_organizations (name, name_normalized, city, city_normalized, website, website_host, instagram_handle, coffee_shop_id, created_by_user_id, updated_by_user_id)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+          INSERT INTO crm_organizations (name, name_normalized, city, city_normalized, website, website_host, instagram_handle, created_by_user_id, updated_by_user_id)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
           RETURNING id
-        `, [normalized.name, normalized.nameNormalized, normalized.city, normalized.cityNormalized, normalized.website, normalized.websiteHost, normalized.instagram, normalized.coffeeShopId, actorId]);
+        `, [normalized.name, normalized.nameNormalized, normalized.city, normalized.cityNormalized, normalized.website, normalized.websiteHost, normalized.instagram, actorId]);
         const id = rows[0]!.id as string;
         await this.audit(manager, actorId, "crm.organization.created", "crm_organization", id);
         return this.organizationProjection((await this.findOrganization(manager, id))!);
@@ -134,10 +165,8 @@ export class CrmService {
           city: input.city === undefined ? current.city : input.city,
           website: input.website === undefined ? current.website : input.website,
           instagram: input.instagram === undefined ? current.instagram_handle : input.instagram,
-          coffeeShopId: input.coffeeShopId === undefined ? current.coffee_shop_id : input.coffeeShopId,
         });
-        await this.assertTenant(manager, patch.coffeeShopId);
-        await manager.query(`UPDATE crm_organizations SET name=$2, name_normalized=$3, city=$4, city_normalized=$5, website=$6, website_host=$7, instagram_handle=$8, coffee_shop_id=$9, updated_by_user_id=$10, updated_at=now() WHERE id=$1`, [id, patch.name, patch.nameNormalized, patch.city, patch.cityNormalized, patch.website, patch.websiteHost, patch.instagram, patch.coffeeShopId, actorId]);
+        await manager.query(`UPDATE crm_organizations SET name=$2, name_normalized=$3, city=$4, city_normalized=$5, website=$6, website_host=$7, instagram_handle=$8, updated_by_user_id=$9, updated_at=now() WHERE id=$1`, [id, patch.name, patch.nameNormalized, patch.city, patch.cityNormalized, patch.website, patch.websiteHost, patch.instagram, actorId]);
         await this.audit(manager, actorId, "crm.organization.updated", "crm_organization", id);
         return this.organizationProjection((await this.findOrganization(manager, id))!);
       });
@@ -310,7 +339,7 @@ export class CrmService {
     return result;
   }
 
-  private organizationValues(input: CreateOrganizationDto | UpdateOrganizationDto): { name: string; nameNormalized: string; city: string | null; cityNormalized: string | null; website: string | null; websiteHost: string | null; instagram: string | null; coffeeShopId: string | null } {
+  private organizationValues(input: CreateOrganizationDto | UpdateOrganizationDto): { name: string; nameNormalized: string; city: string | null; cityNormalized: string | null; website: string | null; websiteHost: string | null; instagram: string | null } {
     const name = this.requireText(input.name!, "Organization name");
     const city = this.optionalText(input.city);
     const website = this.normalizeWebsite(input.website);
@@ -322,7 +351,6 @@ export class CrmService {
       website: website.website,
       websiteHost: website.host,
       instagram: this.normalizeInstagram(input.instagram),
-      coffeeShopId: input.coffeeShopId?.trim() || null,
     };
   }
 
@@ -362,14 +390,12 @@ export class CrmService {
 
   private addValue(values: unknown[], value: unknown) { values.push(value); return values.length; }
 
-  private async assertTenant(manager: EntityManager, id: string | null) {
-    if (!id) return;
-    const rows = await manager.query<Array<{ id: string }>>("SELECT id FROM coffee_shops WHERE id=$1 AND deleted_at IS NULL", [id]);
-    if (!rows[0]) throw new NotFoundException("Tenant not found");
-  }
-
   private async audit(manager: EntityManager, actorId: string, action: string, targetType: string, targetId: string) {
     await manager.query(`INSERT INTO platform_audit_events (actor_user_id, action, target_type, target_id, summary) VALUES ($1, $2, $3, $4, '{}'::jsonb)`, [actorId, action, targetType, targetId]);
+  }
+
+  private async auditWithSummary(manager: EntityManager, actorId: string, action: string, targetId: string, summary: Record<string, string>) {
+    await manager.query(`INSERT INTO platform_audit_events (actor_user_id, action, target_type, target_id, summary) VALUES ($1, $2, 'crm_organization', $3, $4::jsonb)`, [actorId, action, targetId, JSON.stringify(summary)]);
   }
 
   private rethrowDatabaseConflict(error: unknown): never {

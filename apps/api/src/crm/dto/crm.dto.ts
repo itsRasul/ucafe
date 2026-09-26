@@ -20,7 +20,6 @@ export class CreateOrganizationDto {
   @IsOptional() @Transform(trim) @IsString() @MaxLength(100) city?: string | null;
   @IsOptional() @Transform(trim) @IsString() @MaxLength(500) website?: string | null;
   @IsOptional() @Transform(trim) @IsString() @MaxLength(255) instagram?: string | null;
-  @IsOptional() @IsUUID() coffeeShopId?: string | null;
 }
 
 export class UpdateOrganizationDto {
@@ -28,7 +27,10 @@ export class UpdateOrganizationDto {
   @IsOptional() @Transform(trim) @IsString() @MaxLength(100) city?: string | null;
   @IsOptional() @Transform(trim) @IsString() @MaxLength(500) website?: string | null;
   @IsOptional() @Transform(trim) @IsString() @MaxLength(255) instagram?: string | null;
-  @IsOptional() @IsUUID() coffeeShopId?: string | null;
+}
+
+export class LinkTenantDto {
+  @IsUUID() coffeeShopId!: string;
 }
 
 export class OrganizationDuplicateQueryDto {

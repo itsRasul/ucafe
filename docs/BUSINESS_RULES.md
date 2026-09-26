@@ -64,12 +64,12 @@ Critical rules are summarized here. Domain documents contain the corresponding l
 
 - Platform CRM is an internal platform domain. It is not tenant-owned and does not manage a café's Clients or customer segments.
 - CRM Organizations, Contacts, Leads, and Deals are distinct from Tenant, User, and Client records. Deals remain distinct from Subscription, Trial, invoice/payment intent, and Payment records.
-- One CRM Organization may link to at most one non-deleted Tenant, and each Tenant may link to at most one Organization. The link is optional and read-only with respect to Tenant lifecycle.
+- One CRM Organization may link to at most one non-deleted Tenant, and each Tenant may link to at most one Organization. Link/unlink is explicit, separately permissioned, and transactionally audited; it is read-only with respect to Tenant lifecycle.
 - Contact and Lead phone/email are encrypted at rest and omitted from list, duplicate, and audit projections; authorized single-record detail may reveal them.
 - Exact Organization and Contact duplicate candidates are review warnings only. CRM does not auto-merge or block an operator from continuing.
 - Lead duplicate candidates return explicit conflicts; an operator must link an existing record or confirm a separate Lead/Organization/Contact.
 - Archiving an Organization does not archive Contacts. CRM has no hard-delete route, and parent/child references do not cascade-delete.
-- CRM may read source-domain state and link to its owner module. It must not duplicate Tenant or Subscription lifecycle, provisioning, pricing, payment, or verification rules.
+- CRM may read limited source-domain projections and link to their owner module. It must not duplicate Tenant or Subscription lifecycle, provisioning, pricing, payment, or verification rules. Current Subscription status is projected without reconciliation; Timeline may show only durable Tenant creation/link, Trial-start, and successful paid-operation facts, never fabricated lifecycle transitions or payment amounts/provider references.
 - platform_order_requests remains public consultation intake. Each accepted public consultation request transactionally creates one linked LANDING_FORM Lead; old requests are not backfilled. CRM status is a separate sales lifecycle and must not translate the existing CLOSED request status into Deal WON/LOST.
 - Lead status transitions append history atomically. Qualification is explicit; unqualification requires a controlled reason. Conversion is allowed from QUALIFIED and atomically resolves an Organization and Contact; it creates no Deal. Phase 3 permits a separate explicit Deal from a converted Lead, at most one per Lead.
 - CRM Deals use the fixed `ucafe-default` pipeline; stage is distinct from OPEN/WON/LOST outcome. Stage history and PII-free audit records commit with every stage/outcome write. Closed Deals cannot be reopened through normal operations.

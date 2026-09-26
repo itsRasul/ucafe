@@ -9,7 +9,7 @@ UCafe has no general internal domain-event bus, message broker, or CRM event pub
 - Tenant, Subscription, and Payment state is stored in their owning tables/services. Their current writes do not publish the event names below as a public contract.
 - The worker workspace is a bootstrap scaffold and does not currently coordinate these jobs.
 
-## Phase 2–5 records and read projections, not published events
+## Phase 2–6 records and read projections, not published events
 
 Phase 2 adds no event bus, publisher, outbox, or inter-module event contract. The actual Lead workflow persists history and operator audit records:
 
@@ -31,18 +31,20 @@ Phase 4 action names stored in `platform_audit_events.action` are:
 
 These audit actions remain audit records, not published events. Phase 5 reads only `crm.task.completed`, `crm.task.canceled`, and `crm.task.reopened` to preserve Task lifecycle occurrence times and actors after the mutable Task row clears terminal timestamps. Deal `crm.deal.won`/`crm.deal.lost` audit rows provide only the actor; outcome type/time are read from the Deal's status and won/lost timestamp. Other audit actions are not Timeline entries. Lead and Deal relational history, Activity, Task, and Note rows are queried directly into a paginated Organization Timeline; no event subscription, publisher, or projection table was added.
 
+Phase 6 adds transactional `crm.organization.tenant_linked` and `crm.organization.tenant_unlinked` audit rows with only the Tenant UUID in the summary. They document explicit CRM association changes; they are not Tenant lifecycle events. The Timeline reads them with Tenant `created_at`, Subscription `trial_started_at`, and successful non-legacy `subscription_payments` rows. Payment Timeline items contain operation and paid-period end only. They omit amount, payment provider, authority, provider reference, and invoice intent details. The customer-context panel reads an owner-module projection and does not write or reconcile Subscription state.
+
 The Organization Timeline is an API read model, not an event catalog or delivery contract. It normalizes source rows for display and never publishes or stores a second copy. See [TIMELINE.md](TIMELINE.md).
 
-## Planned external facts of interest
+## Durable customer facts now shown
 
-No current publisher contract exists. CRM may eventually read the corresponding source records:
+No current publisher contract exists. Phase 6 reads only these durable facts in its Timeline:
 
-- tenant.provisioned and tenant.status_changed
-- trial.started and trial.expired
-- subscription.activated, subscription.renewed, subscription.expired, and subscription.canceled
-- payment.verified
+- Tenant creation time from `coffee_shops.created_at`.
+- CRM link/unlink occurrence from transactional link audit rows.
+- Trial start from `subscriptions.trial_started_at`.
+- Paid Subscription operation and time from successful non-legacy `subscription_payments` rows.
 
-Until a stable event contract exists, the source module remains authoritative and CRM reads its current projection. Do not infer a missing historical transition from a current status field.
+There is no Tenant status-history table or complete Subscription status-history stream. CRM therefore does not emit historic Tenant status transitions, Trial expiry, grace start/end, Subscription suspension/expiry/cancellation, or scheduled Plan-change events. The current customer panel may show effective Subscription status from the non-mutating source-module projection, but it does not manufacture a historical event. Until a stable event contract exists, source modules remain authoritative; do not infer a missing transition from a current status field.
 
 ## Payload and delivery rules for a future contract
 

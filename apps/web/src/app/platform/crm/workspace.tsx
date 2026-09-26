@@ -11,7 +11,6 @@ type Page<T> = { items: T[]; total: number; page: number; pageSize: number };
 type Organization = { id: string; name: string; city: string | null; website: string | null; instagram: string | null; coffeeShopId: string | null; tenant: { id: string; name: string; status: string } | null; archivedAt: string | null; createdAt: string; updatedAt: string; contactCount?: number };
 type Contact = { id: string; organizationId: string; organizationName: string; name: string; role: string | null; archivedAt: string | null; createdAt: string; updatedAt: string; phone?: string | null; email?: string | null };
 type Duplicate = { id: string; name: string; city?: string | null; role?: string | null; archivedAt: string | null; matchingFields: string[] };
-type TenantOption = { id: string; name: string; status: string };
 type Props = { mode: "list" | "create" | "detail" | "contact"; organizationId?: string; contactId?: string };
 const fa = new Intl.NumberFormat("fa-IR");
 const formatDate = (value?: string | null) => value ? new Intl.DateTimeFormat("fa-IR", { dateStyle: "medium" }).format(new Date(value)) : "—";
@@ -27,8 +26,8 @@ export function CrmWorkspace(props: Props) {
 
   return <CrmShell canManage={access.includes("crm.manage")}>
     {props.mode === "list" && <OrganizationDirectory api={api} canManage={access.includes("crm.manage")} />}
-    {props.mode === "create" && <OrganizationCreate api={api} canLinkTenant={access.includes("tenants.read")} />}
-    {props.mode === "detail" && props.organizationId && <OrganizationDetail api={api} canManage={access.includes("crm.manage")} canLinkTenant={access.includes("tenants.read")} organizationId={props.organizationId} />}
+    {props.mode === "create" && <OrganizationCreate api={api} />}
+    {props.mode === "detail" && props.organizationId && <OrganizationDetail api={api} canManage={access.includes("crm.manage")} canLinkTenant={access.includes("crm.manage") && access.includes("tenants.read")} canViewCustomerContext={access.includes("subscriptions.read")} canViewTenant={access.includes("tenants.read")} canCreateTenant={access.includes("tenants.create")} organizationId={props.organizationId} />}
     {props.mode === "contact" && props.contactId && <ContactDetail api={api} canManage={access.includes("crm.manage")} contactId={props.contactId} />}
   </CrmShell>;
 }
@@ -74,15 +73,13 @@ function OrganizationDirectory({ api, canManage }: { api: Api; canManage: boolea
   </>;
 }
 
-function OrganizationCreate({ api, canLinkTenant }: { api: Api; canLinkTenant: boolean }) {
+function OrganizationCreate({ api }: { api: Api }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [duplicates, setDuplicates] = useState<Duplicate[]>([]);
-  const [tenantOptions, setTenantOptions] = useState<TenantOption[]>([]);
   const [confirmed, setConfirmed] = useState(false);
-  const [values, setValues] = useState({ name: "", city: "", website: "", instagram: "", coffeeShopId: "" });
-  useEffect(() => { if (canLinkTenant) void api<TenantOption[]>("/platform/crm/tenant-link-candidates").then(setTenantOptions).catch((reason) => setError((reason as Error).message)); }, [api, canLinkTenant]);
+  const [values, setValues] = useState({ name: "", city: "", website: "", instagram: "" });
   const field = (key: keyof typeof values) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => { setValues((current) => ({ ...current, [key]: event.target.value })); setDuplicates([]); setConfirmed(false); setError(""); };
   async function submit(event: FormEvent) {
     event.preventDefault(); setError(""); setSaving(true);
@@ -92,30 +89,28 @@ function OrganizationCreate({ api, canLinkTenant }: { api: Api; canLinkTenant: b
         const candidates = await api<Duplicate[]>(`/platform/crm/organizations/duplicate-candidates?${query}`);
         if (candidates.length) { setDuplicates(candidates); return; }
       }
-      const organization = await api<Organization>("/platform/crm/organizations", { method: "POST", body: JSON.stringify({ name: values.name, city: values.city || null, website: values.website || null, instagram: values.instagram || null, coffeeShopId: canLinkTenant ? values.coffeeShopId || null : null }) });
+      const organization = await api<Organization>("/platform/crm/organizations", { method: "POST", body: JSON.stringify({ name: values.name, city: values.city || null, website: values.website || null, instagram: values.instagram || null }) });
       router.push(`/platform/crm/organizations/${organization.id}`);
     } catch (reason) { setError((reason as Error).message); } finally { setSaving(false); }
   }
-  return <><CrmBreadcrumb title="افزودن سازمان" /><OrganizationFields values={values} field={field} tenantOptions={tenantOptions} canLinkTenant={canLinkTenant} onSubmit={submit} saving={saving} error={error} submitLabel={duplicates.length && !confirmed ? "بررسی موارد مشابه" : "ثبت سازمان"} />
+  return <><CrmBreadcrumb title="افزودن سازمان" /><OrganizationFields values={values} field={field} onSubmit={submit} saving={saving} error={error} submitLabel={duplicates.length && !confirmed ? "بررسی موارد مشابه" : "ثبت سازمان"} />
     {duplicates.length > 0 && !confirmed && <section className="crm-duplicate" aria-labelledby="crm-org-duplicates"><h2 id="crm-org-duplicates">موارد مشابه پیدا شد</h2><p>پیش از ثبت، موارد زیر را بررسی کنید. CRM آن‌ها را خودکار ادغام نمی‌کند.</p><ul>{duplicates.map((item) => <li key={item.id}><Link href={`/platform/crm/organizations/${item.id}`}>{item.name}{item.city ? ` — ${item.city}` : ""}</Link><small> تطبیق: {item.matchingFields.map(matchLabel).join("، ")}</small></li>)}</ul><button type="button" onClick={() => setConfirmed(true)}>با وجود این موارد، ادامه بده</button></section>}
   </>;
 }
 
-function OrganizationFields({ values, field, tenantOptions, canLinkTenant, onSubmit, saving, error, submitLabel }: { values: { name: string; city: string; website: string; instagram: string; coffeeShopId: string }; field: (key: "name" | "city" | "website" | "instagram" | "coffeeShopId") => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void; tenantOptions: TenantOption[]; canLinkTenant: boolean; onSubmit: (event: FormEvent) => void; saving: boolean; error: string; submitLabel: string }) {
+function OrganizationFields({ values, field, onSubmit, saving, error, submitLabel }: { values: { name: string; city: string; website: string; instagram: string }; field: (key: "name" | "city" | "website" | "instagram") => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void; onSubmit: (event: FormEvent) => void; saving: boolean; error: string; submitLabel: string }) {
   return <form className="form crm-form" onSubmit={onSubmit}>
     {error && <p className="message error" role="alert" tabIndex={-1}>{error}</p>}
     <label>نام کسب‌وکار<input required maxLength={160} value={values.name} onChange={field("name")} /></label>
     <label>شهر<input maxLength={100} value={values.city} onChange={field("city")} /></label>
     <label>وب‌سایت<input inputMode="url" autoComplete="url" maxLength={500} value={values.website} onChange={field("website")} placeholder="example.ir" /><small>نشانی با یا بدون https:// پذیرفته می‌شود.</small></label>
     <label>نام کاربری اینستاگرام<input dir="ltr" maxLength={255} value={values.instagram} onChange={field("instagram")} placeholder="cafename یا @cafename" /></label>
-    {canLinkTenant && <label>کافه متصل در UCafe<select value={values.coffeeShopId} onChange={field("coffeeShopId")}><option value="">بدون کافه متصل</option>{tenantOptions.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.name} · {tenant.status}</option>)}</select><small>وضعیت کافه از سامانه اصلی خوانده می‌شود.</small></label>}
     <div className="crm-form-actions"><button disabled={saving}>{saving ? "در حال ذخیره…" : submitLabel}</button><Link href="/platform/crm">انصراف</Link></div>
   </form>;
 }
 
-function OrganizationDetail({ api, canManage, canLinkTenant, organizationId }: { api: Api; canManage: boolean; canLinkTenant: boolean; organizationId: string }) {
+function OrganizationDetail({ api, canManage, canLinkTenant, canViewCustomerContext, canViewTenant, canCreateTenant, organizationId }: { api: Api; canManage: boolean; canLinkTenant: boolean; canViewCustomerContext: boolean; canViewTenant: boolean; canCreateTenant: boolean; organizationId: string }) {
   const [organization, setOrganization] = useState<Organization | null>(null);
-  const [tenantOptions, setTenantOptions] = useState<TenantOption[]>([]);
   const [contacts, setContacts] = useState<Page<Contact>>({ items: [], total: 0, page: 1, pageSize: 25 });
   const [contactPage, setContactPage] = useState(1);
   const [contactQ, setContactQ] = useState("");
@@ -132,23 +127,21 @@ function OrganizationDetail({ api, canManage, canLinkTenant, organizationId }: {
     setLoading(true); setError(""); setContactError("");
     try {
       const query = encode({ page: String(contactPage), pageSize: "25", q: contactQ, archiveStatus: contactArchive, sort: "name", direction: "ASC" });
-      const [orgResult, contactPageResult, tenantChoices] = await Promise.allSettled([
+      const [orgResult, contactPageResult] = await Promise.allSettled([
         api<Organization>(`/platform/crm/organizations/${organizationId}`),
         api<Page<Contact>>(`/platform/crm/organizations/${organizationId}/contacts?${query}`),
-        canLinkTenant ? api<TenantOption[]>(`/platform/crm/tenant-link-candidates?organizationId=${organizationId}`) : Promise.resolve([]),
       ]);
       if (orgResult.status === "rejected") throw orgResult.reason;
       setOrganization(orgResult.value);
       if (contactPageResult.status === "fulfilled") { setContacts(contactPageResult.value); setContactError(""); }
       else setContactError((contactPageResult.reason as Error).message);
-      setTenantOptions(tenantChoices.status === "fulfilled" ? tenantChoices.value : []);
     } catch (reason) { setError((reason as Error).message); }
     finally { setLoading(false); }
-  }, [api, organizationId, contactPage, contactQ, contactArchive, canLinkTenant]);
+  }, [api, organizationId, contactPage, contactQ, contactArchive]);
   useEffect(() => { void load(); }, [load]);
 
-  async function updateOrg(values: { name: string; city: string; website: string; instagram: string; coffeeShopId: string }) {
-    await api(`/platform/crm/organizations/${organizationId}`, { method: "PATCH", body: JSON.stringify({ name: values.name, city: values.city || null, website: values.website || null, instagram: values.instagram || null, ...(canLinkTenant ? { coffeeShopId: values.coffeeShopId || null } : {}) }) });
+  async function updateOrg(values: { name: string; city: string; website: string; instagram: string }) {
+    await api(`/platform/crm/organizations/${organizationId}`, { method: "PATCH", body: JSON.stringify({ name: values.name, city: values.city || null, website: values.website || null, instagram: values.instagram || null }) });
     setEditing(false); setNotice("سازمان ذخیره شد."); await load();
   }
   async function archiveOrganization(archive: boolean) {
@@ -163,14 +156,14 @@ function OrganizationDetail({ api, canManage, canLinkTenant, organizationId }: {
   if (loading && !organization) return <p className="empty" aria-live="polite">در حال دریافت سازمان…</p>;
   if (error && !organization) return <><CrmBreadcrumb title="سازمان پیدا نشد" /><p className="message error" role="alert">{error}</p><Link href="/platform/crm">بازگشت به سازمان‌ها</Link></>;
   if (!organization) return null;
-  const orgValues = { name: organization.name, city: organization.city ?? "", website: organization.website ?? "", instagram: organization.instagram ?? "", coffeeShopId: organization.coffeeShopId ?? "" };
+  const orgValues = { name: organization.name, city: organization.city ?? "", website: organization.website ?? "", instagram: organization.instagram ?? "" };
   return <><CrmBreadcrumb title={organization.name} />
     {error && <p className="message error" role="alert">{error}</p>}{notice && <p className="message success" role="status">{notice}</p>}
     {organization.archivedAt && <p className="message warning">این سازمان بایگانی شده است. ارتباط‌های موجود حفظ شده‌اند.</p>}
-    {editing && canManage ? <OrganizationFields values={orgValues} field={(key) => (event) => { const next = { ...orgValues, [key]: event.target.value }; setOrganization({ ...organization, ...next, tenant: organization.tenant }); }} tenantOptions={tenantOptions} canLinkTenant={canLinkTenant} onSubmit={async (event) => { event.preventDefault(); try { await updateOrg(orgValues); } catch (reason) { setError((reason as Error).message); } }} saving={false} error="" submitLabel="ذخیره تغییرات" /> : <section className="detail crm-org-detail"><header><div><h1>{organization.name}</h1><p>{organization.city || "شهر ثبت نشده"} · {organization.archivedAt ? "بایگانی‌شده" : "فعال"}</p></div>{canManage && <div className="crm-actions"><button type="button" onClick={() => setEditing(true)}>ویرایش</button>{organization.archivedAt ? <button type="button" onClick={() => void archiveOrganization(false)}>بازیابی سازمان</button> : confirmOrgArchive ? <><span>بایگانی شود؟</span><button type="button" onClick={() => void archiveOrganization(true)}>بله، بایگانی کن</button><button type="button" onClick={() => setConfirmOrgArchive(false)}>انصراف</button></> : <button type="button" className="crm-danger" onClick={() => setConfirmOrgArchive(true)}>بایگانی سازمان</button>}</div>}</header>
+    {editing && canManage ? <OrganizationFields values={orgValues} field={(key) => (event) => { const next = { ...orgValues, [key]: event.target.value }; setOrganization({ ...organization, ...next, tenant: organization.tenant }); }} onSubmit={async (event) => { event.preventDefault(); try { await updateOrg(orgValues); } catch (reason) { setError((reason as Error).message); } }} saving={false} error="" submitLabel="ذخیره تغییرات" /> : <section className="detail crm-org-detail"><header><div><h1>{organization.name}</h1><p>{organization.city || "شهر ثبت نشده"} · {organization.archivedAt ? "بایگانی‌شده" : "فعال"}</p></div>{canManage && <div className="crm-actions"><button type="button" onClick={() => setEditing(true)}>ویرایش</button>{organization.archivedAt ? <button type="button" onClick={() => void archiveOrganization(false)}>بازیابی سازمان</button> : confirmOrgArchive ? <><span>بایگانی شود؟</span><button type="button" onClick={() => void archiveOrganization(true)}>بله، بایگانی کن</button><button type="button" onClick={() => setConfirmOrgArchive(false)}>انصراف</button></> : <button type="button" className="crm-danger" onClick={() => setConfirmOrgArchive(true)}>بایگانی سازمان</button>}</div>}</header>
       <dl className="crm-facts"><div><dt>وب‌سایت</dt><dd>{organization.website ? <a href={organization.website} target="_blank" rel="noreferrer">{organization.website}</a> : "ثبت نشده"}</dd></div><div><dt>اینستاگرام</dt><dd>{organization.instagram ? <a href={`https://www.instagram.com/${organization.instagram}/`} target="_blank" rel="noreferrer">@{organization.instagram}</a> : "ثبت نشده"}</dd></div><div><dt>کافه متصل در UCafe</dt><dd>{organization.tenant ? `${organization.tenant.name} (${organization.tenant.status})` : "متصل نیست"}</dd></div><div><dt>تاریخ ثبت</dt><dd>{formatDate(organization.createdAt)}</dd></div><div><dt>آخرین تغییر</dt><dd>{formatDate(organization.updatedAt)}</dd></div></dl>
     </section>}
-    <Organization360 key={organizationId} api={api} organizationId={organizationId} />
+    <Organization360 key={organizationId} api={api} organizationId={organizationId} canLinkTenant={canLinkTenant} canViewCustomerContext={canViewCustomerContext} canViewTenant={canViewTenant} canCreateTenant={canCreateTenant} organizationArchived={Boolean(organization.archivedAt)} onTenantLinkChanged={load} />
     <section className="crm-contacts" id="crm-contacts" aria-labelledby="crm-contacts-title"><header className="crm-section-heading"><div><h2 id="crm-contacts-title">ارتباط‌ها</h2><p>افرادی که با این کسب‌وکار در ارتباط هستند.</p></div>{canManage && !organization.archivedAt && <button type="button" onClick={() => setContactEditor({})}>افزودن ارتباط</button>}</header>
       {contactEditor && <ContactEditor key={contactEditor.id ?? "new"} api={api} organizationId={organizationId} contactId={contactEditor.id} onCancel={() => setContactEditor(null)} onSaved={async () => { setContactEditor(null); setNotice("اطلاعات ارتباط ذخیره شد."); await load(); }} />}
       <div className="crm-contact-filters"><label>جست‌وجوی ارتباط<input value={contactQ} onChange={(event) => { setContactQ(event.target.value); setContactPage(1); }} placeholder="نام، عنوان، شماره یا ایمیل" /></label><label>نمایش<select value={contactArchive} onChange={(event) => { setContactArchive(event.target.value); setContactPage(1); }}><option value="ACTIVE">فعال</option><option value="ARCHIVED">بایگانی‌شده</option><option value="ALL">همه</option></select></label></div>

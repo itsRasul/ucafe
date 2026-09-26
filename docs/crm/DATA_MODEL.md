@@ -1,6 +1,6 @@
 # Conceptual data model
 
-Phase 1 adds `crm_organizations` and `crm_contacts` through migration `1790510000000-CreatePlatformCrmOrganizationsAndContacts`. Phase 2 adds `crm_leads` and `crm_lead_status_history` through `1790520000000-CreatePlatformCrmLeads`. Phase 3 adds `crm_deals` and `crm_deal_stage_history` through `1790530000000-CreatePlatformCrmDeals`. Phase 4 adds `crm_activities`, `crm_tasks`, and `crm_notes` through `1790540000000-CreatePlatformCrmWorkRecords`.
+Phase 1 adds `crm_organizations` and `crm_contacts` through migration `1790510000000-CreatePlatformCrmOrganizationsAndContacts`. Phase 2 adds `crm_leads` and `crm_lead_status_history` through `1790520000000-CreatePlatformCrmLeads`. Phase 3 adds `crm_deals` and `crm_deal_stage_history` through `1790530000000-CreatePlatformCrmDeals`. Phase 4 adds `crm_activities`, `crm_tasks`, and `crm_notes` through `1790540000000-CreatePlatformCrmWorkRecords`. Phase 6 adds the platform `subscriptions.read` permission in `1790550000000-CrmCustomerContext`; it adds no CRM customer-state tables or copied subscription fields.
 
 ~~~mermaid
 erDiagram
@@ -64,7 +64,7 @@ Do not store a second copy of Tenant status, subscription dates, plan features, 
 ## Relationships and constraints
 
 - Every Contact and Deal is rooted in one Organization. Activities, Tasks, and Notes may link to an Organization, Contact, Lead, or Deal. Contact/Deal and already-converted Lead associations must agree on Organization. Lead-only work may exist before conversion without an Organization; after conversion, reads resolve its Organization through the Lead. A Lead may start without canonical links and can optionally link an Organization and Contact. Conversion requires a matched or newly created Organization and a Contact belonging to it. A Contact belongs to one Organization; duplicate people across Organizations remain separate commercial contexts.
-- CRM Organization to coffee_shop is optional one-to-one for the initial UCafe model. Use a nullable unique Tenant FK with RESTRICT semantics; do not add a reverse owner field to coffee_shops.
+- CRM Organization to coffee_shop is optional one-to-one for the initial UCafe model. Use a nullable unique Tenant FK with RESTRICT semantics; do not add a reverse owner field to coffee_shops. Link/unlink is an explicit CRM operation with a transactional audit association; it never updates or deletes Tenant state.
 - CRM Lead to platform_order_request is optional one-to-one and unique on source_request_id. Public consultation acceptance creates one linked Lead in the same transaction; prior requests are not backfilled. Preserve the current table and endpoints.
 - Conversion locks the Lead row. Organization, Contact, status, timestamp, history, and audit changes commit in one transaction; retry returns existing links without creating duplicates. Phase 3 can add a Deal relationship without changing Lead conversion history.
 - Use foreign keys and constraints for Organization ownership, unique tenant/source links, enum/check validity, valid amount ranges, and required terminal timestamps.

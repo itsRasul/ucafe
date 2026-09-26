@@ -16,6 +16,9 @@ import { CrmTaskService } from "./crm-task.service";
 import { CrmNoteService } from "./crm-note.service";
 import { CrmOrganization360Service } from "./crm-organization-360.service";
 import { CrmTimelineService } from "./crm-timeline.service";
+import { CrmCustomerContextService } from "./crm-customer-context.service";
+import { SubscriptionsModule } from "../subscriptions/subscriptions.module";
+import { TenantsModule } from "../tenants/tenants.module";
 
-@Module({ imports: [TypeOrmModule.forFeature([CrmOrganization, CrmContact, CrmLead, CrmLeadStatusHistory, CrmDeal, CrmDealStageHistory, CrmActivity, CrmTask, CrmNote]), AuthModule, AuthorizationModule, AuditModule], controllers: [CrmController, CrmLeadController, CrmDealController, CrmWorkController], providers: [CrmService, CrmLeadService, CrmDealService, CrmActivityService, CrmTaskService, CrmNoteService, CrmOrganization360Service, CrmTimelineService], exports: [CrmLeadService] })
+@Module({ imports: [TypeOrmModule.forFeature([CrmOrganization, CrmContact, CrmLead, CrmLeadStatusHistory, CrmDeal, CrmDealStageHistory, CrmActivity, CrmTask, CrmNote]), AuthModule, AuthorizationModule, AuditModule, TenantsModule, SubscriptionsModule], controllers: [CrmController, CrmLeadController, CrmDealController, CrmWorkController], providers: [CrmService, CrmLeadService, CrmDealService, CrmActivityService, CrmTaskService, CrmNoteService, CrmOrganization360Service, CrmTimelineService, CrmCustomerContextService], exports: [CrmLeadService] })
 export class CrmModule {}

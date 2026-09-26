@@ -31,7 +31,7 @@ test("CRM organization/contact persistence, duplicate candidates, PII projection
     })));
     const marker = `crm-test-${crypto.randomUUID()}`;
 
-    const organization = await service.createOrganization({ name: marker, city: "Tehran", website: "WWW.Example.com/?utm_source=test", instagram: "@crm.test", coffeeShopId: null }, actorId);
+    const organization = await service.createOrganization({ name: marker, city: "Tehran", website: "WWW.Example.com/?utm_source=test", instagram: "@crm.test" }, actorId);
     organizationIds.push(organization.id);
     assert.equal(organization.website, "https://www.example.com");
     assert.equal(organization.instagram, "crm.test");
@@ -60,13 +60,22 @@ test("CRM organization/contact persistence, duplicate candidates, PII projection
     assert.equal(updated.role, "مالک");
     assert.equal(updated.email, null);
 
-    const tenants = await dataSource.query<Array<{ id: string }>>("SELECT id FROM coffee_shops WHERE deleted_at IS NULL ORDER BY created_at LIMIT 1");
+    const tenants = await dataSource.query<Array<{ id: string }>>("SELECT s.id FROM coffee_shops s LEFT JOIN crm_organizations o ON o.coffee_shop_id=s.id WHERE s.deleted_at IS NULL AND o.id IS NULL ORDER BY s.created_at LIMIT 1");
     if (tenants[0]) {
-      const linked = await service.createOrganization({ name: `${marker}-linked`, coffeeShopId: tenants[0].id }, actorId);
+      const linked = await service.createOrganization({ name: `${marker}-linked` }, actorId);
       organizationIds.push(linked.id);
+      await service.linkOrganizationTenant(linked.id, tenants[0].id, actorId);
+      assert.equal((await service.getOrganization(linked.id)).coffeeShopId, tenants[0].id);
       assert.equal((await service.listTenantLinkCandidates()).some((tenant) => tenant.id === tenants[0]!.id), false);
       assert.equal((await service.listTenantLinkCandidates(linked.id)).some((tenant) => tenant.id === tenants[0]!.id), true);
-      await assert.rejects(service.createOrganization({ name: `${marker}-second-link`, coffeeShopId: tenants[0].id }, actorId), { status: 409 });
+      const second = await service.createOrganization({ name: `${marker}-second-link` }, actorId);
+      organizationIds.push(second.id);
+      await assert.rejects(service.linkOrganizationTenant(second.id, tenants[0].id, actorId), { status: 409 });
+      await service.unlinkOrganizationTenant(linked.id, actorId);
+      assert.equal((await service.getOrganization(linked.id)).coffeeShopId, null);
+      assert.equal((await service.listTenantLinkCandidates()).some((tenant) => tenant.id === tenants[0]!.id), true);
+      const linkHistory = await dataSource.query<Array<{ action: string; summary: Record<string, string> }>>("SELECT action,summary FROM platform_audit_events WHERE target_type='crm_organization' AND target_id=$1 AND action IN ('crm.organization.tenant_linked','crm.organization.tenant_unlinked') ORDER BY created_at", [linked.id]);
+      assert.deepEqual(linkHistory.map((row) => [row.action, row.summary.coffeeShopId]), [["crm.organization.tenant_linked", tenants[0].id], ["crm.organization.tenant_unlinked", tenants[0].id]]);
     }
     await assert.rejects(service.createContact(crypto.randomUUID(), { name: "Invalid parent" }, actorId), { status: 404 });
 

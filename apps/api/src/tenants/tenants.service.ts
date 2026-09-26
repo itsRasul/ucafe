@@ -43,6 +43,19 @@ export class TenantsService {
     return { id: shop.id, name: shop.name, slug: shop.slug, status: shop.status, defaultLocale: shop.defaultLocale, timezone: shop.timezone, createdAt: shop.createdAt, publishedAt: shop.publishedAt, suspendedAt: shop.suspendedAt, branch: branch ? { id: branch.id, name: branch.name, phone: branch.phone, address: branch.address, isActive: branch.isActive } : null, domain: domain ? { hostname: domain.hostname, status: domain.status } : null, memberships: memberships.map((membership) => ({ id: membership.id, status: membership.status, invitedAt: membership.invitedAt, acceptedAt: membership.acceptedAt })) };
   }
 
+  async getCrmContext(coffeeShopId: string) {
+    const rows = await this.dataSource.query<Array<Record<string, any>>>(`
+      SELECT s.id, s.name, s.slug, s.status, s.created_at AS "createdAt", s.published_at AS "publishedAt",
+        s.suspended_at AS "suspendedAt", s.archived_at AS "archivedAt", s.deleted_at AS "deletedAt",
+        d.hostname
+      FROM coffee_shops s
+      LEFT JOIN domains d ON d.coffee_shop_id=s.id AND d.is_primary=TRUE AND d.status='ACTIVE' AND d.deleted_at IS NULL
+      WHERE s.id=$1
+    `, [coffeeShopId]);
+    if (!rows[0]) throw new NotFoundException("Tenant not found");
+    return rows[0];
+  }
+
   async provision(input: ProvisionTenantInput): Promise<ProvisionedTenant> {
     const name = input.name.trim();
     const slug = input.slug.trim().toLowerCase();

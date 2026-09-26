@@ -6,7 +6,7 @@ Platform CRM is a platform-domain workspace for managing UCafe's commercial rela
 
 CRM owns sales context and workflow. It does not own Tenant identity/lifecycle, subscriptions/trials/plans, payments/invoices, platform or tenant authentication, cafe Clients, promotion segments, or Tenant Analytics.
 
-Phases 1–5 implement Organization, Contact, Lead, Deal, Activity, Task, Note, their relevant histories, Unified Timeline, and Organization 360. The latter two are application projections, not domain entities. Current fields and persistence choices are listed in [DATA_MODEL.md](DATA_MODEL.md).
+Phases 1–6 implement Organization, Contact, Lead, Deal, Activity, Task, Note, their relevant histories, Unified Timeline, Organization 360, and a read-only Tenant/Trial/Subscription customer context. The views are application projections, not domain entities. Current fields and persistence choices are listed in [DATA_MODEL.md](DATA_MODEL.md).
 
 ## Concepts
 
@@ -21,8 +21,8 @@ Phases 1–5 implement Organization, Contact, Lead, Deal, Activity, Task, Note, 
 | Note | Plain-text internal business context authored by platform staff, with explicit edit/archive metadata. | Explicit optional Organization, Contact, Lead, and Deal FKs; at least one context is required. A Lead-only association is valid before conversion. | Not an Activity, customer-facing message, or a payment/subscription memo. |
 | Lead status history | Append-only record of each Lead status transition, actor, timestamp, and optional reason. | Belongs to one Lead. | Not a general event bus or replacement for the current Lead status. |
 | Deal stage history | Append-only record of each stage transition, actor, timestamp, and optional reason. | Belongs to one Deal. | Not Subscription history or a financial ledger. |
-| Unified Timeline | Normalized chronological application view of selected CRM history and work records. | Derived from explicit Organization/Contact/Lead/Deal links and source histories. | Not a persisted entity, event bus, or replacement for source records. |
-| Organization 360 | Bounded composed view of Organization, associated CRM records, derived summary facts, and a paginated Timeline. | Read-only application layer over existing source modules. | Not a second Organization model or owner of Tenant/Subscription state. |
+| Unified Timeline | Normalized chronological application view of selected CRM history/work records and durable customer facts. | Derived from CRM histories, explicit Tenant-link audit records, Tenant creation, Trial start, and successful paid Subscription operations. | Not a persisted entity, event bus, generic audit feed, or replacement for source records. |
+| Organization 360 | Bounded composed view of Organization, associated CRM records, derived summary facts, a paginated Timeline, and authorized live customer context. | Read-only application layer over Tenant and Subscription projections; link/unlink uses an explicit CRM operation. | Not a second Organization model or owner of Tenant/Subscription state. |
 
 An Organization is a long-lived business identity. A Lead is one sales engagement; the same Organization may have separate Leads over time. A Deal is a specific opportunity. After a closed opportunity, a future renewal or reactivation pursuit should create a new Deal rather than reopen a closed historical one.
 
@@ -39,6 +39,7 @@ The Lead is never deleted as a side effect of conversion. Detailed state transit
 - Lead is not Organization; one business can have many sales engagements.
 - Lead is not a consultation request; a form request is source/intake evidence linked to one Lead.
 - Deal is not Subscription, Trial, Invoice, or Payment; CRM amount is an estimate and CRM outcome is a sales decision.
+- An explicit Organization/Tenant link is an association only. It does not provision or change Tenant state, create a Trial, or establish a sales outcome.
 - Lead status is not Deal stage; Deal stage is not Deal outcome.
 - Activity is something that happened. Task is something that needs to happen.
 - Follow-up is a CRM Task with kind `FOLLOW_UP`; it is not a separate domain or reminder job.

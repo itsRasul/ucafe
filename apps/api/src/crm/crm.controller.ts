@@ -1,14 +1,15 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
 import { AccessTokenGuard } from "../auth/access-token.guard";
 import { AUTH_PRINCIPAL, AuthorizedRequest } from "../authorization/auth-principal";
 import { RequirePlatformPermissions } from "../authorization/authorization.decorators";
 import { PlatformPermissionGuard } from "../authorization/platform-permission.guard";
 import { PlatformPermissions } from "../authorization/permission.constants";
-import { ContactDuplicateQueryDto, CreateContactDto, CreateOrganizationDto, CrmContactListQueryDto, CrmListQueryDto, OrganizationDuplicateQueryDto, TenantLinkCandidatesQueryDto, UpdateContactDto, UpdateOrganizationDto } from "./dto/crm.dto";
+import { ContactDuplicateQueryDto, CreateContactDto, CreateOrganizationDto, CrmContactListQueryDto, CrmListQueryDto, LinkTenantDto, OrganizationDuplicateQueryDto, TenantLinkCandidatesQueryDto, UpdateContactDto, UpdateOrganizationDto } from "./dto/crm.dto";
 import { CrmService } from "./crm.service";
 import { CrmTimelineQueryDto } from "./dto/crm-timeline.dto";
 import { CrmTimelineService } from "./crm-timeline.service";
 import { CrmOrganization360Service } from "./crm-organization-360.service";
+import { CrmCustomerContextService } from "./crm-customer-context.service";
 
 @Controller("platform/crm")
 @UseGuards(AccessTokenGuard, PlatformPermissionGuard)
@@ -17,6 +18,7 @@ export class CrmController {
     private readonly crm: CrmService,
     private readonly organization360: CrmOrganization360Service,
     private readonly timeline: CrmTimelineService,
+    private readonly customerContext: CrmCustomerContextService,
   ) {}
 
   @Get("organizations") @RequirePlatformPermissions(PlatformPermissions.CrmRead)
@@ -37,11 +39,20 @@ export class CrmController {
   @Get("organizations/:organizationId/overview") @RequirePlatformPermissions(PlatformPermissions.CrmRead)
   organizationOverview(@Param("organizationId", ParseUUIDPipe) id: string) { return this.organization360.overview(id); }
 
-  @Get("organizations/:organizationId/timeline") @RequirePlatformPermissions(PlatformPermissions.CrmRead)
+  @Get("organizations/:organizationId/customer-context") @RequirePlatformPermissions(PlatformPermissions.CrmRead, PlatformPermissions.SubscriptionsRead)
+  organizationCustomerContext(@Param("organizationId", ParseUUIDPipe) id: string) { return this.customerContext.get(id); }
+
+  @Get("organizations/:organizationId/timeline") @RequirePlatformPermissions(PlatformPermissions.CrmRead, PlatformPermissions.SubscriptionsRead)
   organizationTimeline(@Param("organizationId", ParseUUIDPipe) id: string, @Query() query: CrmTimelineQueryDto) { return this.timeline.list(id, query); }
 
   @Patch("organizations/:organizationId") @RequirePlatformPermissions(PlatformPermissions.CrmManage)
   updateOrganization(@Param("organizationId", ParseUUIDPipe) id: string, @Body() input: UpdateOrganizationDto, @Req() req: AuthorizedRequest) { return this.crm.updateOrganization(id, input, req[AUTH_PRINCIPAL]!.userId); }
+
+  @Post("organizations/:organizationId/tenant-link") @RequirePlatformPermissions(PlatformPermissions.CrmManage, PlatformPermissions.TenantsRead)
+  linkOrganizationTenant(@Param("organizationId", ParseUUIDPipe) id: string, @Body() input: LinkTenantDto, @Req() req: AuthorizedRequest) { return this.crm.linkOrganizationTenant(id, input.coffeeShopId, req[AUTH_PRINCIPAL]!.userId); }
+
+  @Delete("organizations/:organizationId/tenant-link") @RequirePlatformPermissions(PlatformPermissions.CrmManage, PlatformPermissions.TenantsRead)
+  unlinkOrganizationTenant(@Param("organizationId", ParseUUIDPipe) id: string, @Req() req: AuthorizedRequest) { return this.crm.unlinkOrganizationTenant(id, req[AUTH_PRINCIPAL]!.userId); }
 
   @Post("organizations/:organizationId/archive") @RequirePlatformPermissions(PlatformPermissions.CrmManage)
   archiveOrganization(@Param("organizationId", ParseUUIDPipe) id: string, @Req() req: AuthorizedRequest) { return this.crm.archiveOrganization(id, req[AUTH_PRINCIPAL]!.userId); }
