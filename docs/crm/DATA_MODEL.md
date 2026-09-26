@@ -1,6 +1,6 @@
 # Conceptual data model
 
-Phase 1 adds `crm_organizations` and `crm_contacts` through migration `1790510000000-CreatePlatformCrmOrganizationsAndContacts`. Phase 2 adds Leads, Phase 3 adds Deals, Phase 4 adds work records, and Phase 6 adds the `subscriptions.read` permission without copied customer-state columns. Phase 7 adds typed metadata, tags, saved views, and dynamic segments in `1790560000000-PlatformCrmFieldsTagsViewsSegments`.
+Phase 1 adds `crm_organizations` and `crm_contacts` through migration `1790510000000-CreatePlatformCrmOrganizationsAndContacts`. Phase 2 adds Leads, Phase 3 adds Deals, Phase 4 adds work records, Phase 6 adds the `subscriptions.read` permission without copied customer-state columns, and Phase 7 adds typed metadata, Tags, saved views, and Segments in `1790560000000-PlatformCrmFieldsTagsViewsSegments`. Phase 8 adds persisted Lead score, rule, and change-history tables in `1790570000000-PlatformCrmLeadScoring`.
 
 ~~~mermaid
 erDiagram
@@ -48,6 +48,10 @@ All new CRM primary keys should be UUIDs. Use explicit snake_case table/column n
 | CRM Tag and assignment | `crm_tags`, `crm_entity_tags` | Normalized, unique CRM-wide tags. A check plus four nullable FKs requires each assignment to target exactly one supported record. Archiving a Tag retains assignments. |
 | CRM Saved View (`crm_saved_views`) | name, entity type, PRIVATE/SHARED visibility, owner, filter/query/sort JSONB, archive state | Private views are visible to their owner; shared views are visible to CRM readers. Only the owner can update/archive. Stores criteria, never result IDs. |
 | CRM Segment (`crm_segments`) | name, entity type, filter JSONB, optional description, creator, archive state | Dynamic named filter; preview and record queries execute against current CRM rows. No membership table or outbound campaign integration. |
+| CRM scoring state (`crm_scoring_state`) | Singleton row with monotonically increasing configuration version | Serializes rule changes and identifies the rule version used for current scores. |
+| CRM scoring rule (`crm_scoring_rules`) | category, shared filter criteria JSONB, points, enable/archive state, order, audit users | Lead-only FIT or ENGAGEMENT rule. Conditions reuse the bounded Phase 7 AST; no score fields or free-form SQL are permitted. |
+| CRM Lead score (`crm_lead_scores`) | Lead FK, bounded Fit/Engagement/Overall smallints, configured flag, version, breakdown JSONB, calculated_at | One current projection per Lead for quick list sorting/filtering. Contributions preserve rule IDs/names/categories/points. |
+| CRM Lead score history (`crm_lead_score_history`) | Lead FK, score snapshots, prior Overall, version, reason, breakdown, timestamp | Append-only only when score, configuration version, configured state, or explanation changes. |
 
 ### Phase 3 schema actually installed
 
@@ -73,6 +77,13 @@ Do not store a second copy of Tenant status, subscription dates, plan features, 
 - `crm_entity_tags` uses explicit target columns and foreign keys (one of Organization, Contact, Lead, or Deal); this avoids a polymorphic reference with no database integrity. `crm_tags.normalized_name` is unique. Tag archive is soft and keeps assignments.
 - Saved View filters and Segment filters share one versioned, flat AND/OR AST, with at most 20 conditions and no nested expressions. SQL field expressions and sort fields come from a per-entity allowlist; all user values are SQL parameters. List row access remains bounded and server-side.
 - Saved Views persist query-state values (such as status/search/archive filters) separately from the typed AST and sort. PRIVATE/SHARED visibility is not record-level CRM access control. Segment rows store criteria only; previews/counts and paged records are recalculated on read.
+
+### Phase 8 scoring schema
+
+- Rule criteria target Leads and reuse the existing Lead field registry, typed operators, active Tag IDs, custom-field definitions/options, and parameterized compiler. At most 100 rules can be enabled; points are signed integers from -100 through 100 and sort order is stable.
+- Scores are persisted for sorting/filtering. Each component is the sum of matching signed contributions clamped to 0–100; Overall is the rounded arithmetic mean of both component scores. `configured=false` distinguishes no active rule from a real zero.
+- History has a restrictive FK to Lead and is written only when the persisted score/configuration/explanation changes. Converted and archived Leads retain their last snapshot; only active, unconverted Leads are recalculated.
+- Indexes cover each score sort key and Lead history order. Recalculation is batched in groups of 100; synchronous rule changes cap at 5,000 active Leads. A periodic job handles relative-activity rules in keyset batches and uses a PostgreSQL advisory lock.
 
 ## Relationships and constraints
 

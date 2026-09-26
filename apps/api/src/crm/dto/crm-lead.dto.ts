@@ -18,7 +18,7 @@ export class CrmLeadListQueryDto {
   @IsOptional() @IsUUID() organizationId?: string;
   @IsOptional() @Transform(trim) @IsString() @MaxLength(100) city?: string;
   @IsOptional() @IsIn(["ACTIVE", "ARCHIVED", "ALL"]) archiveStatus: "ACTIVE" | "ARCHIVED" | "ALL" = "ACTIVE";
-  @IsOptional() @IsIn(["createdAt", "updatedAt", "priority", "status"]) sort: "createdAt" | "updatedAt" | "priority" | "status" = "createdAt";
+  @IsOptional() @IsIn(["createdAt", "updatedAt", "priority", "status", "overallScore", "fitScore", "engagementScore"]) sort: "createdAt" | "updatedAt" | "priority" | "status" | "overallScore" | "fitScore" | "engagementScore" = "createdAt";
   @IsOptional() @IsIn(["ASC", "DESC"]) direction: "ASC" | "DESC" = "DESC";
   @IsOptional() @Type(() => Number) @Min(1) page = 1;
   @IsOptional() @Type(() => Number) @Min(1) @Max(100) pageSize = 25;

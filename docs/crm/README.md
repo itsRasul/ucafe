@@ -1,6 +1,6 @@
 # UCafe Platform CRM
 
-**Status:** Phases 0–7 are implemented: Organizations & Contacts, Leads, Deals and Pipeline, Activities, Tasks, Notes, Unified Timeline, Organization 360, read-only Tenant/Trial/Subscription context, custom fields, tags, saved views, and dynamic Segments. CRM sales analytics, prioritization, and workflow automation remain later work.
+**Status:** Phases 0–8 are implemented: Organizations & Contacts, Leads, Deals and Pipeline, Activities, Tasks, Notes, Unified Timeline, Organization 360, read-only Tenant/Trial/Subscription context, custom fields, Tags, saved views, dynamic Segments, and explainable Lead scoring. Workflow automation and CRM analytics remain later work.
 
 ## Purpose and boundary
 
@@ -23,6 +23,7 @@ CRM is a platform-only module in the existing API and web application. Phase 2 a
 - **Organization:** the café business UCafe is pursuing or serving. It may exist before tenant provisioning.
 - **Contact:** a person UCafe communicates with for an Organization.
 - **Lead:** a sales follow-up record for one potential purchase or engagement. Its status is separate from Deal stage and Tenant state.
+- **Lead score:** persisted, deterministic Fit and Engagement scores plus an Overall score and rule contribution snapshot. It assists human prioritization; it is independent from manual priority and lifecycle state.
 - **Deal:** a sales opportunity linked to an Organization, with its own pipeline stage and outcome.
 - **Activity:** a historical interaction that happened, with `occurredAt`, type-specific outcome, and actor.
 - **Task:** future/outstanding work with due time, assignee, priority, and explicit lifecycle. Follow-up is a Task kind; overdue is derived from its open status and due time.
@@ -32,6 +33,8 @@ CRM is a platform-only module in the existing API and web application. Phase 2 a
 - **Tag:** a normalized, shared label that may be assigned to any supported CRM record. Archived tags retain assignments and disappear from new choices.
 - **Saved view:** an owned PRIVATE or CRM-wide SHARED filter set. It stores filter criteria, ordinary list filters, and an allowlisted sort; it never stores record IDs.
 - **Segment:** a named, dynamic filter over one supported CRM record type. Membership is recalculated from the current database on preview and page reads; it is not a campaign audience or persisted membership list.
+
+Scoring rules reuse the Phase 7 flat AND/OR Lead filter criteria and custom-field/Tag validation. Score itself is available to Saved Views and Segments, but score fields are prohibited in scoring rules to prevent recursion. See [SCORING.md](SCORING.md).
 
 Phase 1 implements Organization and Contact. Phase 2 adds Lead snapshots, exact duplicate warnings, assignment, qualification, unqualification, status history, archive/restore, and conversion to an Organization plus Contact. Conversion itself creates no Deal; Phase 3 allows an operator to explicitly create a Deal from a qualified or converted Lead already linked to an Organization. Lead phone/email are encrypted at rest with keyed exact-match hashes. Contacts do not carry a decision-maker boolean; use the person's business title/role. See [DATA_MODEL.md](DATA_MODEL.md), [LIFECYCLE.md](LIFECYCLE.md), [API.md](API.md), and [UX.md](UX.md) for the implemented contract.
 
@@ -49,8 +52,8 @@ Tenant, Subscription, Trial, Plan, and Payment facts remain with their existing 
 2. [DOMAIN_MODEL.md](DOMAIN_MODEL.md) and [DATA_MODEL.md](DATA_MODEL.md) — ownership and relationships
 3. [LIFECYCLE.md](LIFECYCLE.md), [PIPELINE.md](PIPELINE.md), [ACTIVITIES.md](ACTIVITIES.md), and [TASKS.md](TASKS.md) — implemented lifecycles
 4. [INTEGRATIONS.md](INTEGRATIONS.md), [EVENTS.md](EVENTS.md), and [PERMISSIONS.md](PERMISSIONS.md) — boundaries and access
-5. [API.md](API.md), [CUSTOM_FIELDS.md](CUSTOM_FIELDS.md), [FILTERING.md](FILTERING.md), [SEGMENTATION.md](SEGMENTATION.md), and [UX.md](UX.md) — Phase 7 contracts and screens
+5. [API.md](API.md), [CUSTOM_FIELDS.md](CUSTOM_FIELDS.md), [FILTERING.md](FILTERING.md), [SEGMENTATION.md](SEGMENTATION.md), [SCORING.md](SCORING.md), and [UX.md](UX.md) — metadata, filters, scores, and screens
 6. [TIMELINE.md](TIMELINE.md), [ANALYTICS.md](ANALYTICS.md), [TESTING.md](TESTING.md), and [PHASES.md](PHASES.md) — read views, verification, and roadmap
-7. [ADR-007](ADR-007-custom-field-storage.md) and [DECISIONS.md](../DECISIONS.md) — CRM architecture decisions D-073 through D-081
+7. [ADR-007](ADR-007-custom-field-storage.md), [ADR-008](ADR-008-lead-scoring-persistence.md), and [DECISIONS.md](../DECISIONS.md) — CRM architecture decisions D-073 through D-082
 
 Before implementing any CRM change, read this README and the relevant documents above, then inspect current code and migrations. Changes to CRM lifecycle, data ownership, APIs, integrations, or permissions must update the relevant CRM document and root decisions when the architecture changes.

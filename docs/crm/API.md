@@ -201,6 +201,23 @@ Organization, Contact, Lead, and Deal list routes accept an optional `filter` qu
 
 Selecting a Saved View adds its ID as the list URL's `savedView` parameter; refreshing that URL restores the view and reruns its current query. The raw ad-hoc AST remains in list component state until saved. Segment detail is rendered at `/platform/crm/segments/:id`; its member list uses the paginated records endpoint.
 
+## Phase 8 Lead scoring
+
+~~~text
+GET    /api/v1/platform/crm/scoring/rules
+POST   /api/v1/platform/crm/scoring/rules
+POST   /api/v1/platform/crm/scoring/rules/preview
+PATCH  /api/v1/platform/crm/scoring/rules/:id
+POST   /api/v1/platform/crm/scoring/rules/:id/archive
+GET    /api/v1/platform/crm/leads/:leadId/score
+POST   /api/v1/platform/crm/leads/:leadId/recalculate-score
+POST   /api/v1/platform/crm/scoring/recalculate
+~~~
+
+Rule bodies contain a name, optional description, `FIT|ENGAGEMENT` category, the shared version-1 flat Lead filter AST, signed integer points (-100..100), optional enabled state, and sort order (0..10000). Only active definitions, Tag IDs, and select options are accepted at creation/update; criteria referencing inactive/archived fields are retained but do not contribute, and rule reads return a configuration warning. Rules cannot reference score-derived fields. At most 100 rules may be enabled. Rule archive is soft and triggers recalculation.
+
+`crm.read` can list rules, preview matches, and read a Lead score plus its last 10 change snapshots. `crm.manage` is required to create/update/archive rules and request recalculation. Lead list routes accept score fields through the existing `filter` AST and score keys as server-side sort values. See [SCORING.md](SCORING.md) for formula, supported source fields, refresh policy, and conversion semantics.
+
 ## Errors and archive behavior
 
 Use standard Nest status behavior: 400 invalid input, 401 missing/invalid authentication, 403 missing permission, 404 a missing CRM or Tenant record, and 409 a uniqueness/stale-stage conflict or update attempted on an archived record. Archive/restore are idempotent, preserve related records, and are audited with PII-free summaries. Archived rows stay readable for restore; list filters default to active rows. Archiving an Organization does not archive its Contacts, and no parent delete cascades.

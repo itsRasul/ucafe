@@ -1,8 +1,9 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import { DataSource, EntityManager } from "typeorm";
 import { normalizeCrmComparable, normalizeCrmName } from "./crm-normalization.util";
 import { CrmCustomFieldDefinition, CrmCustomFieldEntityType, CrmCustomFieldOption, CrmCustomFieldType } from "./entities/crm-custom-field.entity";
 import { CreateCrmCustomFieldDto, CreateCrmTagDto, UpdateCrmCustomFieldDto, UpdateCrmTagDto } from "./dto/crm-metadata.dto";
+import { CrmScoringService } from "./crm-scoring.service";
 
 type Row = Record<string, any>;
 type Db = DataSource | EntityManager;
@@ -17,7 +18,7 @@ const selectTypes = [CrmCustomFieldType.SingleSelect, CrmCustomFieldType.MultiSe
 
 @Injectable()
 export class CrmMetadataService {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(private readonly dataSource: DataSource, @Optional() private readonly scoring?: CrmScoringService) {}
 
   async listFields(entityType: CrmCustomFieldEntityType, includeInactive = false) {
     return this.listFieldsWith(this.dataSource, entityType, includeInactive);
@@ -82,6 +83,7 @@ export class CrmMetadataService {
           input.required ?? current.required, input.active ?? current.active, input.sortOrder ?? current.sort_order,
         ]);
         await this.audit(manager, actorId, "crm.custom_field.updated", "crm_custom_field_definition", id);
+        if (current.entity_type === "LEAD") await this.scoring?.recalculateAllIn(manager, "CUSTOM_FIELD_CHANGED");
         return this.loadField(manager, id);
       });
     } catch (error) { this.rethrowConflict(error, "Custom field update conflicts with existing data"); }
@@ -89,11 +91,12 @@ export class CrmMetadataService {
 
   async archiveField(id: string, actorId: string) {
     return this.dataSource.transaction(async (manager) => {
-      const rows = await manager.query<Row[]>("SELECT id,archived_at FROM crm_custom_field_definitions WHERE id=$1 FOR UPDATE", [id]);
+      const rows = await manager.query<Row[]>("SELECT id,entity_type,archived_at FROM crm_custom_field_definitions WHERE id=$1 FOR UPDATE", [id]);
       if (!rows[0]) throw new NotFoundException("CRM custom field not found");
       if (!rows[0].archived_at) {
         await manager.query("UPDATE crm_custom_field_definitions SET active=FALSE,archived_at=now(),updated_at=now() WHERE id=$1", [id]);
         await this.audit(manager, actorId, "crm.custom_field.archived", "crm_custom_field_definition", id);
+        if (rows[0].entity_type === "LEAD") await this.scoring?.recalculateAllIn(manager, "CUSTOM_FIELD_CHANGED");
       }
         return this.loadField(manager, id);
     });
@@ -139,6 +142,7 @@ export class CrmMetadataService {
       }
       await manager.query(`UPDATE ${target.table} SET custom_fields=$2::jsonb,updated_at=now()${entityType === "ORGANIZATION" || entityType === "CONTACT" || entityType === "LEAD" || entityType === "DEAL" ? ",updated_by_user_id=$3" : ""} WHERE id=$1`, [recordId, JSON.stringify(values), actorId]);
       await this.audit(manager, actorId, "crm.custom_fields.updated", target.auditType, recordId, { changedFields: Object.keys(input).length });
+      if (entityType === "LEAD") await this.scoring?.recalculateLead(recordId, "CUSTOM_FIELD_CHANGED", manager);
       return this.getRecordFields(entityType, recordId, manager);
     });
   }
@@ -177,6 +181,7 @@ export class CrmMetadataService {
       const result = await manager.query<Row[]>("UPDATE crm_tags SET active=FALSE,archived_at=COALESCE(archived_at,now()),updated_at=now() WHERE id=$1 RETURNING id", [id]);
       if (!result[0]) throw new NotFoundException("CRM tag not found");
       await this.audit(manager, actorId, "crm.tag.archived", "crm_tag", id);
+      await this.scoring?.recalculateAllIn(manager, "TAG_CHANGED");
       return this.getTag(id, manager);
     });
   }
@@ -209,6 +214,7 @@ export class CrmMetadataService {
       for (const tagId of newIds) await manager.query(`INSERT INTO crm_entity_tags(tag_id,${target.column},assigned_by_user_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING`, [tagId, recordId, actorId]);
       const removed = [...current].filter((id) => !requested.has(id)).length;
       if (newIds.length || removed) await this.audit(manager, actorId, "crm.record_tags.updated", target.auditType, recordId, { added: newIds.length, removed });
+      if (entityType === "LEAD" && (newIds.length || removed)) await this.scoring?.recalculateLead(recordId, "TAG_CHANGED", manager);
       return this.getRecordTags(entityType, recordId, manager);
     });
   }

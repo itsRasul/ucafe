@@ -22,7 +22,7 @@ export function isFilterReady(filter: FilterDefinition) {
   });
 }
 
-export function CrmFilterBuilder({ api, entityType, value, onChange }: { api: Api; entityType: CrmEntityType; value: FilterDefinition; onChange: (filter: FilterDefinition) => void }) {
+export function CrmFilterBuilder({ api, entityType, value, onChange, excludeFields = [], heading = "فیلترهای بیشتر", description = "شرط‌های فیلتر روی داده‌های سرور اجرا می‌شوند." }: { api: Api; entityType: CrmEntityType; value: FilterDefinition; onChange: (filter: FilterDefinition) => void; excludeFields?: string[]; heading?: string; description?: string }) {
   const [fields, setFields] = useState<FilterField[]>([]);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -30,10 +30,11 @@ export function CrmFilterBuilder({ api, entityType, value, onChange }: { api: Ap
     void api<FilterField[]>(`/platform/crm/filter-fields?entityType=${entityType}`).then((result) => { if (!cancelled) { setFields(result); setError(""); } }).catch((reason) => { if (!cancelled) setError((reason as Error).message); });
     return () => { cancelled = true; };
   }, [api, entityType]);
-  const fieldFor = (key: string) => fields.find((field) => field.key === key);
+  const availableFields = fields.filter((field) => !excludeFields.includes(field.key));
+  const fieldFor = (key: string) => availableFields.find((field) => field.key === key);
   const update = (index: number, patch: Partial<FilterCondition>) => onChange({ ...value, conditions: value.conditions.map((condition, at) => at === index ? { ...condition, ...patch } : condition) });
   return <section className="crm-filter-builder" aria-labelledby="crm-filter-builder-title">
-    <header><div><h2 id="crm-filter-builder-title">فیلترهای بیشتر</h2><p>شرط‌های فیلتر روی داده‌های سرور اجرا می‌شوند.</p></div><button type="button" className="crm-secondary" disabled={!fields.length} onClick={() => { const field = fields[0]!; const condition: FilterCondition = { field: field.key, operator: field.operators[0]! }; onChange({ ...value, conditions: [...value.conditions, condition] }); }}>افزودن شرط</button></header>
+    <header><div><h2 id="crm-filter-builder-title">{heading}</h2><p>{description}</p></div><button type="button" className="crm-secondary" disabled={!availableFields.length || value.conditions.length >= 20} onClick={() => { const field = availableFields[0]!; const condition: FilterCondition = { field: field.key, operator: field.operators[0]! }; onChange({ ...value, conditions: [...value.conditions, condition] }); }}>افزودن شرط</button></header>
     {error && <p className="message error" role="alert">فیلترها بارگذاری نشدند: {error}</p>}
     {value.conditions.length === 0 ? <p className="crm-filter-empty">هنوز شرطی اضافه نشده است.</p> : <div className="crm-filter-rows">
       {value.conditions.map((condition, index) => {
@@ -42,7 +43,7 @@ export function CrmFilterBuilder({ api, entityType, value, onChange }: { api: Ap
         const noValue = ["isEmpty", "isNotEmpty", "isTrue", "isFalse"].includes(condition.operator);
         return <div className="crm-filter-row" key={`${index}:${condition.field}`}>
           {index > 0 && <span className="crm-filter-join">{value.logic === "AND" ? "و" : "یا"}</span>}
-          <label>فیلد<select value={condition.field} onChange={(event) => { const next = fieldFor(event.target.value); if (next) update(index, { field: next.key, operator: next.operators[0]!, value: undefined }); }}>{fields.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label>
+          <label>فیلد<select value={condition.field} onChange={(event) => { const next = fieldFor(event.target.value); if (next) update(index, { field: next.key, operator: next.operators[0]!, value: undefined }); }}>{availableFields.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label>
           <label>شرط<select value={condition.operator} disabled={!field} onChange={(event) => update(index, { operator: event.target.value, value: undefined })}>{(field?.operators ?? []).map((operator) => <option key={operator} value={operator}>{operatorLabels[operator] ?? operator}</option>)}</select></label>
           {!noValue && field && <ValueControl field={field} condition={condition} onChange={(next) => update(index, { value: next })} />}
           <button type="button" className="crm-filter-remove" aria-label={`حذف شرط ${field?.label ?? "فیلتر"}`} onClick={() => onChange({ ...value, conditions: value.conditions.filter((_, at) => at !== index) })}>حذف</button>

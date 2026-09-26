@@ -21,4 +21,6 @@ Saved Views and Segments share one filter AST but have different purposes. A Sav
 
 Criteria are revalidated when loaded. If an active custom field or Tag used by criteria is archived, the Segment is reported as invalid and its detail explains that criteria need repair. Membership is not silently broadened. Segment counts and records use the same current-data query.
 
-The current filter registry supports Organization Tenant linkage (`tenantLinked`) but not projected current Plan, effective Subscription status, or Trial state. Those facts remain authoritative in the Subscriptions module and CRM has no query projection that can reuse its effective-status lifecycle calculation safely. Relative-date filters, activity aggregates, nested Boolean groups, custom-field sorts, and static membership are not part of Phase 7.
+Lead Segments may filter by persisted Fit, Engagement, and Overall scores and the supported Activity aggregates. Lead score fields can also be used in Saved Views. Score rules cannot depend on scores, preventing circular evaluation; Segments and Saved Views are still ordinary dynamic queries and do not change score calculation.
+
+The current filter registry supports Organization Tenant linkage (`tenantLinked`) but not projected current Plan, effective Subscription status, or Trial state. Those facts remain authoritative in the Subscriptions module and CRM has no query projection that can reuse its effective-status lifecycle calculation safely. Nested Boolean groups, custom-field sorts, and static membership remain unsupported.

@@ -1,16 +1,17 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import { DataSource, EntityManager } from "typeorm";
 import { escapeLike } from "./crm-normalization.util";
 import { CrmActivityType } from "./entities/crm-activity.entity";
 import { CrmActivityListQueryDto, CreateCrmActivityDto, UpdateCrmActivityDto } from "./dto/crm-work.dto";
 import { resolveCrmWorkLinks } from "./crm-work-relations.util";
 import { isValidCrmActivityOutcome } from "./crm-work-lifecycle.util";
+import { CrmScoringService } from "./crm-scoring.service";
 
 type Row = Record<string, any>;
 
 @Injectable()
 export class CrmActivityService {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(private readonly dataSource: DataSource, @Optional() private readonly scoring?: CrmScoringService) {}
 
   async list(query: CrmActivityListQueryDto) {
     this.assertRange(query.occurredFrom, query.occurredTo);
@@ -41,6 +42,7 @@ export class CrmActivityService {
       ]);
       const id = rows[0]!.id as string;
       await this.audit(manager, actorId, "crm.activity.created", id, { type: input.activityType, outcome: input.outcome ?? null });
+      await this.recalculateActivityLinks(manager, [{ leadId: links.leadId, organizationId: links.organizationId }]);
       return this.detail(manager, id);
     });
   }
@@ -67,6 +69,10 @@ export class CrmActivityService {
         input.details === undefined ? activity.details : this.optionalText(input.details), occurredAt, outcome ?? null, actorId,
       ]);
       await this.audit(manager, actorId, "crm.activity.updated", id, { type: activityType, outcome: outcome ?? null });
+      await this.recalculateActivityLinks(manager, [
+        { leadId: activity.lead_id, organizationId: activity.organization_id },
+        { leadId: links.leadId, organizationId: links.organizationId },
+      ]);
       return this.detail(manager, id);
     });
   }
@@ -81,6 +87,7 @@ export class CrmActivityService {
       if (Boolean(activity.archived_at) === archive) return this.project(activity);
       await manager.query("UPDATE crm_activities SET archived_at=$2,archived_by_user_id=$3,updated_by_user_id=$3,updated_at=now() WHERE id=$1", [id, archive ? new Date() : null, archive ? actorId : null]);
       await this.audit(manager, actorId, archive ? "crm.activity.archived" : "crm.activity.restored", id);
+      await this.recalculateActivityLinks(manager, [{ leadId: activity.lead_id, organizationId: activity.organization_id }]);
       return this.detail(manager, id);
     });
   }
@@ -89,6 +96,19 @@ export class CrmActivityService {
     const row = await this.findActivity(manager, id);
     if (!row) throw new NotFoundException("CRM Activity not found");
     return this.project(row);
+  }
+
+  private async recalculateActivityLinks(manager: EntityManager, links: { leadId: string | null; organizationId: string | null }[]) {
+    const leadIds = new Set<string>();
+    for (const link of links) {
+      if (link.leadId) leadIds.add(link.leadId);
+      else if (link.organizationId) {
+        const rows = await manager.query<Row[]>("SELECT id FROM crm_leads WHERE organization_id=$1 AND archived_at IS NULL AND status<>'CONVERTED' ORDER BY id LIMIT 5001", [link.organizationId]);
+        if (rows.length > 5000) throw new ConflictException("Too many Leads for activity score recalculation; use a background batch worker.");
+        for (const row of rows) leadIds.add(row.id as string);
+      }
+    }
+    await this.scoring?.recalculateLeadIds([...leadIds], "ACTIVITY_CHANGED", manager);
   }
 
   private async findActivity(manager: DataSource | EntityManager, id: string, lock = false): Promise<Row | null> {

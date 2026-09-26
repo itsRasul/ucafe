@@ -16,6 +16,7 @@ import { escapeLike, normalizeContactEmail, normalizeContactPhone, normalizeCrmC
 import { CrmLeadPriority, CrmLeadSource, CrmLeadStatus, CrmLeadUnqualifiedReason } from "./entities/crm-lead.entity";
 import { CrmFilterService } from "./crm-filter.service";
 import { CrmCustomFieldEntityType } from "./entities/crm-custom-field.entity";
+import { CrmScoringService } from "./crm-scoring.service";
 
 type DbRow = Record<string, any>;
 type LeadInput = Pick<CreateCrmLeadDto, "businessName" | "contactName" | "phone" | "email" | "city" | "website" | "instagram" | "description">;
@@ -27,7 +28,7 @@ type LeadValues = {
 
 @Injectable()
 export class CrmLeadService {
-  constructor(private readonly dataSource: DataSource, private readonly crypto: AuthCryptoService, @Optional() private readonly filters?: CrmFilterService) {}
+  constructor(private readonly dataSource: DataSource, private readonly crypto: AuthCryptoService, @Optional() private readonly filters?: CrmFilterService, @Optional() private readonly scoring?: CrmScoringService) {}
 
   async list(query: CrmLeadListQueryDto) {
     const where: string[] = [];
@@ -62,6 +63,9 @@ export class CrmLeadService {
       updatedAt: "l.updated_at",
       priority: "CASE l.priority WHEN 'HIGH' THEN 0 WHEN 'NORMAL' THEN 1 ELSE 2 END",
       status: "l.status",
+      overallScore: "ls.overall_score",
+      fitScore: "ls.fit_score",
+      engagementScore: "ls.engagement_score",
     }[query.sort];
     const pageValues = [...values, query.pageSize, (query.page - 1) * query.pageSize];
     const items = await this.dataSource.query<DbRow[]>(`
@@ -70,13 +74,15 @@ export class CrmLeadService {
         l.organization_id AS "organizationId", o.name AS "organizationName",
         l.primary_contact_id AS "primaryContactId", c.name AS "primaryContactName",
         l.source_request_id AS "sourceRequestId", l.qualified_at AS "qualifiedAt", l.converted_at AS "convertedAt",
-        l.archived_at AS "archivedAt", l.created_at AS "createdAt", l.updated_at AS "updatedAt"
+        l.archived_at AS "archivedAt", l.created_at AS "createdAt", l.updated_at AS "updatedAt",
+        ls.fit_score AS "fitScore",ls.engagement_score AS "engagementScore",ls.overall_score AS "overallScore",ls.configured AS "scoreConfigured"
       FROM crm_leads l
       LEFT JOIN users u ON u.id=l.owner_id
       LEFT JOIN crm_organizations o ON o.id=l.organization_id
       LEFT JOIN crm_contacts c ON c.id=l.primary_contact_id
+      LEFT JOIN crm_lead_scores ls ON ls.lead_id=l.id
       ${predicate}
-      ORDER BY ${sort} ${query.direction}, l.id ASC
+      ORDER BY ${sort} ${query.direction} NULLS LAST, l.id ASC
       LIMIT $${pageValues.length - 1} OFFSET $${pageValues.length}
     `, pageValues);
     return { items, total: Number(counts[0]?.total ?? 0), page: query.page, pageSize: query.pageSize };
@@ -129,6 +135,7 @@ export class CrmLeadService {
         actorId, status: CrmLeadStatus.New,
       });
       await this.audit(manager, actorId, "crm.lead.created", id, { source: input.source });
+      await this.scoring?.recalculateLead(id, "LEAD_CREATED", manager);
       return this.projection((await this.findLead(manager, id, true))!, true);
     });
   }
@@ -184,6 +191,7 @@ export class CrmLeadService {
         values.city, values.cityNormalized, values.website, values.websiteHost, values.instagram, values.description,
         input.priority ?? current.priority, ownerId, links.organizationId, links.contactId, actorId]);
       await this.audit(manager, actorId, "crm.lead.updated", id, { assigned: ownerId !== current.owner_id });
+      await this.scoring?.recalculateLead(id, "LEAD_UPDATED", manager);
       return this.projection((await this.findLead(manager, id, true))!, true);
     });
   }
@@ -196,6 +204,7 @@ export class CrmLeadService {
       if (!canTransitionLead(current, input.status)) throw new ConflictException(`Lead cannot move from ${current} to ${input.status}`);
       await this.changeStatusIn(manager, lead, input.status, actorId, input.reason?.trim() || null);
       await this.audit(manager, actorId, "crm.lead.status_changed", id, { from: current, to: input.status });
+      await this.scoring?.recalculateLead(id, "LEAD_UPDATED", manager);
       return this.projection((await this.findLead(manager, id, true))!, true);
     });
   }
@@ -210,6 +219,7 @@ export class CrmLeadService {
       await manager.query(`UPDATE crm_leads SET status=$2, qualification_notes=$3, qualified_at=COALESCE(qualified_at,now()), updated_by_user_id=$4, updated_at=now() WHERE id=$1`, [id, CrmLeadStatus.Qualified, notes, actorId]);
       await this.appendHistory(manager, id, current, CrmLeadStatus.Qualified, null, actorId);
       await this.audit(manager, actorId, "crm.lead.qualified", id);
+      await this.scoring?.recalculateLead(id, "LEAD_UPDATED", manager);
       return this.projection((await this.findLead(manager, id, true))!, true);
     });
   }
@@ -224,6 +234,7 @@ export class CrmLeadService {
       await manager.query(`UPDATE crm_leads SET status=$2, unqualified_reason=$3, unqualified_reason_detail=$4, updated_by_user_id=$5, updated_at=now() WHERE id=$1`, [id, CrmLeadStatus.Unqualified, input.reason, detail, actorId]);
       await this.appendHistory(manager, id, current, CrmLeadStatus.Unqualified, detail, actorId);
       await this.audit(manager, actorId, "crm.lead.unqualified", id, { reason: input.reason });
+      await this.scoring?.recalculateLead(id, "LEAD_UPDATED", manager);
       return this.projection((await this.findLead(manager, id, true))!, true);
     });
   }
@@ -261,6 +272,7 @@ export class CrmLeadService {
         if (candidates.length && !input.confirmPotentialDuplicates) this.throwDuplicates(candidates);
         contactId = await this.insertContactFromLead(manager, organizationId, name, phone, email, actorId);
       }
+      await this.scoring?.recalculateLead(id, "LEAD_UPDATED", manager);
       const now = new Date();
       await manager.query(`UPDATE crm_leads SET status=$2, organization_id=$3, primary_contact_id=$4, converted_at=$5, updated_by_user_id=$6, updated_at=$5 WHERE id=$1`, [id, CrmLeadStatus.Converted, organizationId, contactId, now, actorId]);
       await this.appendHistory(manager, id, CrmLeadStatus.Qualified, CrmLeadStatus.Converted, null, actorId);
@@ -278,6 +290,7 @@ export class CrmLeadService {
       if (Boolean(lead.archived_at) === archive) return this.projection(lead, true);
       await manager.query(`UPDATE crm_leads SET archived_at=$2, updated_by_user_id=$3, updated_at=now() WHERE id=$1`, [id, archive ? new Date() : null, actorId]);
       await this.audit(manager, actorId, archive ? "crm.lead.archived" : "crm.lead.restored", id);
+      if (!archive) await this.scoring?.recalculateLead(id, "LEAD_UPDATED", manager);
       return this.projection((await this.findLead(manager, id, true))!, true);
     });
   }
@@ -298,7 +311,10 @@ export class CrmLeadService {
       values.city, values.cityNormalized, values.description, CrmLeadSource.LandingForm, CrmLeadStatus.New, CrmLeadPriority.Normal, input.id]);
     const leadId = rows[0]?.id as string | undefined;
     if (leadId) await this.appendHistory(manager, leadId, null, CrmLeadStatus.New, "Created from public consultation request", null);
-    if (leadId) return leadId;
+    if (leadId) {
+      await this.scoring?.recalculateLead(leadId, "LEAD_CREATED", manager);
+      return leadId;
+    }
     const retry = await manager.query<DbRow[]>("SELECT id FROM crm_leads WHERE source_request_id=$1", [input.id]);
     if (!retry[0]) throw new ConflictException("Lead could not be linked to the consultation request");
     return retry[0].id as string;

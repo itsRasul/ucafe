@@ -26,11 +26,13 @@ Text fields support equality, inequality, contains, prefix, and empty checks. Nu
 
 The base registry exposes only operational CRM fields and explicitly approved relationships. Organization, Contact, Lead, and Deal custom fields are read from their record's JSONB object using a bound key. Tag matches use indexed explicit target-FK assignments. Archived Tags remain assigned and visible on records, but they are excluded from active Tag filters.
 
-The current Organization customer-context field is `tenantLinked`. Full effective Subscription status, Trial state, and current Plan are not filter fields: those values are projections owned by the Subscriptions module, and its effective lifecycle includes time-sensitive rules and pending Plan changes. CRM does not copy that state or maintain a second calculation. Relative-date operators and custom-field sorting are also deferred.
+Lead filters also expose score values (`fitScore`, `engagementScore`, `overallScore`, `scoreCalculatedAt`) and bounded Activity signals (`activityCount`, `lastActivityAt`, `daysSinceLastActivity`, `hasDemoActivity`, `hasConnectedCall`). `daysSinceLastActivity` compares with the current database time in list/Segment queries and with one captured evaluation time during scoring. Activity signals exclude archived rows; the derived day count is null when no matching Activity exists. These fields are queryable filters, not scoring inputs for rules (score fields are explicitly rejected there).
+
+The current Organization customer-context field is `tenantLinked`. Full effective Subscription status, Trial state, and current Plan remain unavailable to Lead scoring and filters: those values belong to the Subscriptions module and its effective lifecycle includes time-sensitive rules and pending Plan changes. CRM does not copy that state or maintain a second calculation. Relative-date operators beyond the explicit Activity-derived Lead fields remain unsupported.
 
 ## Saved Views and URL state
 
-Saved Views combine the AST with an allowlisted ordinary query definition and supported core sort. Selecting one updates the list and the URL's `savedView` parameter; refreshing restores the selected view and its current results. Ad-hoc filter-builder state remains local until saved. Custom-field sorting and visible-column preferences are not implemented.
+Saved Views combine the AST with an allowlisted ordinary query definition and supported core sort. Lead score fields are valid filter criteria and score fields can be selected as Lead sorts. Selecting a view updates the list and URL's `savedView` parameter; refreshing reruns the view against current data. Ad-hoc filter-builder state remains local until saved. Custom-field sorting and visible-column preferences are not implemented.
 
 ## Performance boundaries
 

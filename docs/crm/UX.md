@@ -1,6 +1,6 @@
 # Platform CRM information architecture
 
-This document records the implemented Phase 1–7 placement and the deferred roadmap UX. Organization, Contact, Lead, Deal, Activity, Task, Note, metadata, saved-view, and Segment workflows use nested App Router pages inside the existing platform application.
+This document records the implemented Phase 1–8 placement and the deferred roadmap UX. Organization, Contact, Lead, Deal, Activity, Task, Note, metadata, saved-view, Segment, and Lead scoring workflows use nested App Router pages inside the existing platform application.
 
 ## Current platform surface
 
@@ -22,7 +22,7 @@ CRM navigation:
 
 Implemented routes also include `/platform/crm/segments` and `/platform/crm/settings`. Organization, Contact, Lead, and Deal details show record custom fields and Tags alongside their Activity, Task, and Note sections. The organization detail page shows paginated/searchable Contacts and read-only linked Tenant information. Operators with both `crm.read` and `tenants.read` can link or unlink an available Tenant. All CRM pages use the same platform session, same-origin API, RTL CSS, and permission contract.
 
-The Pipeline destination is `/platform/crm/pipeline`; the Tasks queue is `/platform/crm/tasks`; saved dynamic groups live at `/platform/crm/segments`; metadata administration lives at `/platform/crm/settings`. Settings configures only typed fields and Tags; Pipeline stages remain code-defined. Avoid duplicating a flat list of every CRM object in the mobile bottom navigation.
+The Pipeline destination is `/platform/crm/pipeline`; the Tasks queue is `/platform/crm/tasks`; saved dynamic groups live at `/platform/crm/segments`; metadata administration lives at `/platform/crm/settings`; score rules live at `/platform/crm/settings/scoring`. Settings configures typed fields, Tags, and scoring rules; Pipeline stages remain code-defined. Avoid duplicating a flat list of every CRM object in the mobile bottom navigation.
 
 ## Page structure
 
@@ -36,7 +36,7 @@ Contacts are shown within an Organization. Contact search supports name/role tex
 
 ### Leads
 
-The implemented queue filters by status, source, priority, assignee (including unassigned), archive state, and text search; it supports allowlisted sorting and 25-row paging. Create/edit forms include source, priority, assignment, snapshot fields, and optional Organization/Contact links. Exact duplicate candidates show record type, display label, matching fields, and status without exposing phone/email; an operator can link an existing record or explicitly continue with a separate Lead. Detail shows protected contact fields, source-request stage/services, qualification and unqualification context, linked Organization/Contact, timestamps, and append-only status history. Separate actions change ordinary status, qualify, unqualify with a reason, convert, archive, and restore. Conversion requires a canonical Organization and Contact and does not create a Deal. Loading, empty, error, and success feedback use accessible status/alert regions; forms provide visible keyboard focus and mobile touch targets.
+The implemented queue filters by status, source, manual priority, assignee (including unassigned), archive state, text search, and score/activity criteria; it sorts by Overall, Fit, or Engagement score as well as existing fields. It shows Overall score alongside the still-independent Priority and supports 25-row paging. Create/edit forms include source, priority, assignment, snapshot fields, and optional Organization/Contact links. Exact duplicate candidates show record type, display label, matching fields, and status without exposing phone/email; an operator can link an existing record or explicitly continue with a separate Lead. Detail shows protected contact fields, source-request stage/services, qualification and unqualification context, linked Organization/Contact, timestamps, append-only status history, and a score panel with Fit/Engagement/Overall, band, contribution breakdown, configuration version, latest change history, and explicit recalculation. `/platform/crm/settings/scoring` reuses the Phase 7 field/operator builder for named positive or negative FIT/ENGAGEMENT rules, match preview, enable/disable, and archive. It is read-only for `crm.read`; mutation controls require `crm.manage`. Scores never change Priority or Lead lifecycle. Loading, empty, error, and success feedback use accessible status/alert regions; forms provide visible keyboard focus and mobile touch targets.
 
 ### Deals and Pipeline
 
@@ -56,7 +56,7 @@ Timeline filtering supports one CRM/customer category and inclusive local-day da
 
 `/platform/crm/settings` groups definition controls by supported record type and manages CRM-wide Tags. Field keys are fixed after creation; definitions expose deterministic display ordering. Record detail pages show existing metadata and expose an edit form only for mutable records and `crm.manage` users. Select options use stable IDs; archive feedback explains that history and existing assignments remain. Record Tag assignment has a searchable checkbox list, and controls use native input types, responsive wrapping, keyboard-visible focus, and 44px touch targets.
 
-The Organization, Lead, and Deal directories provide a server-backed filter builder and saved-view selector above the existing list filters. Saved views restore the typed AST, ordinary search/status/archive filters, core sorting, and selected view ID in the URL. The builder limits the operator to flat AND/OR rules, uses per-field operators and options, and shows removable condition chips. `/platform/crm/segments` lets an operator choose a record type, compose the same rules, request a live count plus a small sample, and save criteria. Each Segment has a detail page with a human-readable criteria summary, current count, and paginated matching records. The UI does not load a full record set to filter in the browser.
+The Organization, Lead, and Deal directories provide a server-backed filter builder and saved-view selector above the existing list filters. Saved views restore the typed AST, ordinary search/status/archive filters, core sorting, and selected view ID in the URL. The Lead builder includes score and supported activity fields. The builder limits the operator to flat AND/OR rules, uses per-field operators and options, and shows removable condition chips. `/platform/crm/segments` lets an operator choose a record type, compose the same rules, request a live count plus a small sample, and save criteria. Lead Segments can use persisted score fields; score rules themselves cannot use score fields. Each Segment has a detail page with a human-readable criteria summary, current count, and paginated matching records. The UI does not load a full record set to filter in the browser.
 
 ## Existing design and implementation guidance
 

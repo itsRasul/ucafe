@@ -50,6 +50,8 @@ A retry with the same Lead returns the existing conversion result. A conflict mu
 
 An operator may explicitly create a Deal from a converted Lead. The unique originating-Lead reference makes that association one-to-one; creating a Deal never changes the Lead lifecycle. Leads without conversion may not originate a Deal.
 
+Lead scoring is orthogonal to this lifecycle. Status, qualification, and conversion do not impose a score floor or change Priority. Conversion evaluates and stores the final Lead score immediately before setting CONVERTED; subsequent rule/source changes exclude it, preserving that historical score. Archive likewise preserves the last score, while restore triggers recalculation.
+
 ## Deal outcome
 
 Deal stage and Deal outcome are separate fields.

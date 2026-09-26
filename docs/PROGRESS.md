@@ -2,6 +2,12 @@
 
 Last updated: 2026-09-27
 
+## UCafe Platform CRM Phase 8: Explainable Lead Scoring & Prioritization
+
+Implemented deterministic Fit, Engagement, and Overall Lead Scores with separate manual Priority, configurable positive/negative rules, Phase 7 criteria reuse, rule contribution breakdowns, configuration versions, and change-only history. Scores are persisted separately from Leads; category totals clamp to 0–100 and Overall is the rounded mean. Current scoring inputs are Lead fields, Lead Tags/custom fields, and bounded Activity aggregates. Archived fields/options invalidate their rules safely. Converted Leads retain their last score; archived Leads are not rescored. Source changes and rule changes recalculate active Leads in capped batches; relative Activity rules refresh at startup and daily. No workflow actions or scoring events were introduced.
+
+Migration `1790570000000-PlatformCrmLeadScoring` is applied. Verification: the full API suite passed (160 passed, 16 database/environment-gated skips); workspace typecheck and production build passed for API, web, and worker; `git diff --check` passed. The scoring configuration page returned HTTP 200, API health returned 200, and the protected scoring API returned the expected 401 without authentication. There is no frontend test or lint command; authenticated UI interactions were not exercised.
+
 ## UCafe Platform CRM Phase 7: Custom fields, Tags, saved views, and Segments
 
 Added migration `1790560000000-PlatformCrmFieldsTagsViewsSegments`: typed custom field definitions/options and JSONB values for Organizations, Contacts, Leads, and Deals; normalized Tags with explicit target foreign keys; owner-scoped saved views; and dynamic Segment criteria. Field and Tag archives preserve historical values and assignments. Filter ASTs are flat, versioned AND/OR conditions with a 20-rule cap; the compiler uses allowlisted SQL expressions and parameterized user values. Record list filtering happens before pagination. Segments store criteria only and read current counts and pages.

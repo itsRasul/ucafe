@@ -7,6 +7,7 @@ import { PlatformApi as Api, usePlatformSession } from "../../use-platform-sessi
 import { CrmWorkSections } from "../work";
 import { CrmRecordMetadata } from "../metadata-controls";
 import { CrmFilterBuilder, CrmSavedViews, FilterDefinition, initialFilter, isFilterReady } from "../metadata-controls";
+import { CrmShell } from "../workspace";
 
 type Page<T> = { items: T[]; total: number; page: number; pageSize: number };
 type Lead = {
@@ -18,9 +19,13 @@ type Lead = {
   sourceRequest: { businessStage: string; requestedServices: string[]; createdAt: string } | null;
   qualificationNotes: string | null; unqualifiedReason: string | null; unqualifiedReasonDetail: string | null;
   qualifiedAt: string | null; convertedAt: string | null; archivedAt: string | null; createdAt: string; updatedAt: string;
+  fitScore?: number; engagementScore?: number; overallScore?: number; scoreConfigured?: boolean;
   statusHistory?: { id: string; previousStatus: string | null; nextStatus: string; reason: string | null; actorLabel: string | null; createdAt: string }[];
 };
 type UserOption = { id: string; label: string };
+type LeadScoreContribution = { ruleId: string; ruleName: string; category: "FIT" | "ENGAGEMENT"; points: number };
+type LeadScoreCategory = { rawTotal: number; score: number; contributions: LeadScoreContribution[] };
+type LeadScore = { fit: number; engagement: number; overall: number; band: string; configured: boolean; scoringVersion: number; calculatedAt: string; breakdown: { fit: LeadScoreCategory; engagement: LeadScoreCategory }; history: { id: string; overallScore: number; previousOverallScore: number | null; calculatedAt: string; reason: string }[] };
 type Candidate = { type: "ORGANIZATION" | "CONTACT" | "LEAD"; id: string; businessName?: string; contactName?: string; city?: string | null; organizationId?: string | null; organizationName?: string; contactId?: string | null; status?: string; archivedAt?: string | null; matchingFields: string[] };
 type Props = { mode: "list" | "create" | "detail"; leadId?: string };
 type Values = { businessName: string; contactName: string; phone: string; email: string; city: string; website: string; instagram: string; description: string; source: string; priority: string; ownerId: string; organizationId: string; primaryContactId: string };
@@ -45,18 +50,15 @@ export function CrmLeadsWorkspace({ mode, leadId }: Props) {
   if (!access.includes("crm.read")) return <main className="platform-entry"><section><h1>دسترسی CRM فعال نیست</h1><p>برای دیدن سرنخ‌ها به دسترسی crm.read نیاز دارید.</p><Link className="crm-button" href="/platform">بازگشت به پنل پلتفرم</Link></section></main>;
   const canManage = access.includes("crm.manage");
   if (mode !== "list" && !canManage) return <main className="platform-entry"><section><h1>دسترسی مدیریت CRM فعال نیست</h1><p>برای تغییر سرنخ‌ها به دسترسی crm.manage نیاز دارید.</p><Link className="crm-button" href="/platform/crm/leads">بازگشت به سرنخ‌ها</Link></section></main>;
-  return <LeadShell canManage={canManage}>
+  return <CrmWorkspaceShell canManage={canManage}>
     {mode === "list" && <LeadDirectory api={api} canManage={canManage} />}
     {mode === "create" && <LeadCreate api={api} />}
     {mode === "detail" && leadId && <LeadDetail api={api} canManage={canManage} leadId={leadId} />}
-  </LeadShell>;
+  </CrmWorkspaceShell>;
 }
 
-function LeadShell({ children, canManage }: { children: React.ReactNode; canManage: boolean }) {
-  return <main className="platform-app crm-app"><div className="platform-frame">
-    <aside className="platform-sidebar"><div><div className="platform-brand"><span><strong>CRM یو کافه</strong><small>مدیریت ارتباط‌های تجاری</small></span></div><p className="platform-nav-label">فضای کاری CRM</p><nav aria-label="ناوبری CRM"><Link className="platform-crm-link" href="/platform/crm">سازمان‌ها</Link><Link className="platform-crm-link" href="/platform/crm/leads">سرنخ‌ها</Link><Link className="platform-crm-link" href="/platform/crm/deals">فرصت‌ها</Link><Link className="platform-crm-link" href="/platform/crm/segments">بخش‌بندی‌ها</Link><Link className="platform-crm-link" href="/platform/crm/tasks">وظایف</Link>{canManage && <><Link className="platform-crm-link" href="/platform/crm/settings">فیلدها و برچسب‌ها</Link><Link className="platform-crm-link" href="/platform/crm/leads/new">افزودن سرنخ</Link></>}</nav></div><Link className="crm-back" href="/platform">بازگشت به پلتفرم</Link></aside>
-    <section className="platform-shell"><header className="platform-topbar"><strong>مدیریت ارتباط‌های تجاری</strong><Link href="/platform">پنل پلتفرم</Link></header><div className="crm-content">{children}</div><nav className="platform-bottom-nav" aria-label="ناوبری موبایل CRM"><Link className="platform-crm-link" href="/platform/crm">سازمان‌ها</Link><Link className="platform-crm-link" href="/platform/crm/leads">سرنخ‌ها</Link><Link className="platform-crm-link" href="/platform/crm/tasks">وظایف</Link>{canManage && <Link className="platform-crm-link" href="/platform/crm/leads/new">افزودن سرنخ</Link>}</nav></section>
-  </div></main>;
+export function CrmWorkspaceShell({ children, canManage }: { children: React.ReactNode; canManage: boolean }) {
+  return <CrmShell canManage={canManage}>{children}</CrmShell>;
 }
 
 function LeadDirectory({ api, canManage }: { api: Api; canManage: boolean }) {
@@ -93,7 +95,7 @@ function LeadDirectory({ api, canManage }: { api: Api; canManage: boolean }) {
       <label>اولویت<select value={priority} onChange={(event) => reset(setPriority)(event.target.value)}><option value="">همه اولویت‌ها</option>{Object.entries(priorities).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select></label>
       <label>مسئول<select value={ownerId} onChange={(event) => reset(setOwnerId)(event.target.value)}><option value="">همه مسئولان</option><option value="UNASSIGNED">بدون مسئول</option>{assignees.map((item) => <option value={item.id} key={item.id}>{item.label}</option>)}</select></label>
       <label>نمایش<select value={archiveStatus} onChange={(event) => reset(setArchiveStatus)(event.target.value)}><option value="ACTIVE">فعال</option><option value="ARCHIVED">بایگانی‌شده</option><option value="ALL">همه</option></select></label>
-      <label>مرتب‌سازی<select value={`${sort}:${direction}`} onChange={(event) => { const [nextSort, nextDirection] = event.target.value.split(":"); setSort(nextSort!); setDirection(nextDirection!); setPage(1); }}><option value="createdAt:DESC">جدیدترین</option><option value="createdAt:ASC">قدیمی‌ترین</option><option value="updatedAt:DESC">آخرین تغییر</option><option value="priority:ASC">اولویت زیاد به کم</option><option value="status:ASC">وضعیت</option></select></label>
+      <label>مرتب‌سازی<select value={`${sort}:${direction}`} onChange={(event) => { const [nextSort, nextDirection] = event.target.value.split(":"); setSort(nextSort!); setDirection(nextDirection!); setPage(1); }}><option value="createdAt:DESC">جدیدترین</option><option value="createdAt:ASC">قدیمی‌ترین</option><option value="updatedAt:DESC">آخرین تغییر</option><option value="priority:ASC">اولویت زیاد به کم</option><option value="status:ASC">وضعیت</option><option value="overallScore:DESC">امتیاز کل: بالا به پایین</option><option value="overallScore:ASC">امتیاز کل: پایین به بالا</option></select></label>
     </form>
     <CrmSavedViews api={api} entityType="LEAD" canManage={canManage} filter={filter} queryDefinition={{ q, status, source, priority, ownerId, archiveStatus }} sort={{ field: sort, direction: direction as "ASC" | "DESC" }} onApply={(view) => { setFilter(view.filterDefinition); setQ(view.queryDefinition.q ?? ""); setStatus(view.queryDefinition.status ?? ""); setSource(view.queryDefinition.source ?? ""); setPriority(view.queryDefinition.priority ?? ""); setOwnerId(view.queryDefinition.ownerId ?? ""); setArchiveStatus(view.queryDefinition.archiveStatus ?? "ACTIVE"); if (view.sortDefinition) { setSort(view.sortDefinition.field); setDirection(view.sortDefinition.direction); } setPage(1); }} />
     <CrmFilterBuilder api={api} entityType="LEAD" value={filter} onChange={(value) => { setFilter(value); setPage(1); }} />
@@ -101,7 +103,7 @@ function LeadDirectory({ api, canManage }: { api: Api; canManage: boolean }) {
     {loading ? <p className="empty" role="status">در حال دریافت سرنخ‌ها…</p> : result.items.length === 0 ? <div className="empty"><strong>{archiveStatus === "ACTIVE" ? "هنوز سرنخی ثبت نشده است." : "سرنخی با این شرایط پیدا نشد."}</strong><p>{archiveStatus === "ACTIVE" ? "فرم مشاوره سایت به‌صورت خودکار یک سرنخ ایجاد می‌کند." : "فیلترها را تغییر دهید یا سرنخ دیگری جست‌وجو کنید."}</p>{canManage && archiveStatus === "ACTIVE" && <Link className="crm-button" href="/platform/crm/leads/new">افزودن اولین سرنخ</Link>}</div> : <div className="crm-lead-list" aria-label="فهرست سرنخ‌ها">{result.items.map((lead) => <Link className="crm-lead-row" key={lead.id} href={`/platform/crm/leads/${lead.id}`}>
       <span className="crm-lead-main"><strong>{lead.businessName}</strong><small>{lead.contactName || "فرد رابط ثبت نشده"}{lead.city ? ` · ${lead.city}` : ""}</small>{lead.organizationName && <small>سازمان: {lead.organizationName}</small>}</span>
       <span className="crm-lead-badges"><span className={`crm-status crm-status-${lead.status.toLowerCase()}`}>{statuses[lead.status] ?? lead.status}</span><small>{sources[lead.source] ?? lead.source} · اولویت {priorities[lead.priority] ?? lead.priority}</small></span>
-      <span className="crm-lead-meta"><small>{lead.ownerLabel || "بدون مسئول"}</small><small>{formatDate(lead.createdAt)}</small></span>
+      <span className="crm-lead-meta"><small>{lead.ownerLabel || "بدون مسئول"}</small><small>{lead.scoreConfigured ? `امتیاز ${fa.format(lead.overallScore ?? 0)} از ۱۰۰` : "امتیاز تنظیم نشده"}</small><small>{formatDate(lead.createdAt)}</small></span>
     </Link>)}</div>}
     <div className="crm-pagination"><span>مجموع: {fa.format(result.total)}</span><div><button type="button" disabled={page <= 1 || loading} onClick={() => setPage((value) => value - 1)}>قبلی</button><span>صفحه {fa.format(page)}</span><button type="button" disabled={loading || page * 25 >= result.total} onClick={() => setPage((value) => value + 1)}>بعدی</button></div></div>
   </>;
@@ -242,6 +244,7 @@ function LeadDetail({ api, canManage, leadId }: { api: Api; canManage: boolean; 
       {lead.unqualifiedReason && <section className="crm-lead-context"><h2>دلیل نامتناسب بودن</h2><p>{reasons[lead.unqualifiedReason] ?? lead.unqualifiedReason}{lead.unqualifiedReasonDetail ? ` · ${lead.unqualifiedReasonDetail}` : ""}</p></section>}
       {lead.organizationId && <section className="crm-lead-context"><h2>سازمان متصل</h2><p><Link href={`/platform/crm/organizations/${lead.organizationId}`}>{lead.organizationName}</Link></p>{lead.primaryContact && <p>فرد رابط: {lead.primaryContact.name}{lead.primaryContact.role ? ` · ${lead.primaryContact.role}` : ""}</p>}</section>}
     </section>}
+    <LeadScorePanel api={api} canManage={canManage} leadId={lead.id} frozen={Boolean(lead.archivedAt) || lead.status === "CONVERTED"} />
     <CrmRecordMetadata api={api} entityType="LEAD" recordId={lead.id} editable={canManage && !lead.archivedAt && lead.status !== "CONVERTED"} />
     {canManage && !editing && !lead.archivedAt && <section className="crm-lead-panel"><header className="crm-section-heading"><div><h2>اقدام بعدی</h2><p>وضعیت‌ها بر اساس چرخه سرنخ کنترل می‌شوند.</p></div></header>
       {next.length > 0 && <div className="crm-lead-action-row"><button type="button" onClick={() => setChanging((value) => !value)}>تغییر وضعیت</button>{canQualify && <button type="button" onClick={() => setQualifying((value) => !value)}>احراز شرایط</button>}{canUnqualify && <button type="button" className="crm-secondary" onClick={() => setUnqualifying((value) => !value)}>نامتناسب</button>}</div>}
@@ -254,6 +257,30 @@ function LeadDetail({ api, canManage, leadId }: { api: Api; canManage: boolean; 
     <section className="crm-lead-panel" aria-labelledby="crm-lead-history-title"><header className="crm-section-heading"><div><h2 id="crm-lead-history-title">سوابق وضعیت</h2><p>تغییرهای وضعیت همراه با زمان و مسئول ثبت شده‌اند.</p></div></header>{lead.statusHistory?.length ? <ol className="crm-lead-history">{[...lead.statusHistory].reverse().map((item) => <li key={item.id}><span className={`crm-status crm-status-${item.nextStatus.toLowerCase()}`}>{statuses[item.nextStatus] ?? item.nextStatus}</span><small>{formatDate(item.createdAt)}{item.actorLabel ? ` · ${item.actorLabel}` : " · ثبت سامانه"}</small>{item.reason && <p>{item.reason}</p>}</li>)}</ol> : <p className="empty crm-empty">تاریخچه‌ای ثبت نشده است.</p>}</section>
     <CrmWorkSections api={api} canManage={canManage && !lead.archivedAt} context={{ organizationId: lead.organizationId, contactId: lead.primaryContactId, leadId: lead.id, displayName: lead.businessName }} />
   </>;
+}
+
+function LeadScorePanel({ api, canManage, leadId, frozen }: { api: Api; canManage: boolean; leadId: string; frozen: boolean }) {
+  const [score, setScore] = useState<LeadScore | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  async function load(recalculate = false) {
+    setRefreshing(recalculate); setError("");
+    try { setScore(await api<LeadScore>(`/platform/crm/leads/${leadId}/${recalculate ? "recalculate-score" : "score"}`, recalculate ? { method: "POST" } : undefined)); }
+    catch (reason) { setError((reason as Error).message); }
+    finally { setLoading(false); setRefreshing(false); }
+  }
+  useEffect(() => { void load(); }, [api, leadId]);
+  const bandNames: Record<string, string> = { LOW: "کم", MEDIUM: "متوسط", HIGH: "زیاد", VERY_HIGH: "بسیار زیاد" };
+  const reasonNames: Record<string, string> = { LEAD_CREATED: "ثبت سرنخ", LEAD_UPDATED: "تغییر اطلاعات سرنخ", CUSTOM_FIELD_CHANGED: "تغییر فیلد سفارشی", TAG_CHANGED: "تغییر برچسب", ACTIVITY_CHANGED: "تغییر تعامل", RULE_CHANGED: "تغییر قواعد", SCHEDULED_REFRESH: "بازبینی روزانه", MANUAL_RECALCULATION: "محاسبه دستی" };
+  const category = (title: string, item?: LeadScoreCategory) => <section className="crm-score-category"><h3>{title} <span>{item?.score ?? 0} / ۱۰۰</span></h3><p>مجموع قواعد منطبق: {item?.rawTotal ?? 0}؛ امتیاز نهایی در بازه ۰ تا ۱۰۰ نگه داشته می‌شود.</p>{item?.contributions.length ? <ul className="crm-score-contributions">{item.contributions.map((contribution) => <li key={contribution.ruleId}><span>{contribution.ruleName}</span><strong dir="ltr">{contribution.points > 0 ? `+${contribution.points}` : contribution.points}</strong></li>)}</ul> : <p className="crm-filter-empty">قاعده منطبقی ندارد.</p>}</section>;
+  return <section className="crm-lead-panel crm-score-panel"><header className="crm-section-heading"><div><h2>امتیاز سرنخ</h2><p>امتیاز قواعدی برای اولویت‌بندی است و جایگزین اولویت دستی یا پیش‌بینی فروش نیست.</p></div><div className="crm-actions">{canManage && <Link className="crm-button crm-secondary-link" href="/platform/crm/settings/scoring">قواعد امتیازدهی</Link>}{canManage && !frozen && <button type="button" className="crm-secondary" disabled={refreshing} onClick={() => void load(true)}>{refreshing ? "در حال محاسبه…" : "محاسبه دوباره"}</button>}</div></header>
+    {error && <p className="message error" role="alert">امتیاز بارگذاری نشد: {error}</p>}{loading && !score ? <p className="empty" role="status">در حال دریافت امتیاز…</p> : score && <>
+      {!score.configured && <p className="message warning">امتیازدهی هنوز تنظیم نشده است. {canManage && <Link href="/platform/crm/settings/scoring">قواعد را تنظیم کنید.</Link>}</p>}
+      <dl className="crm-facts crm-score-facts"><div><dt>امتیاز کل</dt><dd>{score.configured ? `${fa.format(score.overall)} / ۱۰۰ · ${bandNames[score.band] ?? score.band}` : "تنظیم نشده"}</dd></div><div><dt>اولویت دستی</dt><dd>جدا از امتیاز نگه داشته می‌شود.</dd></div><div><dt>آخرین محاسبه</dt><dd>{new Intl.DateTimeFormat("fa-IR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(score.calculatedAt))}</dd></div><div><dt>نسخه قواعد</dt><dd>{fa.format(score.scoringVersion)}</dd></div></dl>
+      <div className="crm-score-grid">{category("تناسب", score.breakdown.fit)}{category("تعامل", score.breakdown.engagement)}</div>
+      {score.history.length > 0 && <section className="crm-score-history"><h3>تغییرات امتیاز</h3><ul>{score.history.map((entry) => <li key={entry.id}><span>{entry.previousOverallScore === null ? "شروع" : `${fa.format(entry.previousOverallScore)} ← ${fa.format(entry.overallScore)}`} / ۱۰۰</span><small>{reasonNames[entry.reason] ?? "بازمحاسبه"} · {formatDate(entry.calculatedAt)}</small></li>)}</ul></section>}
+    </>}</section>;
 }
 
 function StatusForm({ api, lead, onDone, onError }: { api: Api; lead: Lead; onDone: (lead: Lead) => void; onError: (message: string) => void }) {

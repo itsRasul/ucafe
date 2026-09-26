@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
-import { DataSource } from "typeorm";
+import { DataSource, EntityManager } from "typeorm";
 import { CrmCustomFieldEntityType, CrmCustomFieldType } from "./entities/crm-custom-field.entity";
 import { escapeLike } from "./crm-normalization.util";
 
@@ -7,7 +7,7 @@ type Row = Record<string, any>;
 type ValueType = "TEXT" | "NUMBER" | "BOOLEAN" | "DATE" | "SELECT" | "MULTI_SELECT";
 type Condition = { field: string; operator: string; value?: unknown };
 type Filter = { version: 1; logic: "AND" | "OR"; conditions: Condition[] };
-type Aliases = { entity: string; organization?: string; contact?: string; plan?: string };
+type Aliases = { entity: string; organization?: string; contact?: string; plan?: string; evaluationTime?: string };
 
 const operators: Record<ValueType, string[]> = {
   TEXT: ["equals", "notEquals", "contains", "startsWith", "isEmpty", "isNotEmpty"],
@@ -39,6 +39,15 @@ const core: Record<CrmCustomFieldEntityType, Record<string, { label: string; typ
     status: { label: "وضعیت", type: "SELECT", expression: ({ entity }) => `${entity}.status`, options: ["NEW", "ATTEMPTING_CONTACT", "CONTACTED", "QUALIFIED", "NURTURING", "UNQUALIFIED", "CONVERTED"].map((value) => ({ value, label: value })) },
     source: { label: "منبع", type: "SELECT", expression: ({ entity }) => `${entity}.source`, options: ["OUTBOUND_CALL", "LANDING_FORM", "SEO", "INSTAGRAM", "REFERRAL", "SMS", "PARTNER", "MANUAL", "OTHER"].map((value) => ({ value, label: value })) },
     priority: { label: "اولویت", type: "SELECT", expression: ({ entity }) => `${entity}.priority`, options: ["LOW", "NORMAL", "HIGH"].map((value) => ({ value, label: value })) },
+    activityCount: { label: "تعداد تعامل‌ها", type: "NUMBER", expression: ({ entity }) => `(SELECT count(*) FROM crm_activities a WHERE a.archived_at IS NULL AND (a.lead_id=${entity}.id OR (a.lead_id IS NULL AND a.organization_id=${entity}.organization_id)))::numeric` },
+    lastActivityAt: { label: "آخرین تعامل", type: "DATE", expression: ({ entity }) => `(SELECT max(a.occurred_at)::date FROM crm_activities a WHERE a.archived_at IS NULL AND (a.lead_id=${entity}.id OR (a.lead_id IS NULL AND a.organization_id=${entity}.organization_id)))` },
+    daysSinceLastActivity: { label: "روز از آخرین تعامل", type: "NUMBER", expression: ({ entity, evaluationTime }) => `(SELECT floor(extract(epoch FROM (${evaluationTime ?? "CURRENT_TIMESTAMP"} - max(a.occurred_at))) / 86400) FROM crm_activities a WHERE a.archived_at IS NULL AND (a.lead_id=${entity}.id OR (a.lead_id IS NULL AND a.organization_id=${entity}.organization_id)))` },
+    hasDemoActivity: { label: "دموی انجام‌شده", type: "BOOLEAN", expression: ({ entity }) => `EXISTS (SELECT 1 FROM crm_activities a WHERE a.archived_at IS NULL AND a.activity_type='DEMO' AND a.outcome='COMPLETED' AND (a.lead_id=${entity}.id OR (a.lead_id IS NULL AND a.organization_id=${entity}.organization_id)))` },
+    hasConnectedCall: { label: "تماس موفق", type: "BOOLEAN", expression: ({ entity }) => `EXISTS (SELECT 1 FROM crm_activities a WHERE a.archived_at IS NULL AND a.activity_type='CALL' AND a.outcome='CONNECTED' AND (a.lead_id=${entity}.id OR (a.lead_id IS NULL AND a.organization_id=${entity}.organization_id)))` },
+    fitScore: { label: "امتیاز تناسب", type: "NUMBER", expression: ({ entity }) => `(SELECT s.fit_score FROM crm_lead_scores s WHERE s.lead_id=${entity}.id)::numeric` },
+    engagementScore: { label: "امتیاز تعامل", type: "NUMBER", expression: ({ entity }) => `(SELECT s.engagement_score FROM crm_lead_scores s WHERE s.lead_id=${entity}.id)::numeric` },
+    overallScore: { label: "امتیاز کل", type: "NUMBER", expression: ({ entity }) => `(SELECT s.overall_score FROM crm_lead_scores s WHERE s.lead_id=${entity}.id)::numeric` },
+    scoreCalculatedAt: { label: "زمان محاسبه امتیاز", type: "DATE", expression: ({ entity }) => `(SELECT s.calculated_at::date FROM crm_lead_scores s WHERE s.lead_id=${entity}.id)` },
     createdAt: { label: "تاریخ ایجاد", type: "DATE", expression: ({ entity }) => `${entity}.created_at::date` },
   },
   DEAL: {
@@ -72,7 +81,7 @@ export class CrmFilterService {
     return [...result, { key: "tags", label: "برچسب‌ها", dataType: "MULTI_SELECT", operators: operators.MULTI_SELECT, options: tags }, ...resolved];
   }
 
-  async compile(entityType: CrmCustomFieldEntityType, raw: unknown, values: unknown[], aliases: Aliases): Promise<string> {
+  async compile(entityType: CrmCustomFieldEntityType, raw: unknown, values: unknown[], aliases: Aliases, manager: DataSource | EntityManager = this.dataSource): Promise<string> {
     if (raw === undefined || raw === null || raw === "") return "";
     let input = raw;
     if (typeof raw === "string") {
@@ -82,14 +91,14 @@ export class CrmFilterService {
     const filter = this.parse(input);
     if (!filter.conditions.length) return "";
     if (filter.conditions.length > 20) throw new BadRequestException("A filter can contain at most 20 conditions");
-    const definitions = await this.dataSource.query<Row[]>("SELECT id,key,data_type FROM crm_custom_field_definitions WHERE entity_type=$1 AND active=TRUE AND archived_at IS NULL", [entityType]);
+    const definitions = await manager.query<Row[]>("SELECT id,key,data_type FROM crm_custom_field_definitions WHERE entity_type=$1 AND active=TRUE AND archived_at IS NULL", [entityType]);
     const fields = new Map(definitions.map((field) => [field.key as string, field]));
     const clauses: string[] = [];
     for (const condition of filter.conditions) {
       if (!condition || typeof condition.field !== "string" || typeof condition.operator !== "string") throw new BadRequestException("Each filter condition needs a field and operator");
       if (Object.keys(condition as unknown as Record<string, unknown>).some((key) => !["field", "operator", "value"].includes(key))) throw new BadRequestException("Unknown filter condition property");
       if (condition.field === "tags") {
-        clauses.push(await this.compileTags(entityType, aliases, condition, values));
+        clauses.push(await this.compileTags(entityType, aliases, condition, values, manager));
         continue;
       }
       const customKey = condition.field.startsWith("custom:") ? condition.field.slice(7) : null;
@@ -98,10 +107,10 @@ export class CrmFilterService {
       if (!custom && !base) throw new BadRequestException(`Unknown or inactive filter field: ${condition.field}`);
       const type: ValueType = custom ? this.fieldType(custom.data_type) : base!.type;
       if (!operators[type].includes(condition.operator)) throw new BadRequestException(`Operator ${condition.operator} is not valid for ${condition.field}`);
-      if (custom && type === "MULTI_SELECT") clauses.push(await this.compileCustomMulti(aliases, customKey!, custom.id, condition, values));
+      if (custom && type === "MULTI_SELECT") clauses.push(await this.compileCustomMulti(aliases, customKey!, custom.id, condition, values, manager));
       else {
         const expression = custom ? await this.customExpression(aliases, customKey!, type, values) : base!.expression(aliases);
-        clauses.push(await this.compileScalar(expression, type, condition, values, custom?.id, base?.options?.map((option) => option.value)));
+        clauses.push(await this.compileScalar(expression, type, condition, values, custom?.id, base?.options?.map((option) => option.value), manager));
       }
     }
     return `(${clauses.join(filter.logic === "OR" ? " OR " : " AND ")})`;
@@ -113,7 +122,7 @@ export class CrmFilterService {
     const object = sort as Record<string, unknown>;
     const allowed: Record<CrmCustomFieldEntityType, string[]> = {
       ORGANIZATION: ["createdAt", "name", "city"], CONTACT: ["createdAt", "name"],
-      LEAD: ["createdAt", "updatedAt", "status", "priority"], DEAL: ["title", "createdAt", "updatedAt", "expectedCloseDate", "estimatedAmountToman"],
+      LEAD: ["createdAt", "updatedAt", "status", "priority", "overallScore", "fitScore", "engagementScore"], DEAL: ["title", "createdAt", "updatedAt", "expectedCloseDate", "estimatedAmountToman"],
     };
     if (Object.keys(object).some((key) => !["field", "direction"].includes(key)) || typeof object.field !== "string" || !allowed[entityType].includes(object.field) || !["ASC", "DESC"].includes(String(object.direction))) throw new BadRequestException("Unsupported sort definition");
     return { field: object.field, direction: String(object.direction) };
@@ -128,14 +137,14 @@ export class CrmFilterService {
     return object as Filter;
   }
 
-  private async compileTags(entityType: CrmCustomFieldEntityType, aliases: Aliases, condition: Condition, values: unknown[]) {
+  private async compileTags(entityType: CrmCustomFieldEntityType, aliases: Aliases, condition: Condition, values: unknown[], manager: DataSource | EntityManager) {
     if (!["containsAny", "containsAll", "containsNone", "isEmpty", "isNotEmpty"].includes(condition.operator)) throw new BadRequestException("Invalid tag filter operator");
     const column = tagColumn[entityType];
     const base = `SELECT 1 FROM crm_entity_tags et JOIN crm_tags t ON t.id=et.tag_id WHERE et.${column}=${aliases.entity}.id AND t.active=TRUE AND t.archived_at IS NULL`;
     if (condition.operator === "isEmpty") return `NOT EXISTS (${base})`;
     if (condition.operator === "isNotEmpty") return `EXISTS (${base})`;
     const ids = this.uuidArray(condition.value, "Tag filter");
-    const active = await this.dataSource.query<Row[]>("SELECT id FROM crm_tags WHERE id=ANY($1::uuid[]) AND active=TRUE AND archived_at IS NULL", [ids]);
+    const active = await manager.query<Row[]>("SELECT id FROM crm_tags WHERE id=ANY($1::uuid[]) AND active=TRUE AND archived_at IS NULL", [ids]);
     if (active.length !== ids.length) throw new BadRequestException("Tag filter contains an unknown or archived Tag");
     const index = this.add(values, ids);
     if (condition.operator === "containsAny") return `EXISTS (${base} AND et.tag_id=ANY($${index}::uuid[]))`;
@@ -143,13 +152,13 @@ export class CrmFilterService {
     return `(SELECT count(DISTINCT et.tag_id) FROM crm_entity_tags et JOIN crm_tags t ON t.id=et.tag_id WHERE et.${column}=${aliases.entity}.id AND t.active=TRUE AND t.archived_at IS NULL AND et.tag_id=ANY($${index}::uuid[]))=cardinality($${index}::uuid[])`;
   }
 
-  private async compileCustomMulti(aliases: Aliases, key: string, fieldId: string, condition: Condition, values: unknown[]) {
+  private async compileCustomMulti(aliases: Aliases, key: string, fieldId: string, condition: Condition, values: unknown[], manager: DataSource | EntityManager) {
     const expression = await this.customExpression(aliases, key, "MULTI_SELECT", values);
     if (condition.operator === "isEmpty") return `(${expression} IS NULL OR ${expression}='[]'::jsonb)`;
     if (condition.operator === "isNotEmpty") return `(${expression} IS NOT NULL AND ${expression}<>'[]'::jsonb)`;
     const ids = this.uuidArray(condition.value, `custom:${key}`);
-    const valid = await this.dataSource.query<Row[]>("SELECT id FROM crm_custom_field_options WHERE id=ANY($1::uuid[]) AND field_definition_id=$2", [ids, fieldId]);
-    if (valid.length !== ids.length) throw new BadRequestException(`Filter contains an option from another field: custom:${key}`);
+    const valid = await manager.query<Row[]>("SELECT id FROM crm_custom_field_options WHERE id=ANY($1::uuid[]) AND field_definition_id=$2 AND active=TRUE AND archived_at IS NULL", [ids, fieldId]);
+    if (valid.length !== ids.length) throw new BadRequestException(`Filter contains an unknown or archived option for custom:${key}`);
     const index = this.add(values, condition.operator === "containsAll" ? JSON.stringify(ids) : ids);
     if (condition.operator === "containsAny") return `jsonb_exists_any(COALESCE(${expression},'[]'::jsonb),$${index}::text[])`;
     if (condition.operator === "containsNone") return `NOT jsonb_exists_any(COALESCE(${expression},'[]'::jsonb),$${index}::text[])`;
@@ -166,7 +175,7 @@ export class CrmFilterService {
     return raw;
   }
 
-  private async compileScalar(expression: string, type: ValueType, condition: Condition, values: unknown[], fieldId?: string, allowedValues?: string[]) {
+  private async compileScalar(expression: string, type: ValueType, condition: Condition, values: unknown[], fieldId?: string, allowedValues?: string[], manager: DataSource | EntityManager = this.dataSource) {
     const operator = condition.operator;
     if (operator === "isEmpty") return type === "TEXT" || type === "SELECT" ? `(${expression} IS NULL OR ${expression}='')` : `(${expression} IS NULL)`;
     if (operator === "isNotEmpty") return type === "TEXT" || type === "SELECT" ? `(${expression} IS NOT NULL AND ${expression}<>'')` : `(${expression} IS NOT NULL)`;
@@ -174,18 +183,18 @@ export class CrmFilterService {
     if (operator === "isFalse") return `(NOT (${expression}))`;
     if (operator === "between") {
       if (!Array.isArray(condition.value) || condition.value.length !== 2) throw new BadRequestException("Between filters need two values");
-      const first = await this.validateScalar(type, condition.value[0], fieldId, allowedValues);
-      const second = await this.validateScalar(type, condition.value[1], fieldId, allowedValues);
+      const first = await this.validateScalar(type, condition.value[0], fieldId, allowedValues, manager);
+      const second = await this.validateScalar(type, condition.value[1], fieldId, allowedValues, manager);
       const left = this.add(values, first); const right = this.add(values, second);
       return `(${expression} >= $${left} AND ${expression} <= $${right})`;
     }
     if (operator === "in") {
       if (!Array.isArray(condition.value) || condition.value.length < 1 || condition.value.length > 50) throw new BadRequestException("In filters need 1–50 values");
-      const normalized = await Promise.all(condition.value.map((item) => this.validateScalar(type, item, fieldId, allowedValues)));
+      const normalized = await Promise.all(condition.value.map((item) => this.validateScalar(type, item, fieldId, allowedValues, manager)));
       const index = this.add(values, normalized);
       return `${expression}=ANY($${index}::${type === "NUMBER" ? "numeric" : "text"}[])`;
     }
-    const value = await this.validateScalar(type, condition.value, fieldId, allowedValues);
+    const value = await this.validateScalar(type, condition.value, fieldId, allowedValues, manager);
     if (operator === "contains" || operator === "startsWith") {
       const pattern = operator === "contains" ? `%${escapeLike(String(value))}%` : `${escapeLike(String(value))}%`;
       const index = this.add(values, pattern);
@@ -196,7 +205,7 @@ export class CrmFilterService {
     return `${expression} ${sqlOperator[operator]} $${index}${type === "NUMBER" ? "::numeric" : type === "DATE" ? "::date" : ""}`;
   }
 
-  private async validateScalar(type: ValueType, value: unknown, fieldId?: string, allowedValues?: string[]): Promise<unknown> {
+  private async validateScalar(type: ValueType, value: unknown, fieldId?: string, allowedValues?: string[], manager: DataSource | EntityManager = this.dataSource): Promise<unknown> {
     if (type === "TEXT") {
       if (typeof value !== "string" || !value.trim() || value.length > 500) throw new BadRequestException("Text filters need a non-empty string");
       return value.trim();
@@ -217,7 +226,7 @@ export class CrmFilterService {
     if (type === "SELECT") {
       if (typeof value !== "string" || value.length > 120) throw new BadRequestException("Select filter value is invalid");
       if (fieldId) {
-        const rows = await this.dataSource.query<Row[]>("SELECT id FROM crm_custom_field_options WHERE id=$1 AND field_definition_id=$2", [value, fieldId]);
+        const rows = await manager.query<Row[]>("SELECT id FROM crm_custom_field_options WHERE id=$1 AND field_definition_id=$2 AND active=TRUE AND archived_at IS NULL", [value, fieldId]);
         if (!rows[0]) throw new BadRequestException("Select option is invalid for this field");
       } else if (!allowedValues?.includes(value)) throw new BadRequestException("Select filter value is not supported for this field");
       return value;

@@ -24,8 +24,10 @@ import { CrmSavedViewController } from "./crm-saved-view.controller";
 import { CrmSavedViewService } from "./crm-saved-view.service";
 import { CrmSegmentController } from "./crm-segment.controller";
 import { CrmSegmentService } from "./crm-segment.service";
+import { CrmScoringController } from "./crm-scoring.controller";
+import { CrmScoringService } from "./crm-scoring.service";
 import { SubscriptionsModule } from "../subscriptions/subscriptions.module";
 import { TenantsModule } from "../tenants/tenants.module";
 
-@Module({ imports: [TypeOrmModule.forFeature([CrmOrganization, CrmContact, CrmLead, CrmLeadStatusHistory, CrmDeal, CrmDealStageHistory, CrmActivity, CrmTask, CrmNote, CrmCustomFieldDefinition, CrmCustomFieldOption, CrmTag, CrmEntityTag, CrmSavedView, CrmSegment]), AuthModule, AuthorizationModule, AuditModule, TenantsModule, SubscriptionsModule], controllers: [CrmController, CrmLeadController, CrmDealController, CrmWorkController, CrmMetadataController, CrmSavedViewController, CrmSegmentController], providers: [CrmService, CrmLeadService, CrmDealService, CrmActivityService, CrmTaskService, CrmNoteService, CrmOrganization360Service, CrmTimelineService, CrmCustomerContextService, CrmMetadataService, CrmFilterService, CrmSavedViewService, CrmSegmentService], exports: [CrmLeadService] })
+@Module({ imports: [TypeOrmModule.forFeature([CrmOrganization, CrmContact, CrmLead, CrmLeadStatusHistory, CrmDeal, CrmDealStageHistory, CrmActivity, CrmTask, CrmNote, CrmCustomFieldDefinition, CrmCustomFieldOption, CrmTag, CrmEntityTag, CrmSavedView, CrmSegment]), AuthModule, AuthorizationModule, AuditModule, TenantsModule, SubscriptionsModule], controllers: [CrmController, CrmLeadController, CrmDealController, CrmWorkController, CrmMetadataController, CrmSavedViewController, CrmSegmentController, CrmScoringController], providers: [CrmService, CrmLeadService, CrmDealService, CrmActivityService, CrmTaskService, CrmNoteService, CrmOrganization360Service, CrmTimelineService, CrmCustomerContextService, CrmMetadataService, CrmFilterService, CrmSavedViewService, CrmSegmentService, CrmScoringService], exports: [CrmLeadService] })
 export class CrmModule {}

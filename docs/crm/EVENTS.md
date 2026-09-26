@@ -9,7 +9,7 @@ UCafe has no general internal domain-event bus, message broker, or CRM event pub
 - Tenant, Subscription, and Payment state is stored in their owning tables/services. Their current writes do not publish the event names below as a public contract.
 - The worker workspace is a bootstrap scaffold and does not currently coordinate these jobs.
 
-## Phase 2–6 records and read projections, not published events
+## Phase 2–8 records and read projections, not published events
 
 Phase 2 adds no event bus, publisher, outbox, or inter-module event contract. The actual Lead workflow persists history and operator audit records:
 
@@ -34,6 +34,8 @@ These audit actions remain audit records, not published events. Phase 5 reads on
 Phase 6 adds transactional `crm.organization.tenant_linked` and `crm.organization.tenant_unlinked` audit rows with only the Tenant UUID in the summary. They document explicit CRM association changes; they are not Tenant lifecycle events. The Timeline reads them with Tenant `created_at`, Subscription `trial_started_at`, and successful non-legacy `subscription_payments` rows. Payment Timeline items contain operation and paid-period end only. They omit amount, payment provider, authority, provider reference, and invoice intent details. The customer-context panel reads an owner-module projection and does not write or reconcile Subscription state.
 
 Phase 7 metadata and Tag/view/Segment writes add selective PII-safe operator audit rows. Field-value updates record the changed field count without keys or values; Tag assignment audit records only added/removed counts. Definitions and query criteria are configuration, not CRM domain events. These rows are not added to the Organization Timeline, and no event publisher, automation, campaign, or delivery path is introduced.
+
+Phase 8 adds `crm.scoring_rule.created`, `crm.scoring_rule.updated`, and `crm.scoring_rule.archived` audit actions with an empty summary; rule criteria and descriptions are not copied into audit records. `crm_lead_score_history` stores score-state snapshots when the score, rule-set version, configured state, or explanation changes. Its reason is `LEAD_CREATED`, `LEAD_UPDATED`, `ACTIVITY_CHANGED`, `CUSTOM_FIELD_CHANGED`, `TAG_CHANGED`, `RULE_CHANGED`, `MANUAL_RECALCULATION`, or `SCHEDULED_REFRESH` depending on the recalculation path. These rows and audit actions are not published events or Timeline entries. Scoring creates no outbox, subscriber, workflow trigger, outreach action, or lifecycle mutation.
 
 The Organization Timeline is an API read model, not an event catalog or delivery contract. It normalizes source rows for display and never publishes or stores a second copy. See [TIMELINE.md](TIMELINE.md).
 
