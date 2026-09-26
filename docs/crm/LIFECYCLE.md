@@ -1,6 +1,6 @@
 # Lead and deal lifecycles
 
-Lead state transitions and conversion are implemented in Phase 2. Deal lifecycles below are future Phase 3 behavior.
+Lead state transitions and conversion are implemented in Phase 2. Deal lifecycle behavior is implemented in Phase 3.
 
 ## Lead status
 
@@ -48,6 +48,8 @@ A conversion is an explicit, idempotent operation available only from QUALIFIED.
 
 A retry with the same Lead returns the existing conversion result. A conflict must be resolved by an authorized user; the API must not silently merge records. Duplicate Organization and Contact candidates block conversion until the operator explicitly links a candidate or confirms a distinct record. Phase 2 creates no Deal or Pipeline. Conversion does not provision a Tenant, start a Trial, create a Subscription, choose a paid plan, or create an invoice/payment.
 
+An operator may explicitly create a Deal from a converted Lead. The unique originating-Lead reference makes that association one-to-one; creating a Deal never changes the Lead lifecycle. Leads without conversion may not originate a Deal.
+
 ## Deal outcome
 
 Deal stage and Deal outcome are separate fields.
@@ -55,7 +57,7 @@ Deal stage and Deal outcome are separate fields.
 - OPEN means the opportunity is still being worked. Its stage is one of the open pipeline stages in [PIPELINE.md](PIPELINE.md).
 - WON means an operator has recorded that the café accepted UCafe's commercial offer. It does not assert that a Tenant is provisioned, a Trial is active, or any Payment settled.
 - LOST means the opportunity ended without a sale and requires a loss reason.
-- Won/Lost close the Deal with one timestamp. Closed Deals are terminal; a new pursuit creates a new Deal. Corrections require an explicitly audited operation.
+- Won/Lost close the Deal with one timestamp. Closed Deals are terminal and no reopen/correction API is provided; a new pursuit creates a new Deal.
 
 CRM must never infer WON from tenant provisioning or subscription/payment rows, or infer LOST from a suspended/canceled Tenant/Subscription.
 

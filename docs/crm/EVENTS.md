@@ -9,7 +9,7 @@ UCafe has no general internal domain-event bus, message broker, or CRM event pub
 - Tenant, Subscription, and Payment state is stored in their owning tables/services. Their current writes do not publish the event names below as a public contract.
 - The worker workspace is a bootstrap scaffold and does not currently coordinate these jobs.
 
-## Phase 2 records, not published events
+## Phase 2/3 records, not published events
 
 Phase 2 adds no event bus, publisher, outbox, or inter-module event contract. The actual Lead workflow persists history and operator audit records:
 
@@ -17,8 +17,10 @@ Phase 2 adds no event bus, publisher, outbox, or inter-module event contract. Th
 |---|---|
 | `crm_lead_status_history` | Every manual Lead creation, public intake Lead creation, status change, qualification, unqualification, and conversion. It records previous/next status, optional reason, actor (nullable for public intake), and time. |
 | `platform_audit_events` | Authenticated Lead create/update, status change, qualification, unqualification, conversion, assignment, archive, and restore. Audit summaries exclude phone/email and other contact PII. |
+| `crm_deal_stage_history` | Deal creation and every stage change, with prior/next stage, pipeline key, actor, reason where required, and timestamp. |
+| `platform_audit_events` | Authenticated Deal create/update, stage change, win/loss, archive, and restore. Summaries contain stage/outcome/reason keys only; no contact PII. |
 
-Each Lead state change and its history/audit write commit in the same transaction. A consultation submission and its linked Lead are committed together with the existing notification enqueue. Audit action strings are records for audit review, not messages that other modules consume.
+Each Lead/Deal state change and its history/audit write commit in the same transaction. A consultation submission and its linked Lead are committed together with the existing notification enqueue. Deal audit action strings (`crm.deal.created`, `updated`, `stage_changed`, `won`, `lost`, `archived`, `restored`) are records for audit review, not messages that other modules consume.
 
 ## Planned external facts of interest
 

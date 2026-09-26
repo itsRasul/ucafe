@@ -38,7 +38,7 @@ POST   /api/v1/platform/crm/leads/:leadId/archive
 POST   /api/v1/platform/crm/leads/:leadId/restore
 ~~~
 
-There is no CRM `DELETE` route. Public consultation intake still uses its existing routes; accepted submissions now create a Lead transactionally. Deal, Task, Activity, and timeline endpoints remain deferred.
+There is no CRM `DELETE` route. Public consultation intake still uses its existing routes; accepted submissions now create a Lead transactionally. Task, Activity, and timeline endpoints remain deferred.
 
 ## Organizations
 
@@ -72,8 +72,36 @@ PATCH updates the Lead snapshot, priority, owner, and canonical links. Converted
 
 Conversion accepts `{ organizationMode: "CREATE"|"LINK", organizationId?, contactMode: "CREATE"|"LINK", contactId?, confirmPotentialDuplicates? }`. A qualified Lead must resolve/create an Organization and a Contact within it. A new Contact uses the Lead's contact name and encrypted phone/email; if the name is missing, link an existing Contact or edit the Lead before conversion. Duplicate Organization or Contact candidates return 409 unless the operator explicitly confirms creating a separate record. Conversion locks the Lead; links, CONVERTED state/timestamp, status history, and audit record commit atomically. Repeating conversion returns the existing converted Lead and does not create records again. No Deal is created.
 
+## Deals and pipeline
+
+Every Deal route requires `crm.read` for reads/options or `crm.manage` for writes. `GET /pipeline` returns the single code-defined `ucafe-default` pipeline, ordered stage metadata, and active OPEN per-stage counts and estimated Toman totals. `GET /deal-plans` returns active Plan options as read-only references.
+
+Routes:
+
+~~~text
+GET    /api/v1/platform/crm/deals
+POST   /api/v1/platform/crm/deals
+GET    /api/v1/platform/crm/deals/:dealId
+PATCH  /api/v1/platform/crm/deals/:dealId
+POST   /api/v1/platform/crm/deals/:dealId/stage
+POST   /api/v1/platform/crm/deals/:dealId/win
+POST   /api/v1/platform/crm/deals/:dealId/lose
+POST   /api/v1/platform/crm/deals/:dealId/archive
+POST   /api/v1/platform/crm/deals/:dealId/restore
+GET    /api/v1/platform/crm/pipeline
+GET    /api/v1/platform/crm/deal-plans
+~~~
+
+Create requires `title` and `organizationId`; optional fields are `primaryContactId`, `originatingLeadId`, `ownerId`, `expectedPlanId`, `stage`, `estimatedAmountToman`, and `expectedCloseDate`. A lead origin must be qualified or converted and already linked to the selected Organization; a Lead can originate at most one Deal. Contact must belong to the Organization. Owner must be an active CRM-assigned platform user. Updates can change title, contact, owner, expected Plan, estimate, and expected close date; Organization, originating Lead, pipeline, and stage are immutable through PATCH.
+
+List returns `{ items, total, page, pageSize, stageTotals }`; supports `q`, `status`, `stage`, `ownerId` (UUID or `UNASSIGNED`), `organizationId`, `expectedPlanId`, `expectedCloseFrom`, `expectedCloseTo`, archive state, allowlisted sort/direction, and 1-based pagination (maximum 100 rows). Search covers Deal title, Organization, and primary Contact. Stage totals reflect the active filtered OPEN set.
+
+Stage POST accepts `{ expectedStage, stage, reason? }` and rejects stale concurrent moves. Adjacent forward moves need no reason; skipped/backward moves require a nonblank explanation. Initial creation records the selected starting stage. Win and loss are explicit outcomes; loss accepts a controlled `reason` and optional `detail` only for OTHER. Closed Deals cannot be edited, moved, or reopened. Each consequential state write, stage history, and PII-free audit record share a transaction.
+
+Deal estimates are integer Toman strings at API boundaries and forecasts only. Selecting an expected Plan does not enroll a Tenant or mutate its Trial, Subscription, invoice, or Payment.
+
 Archive/restore preserve the Lead, status history, source request, and Organization/Contact links. Archived Leads remain readable and may be listed with `ARCHIVED` or `ALL`; restore is required before editing or status changes.
 
 ## Errors and archive behavior
 
-Use standard Nest status behavior: 400 invalid input, 401 missing/invalid authentication, 403 missing permission, 404 missing Organization/Contact/Tenant, and 409 a Tenant link collision or update attempted on an archived record. Archive/restore are idempotent, preserve related records, and are audited with PII-free summaries. Archived rows stay readable for restore; list filters default to active rows. Archiving an Organization does not archive its Contacts, and no parent delete cascades.
+Use standard Nest status behavior: 400 invalid input, 401 missing/invalid authentication, 403 missing permission, 404 a missing CRM or Tenant record, and 409 a uniqueness/stale-stage conflict or update attempted on an archived record. Archive/restore are idempotent, preserve related records, and are audited with PII-free summaries. Archived rows stay readable for restore; list filters default to active rows. Archiving an Organization does not archive its Contacts, and no parent delete cascades.

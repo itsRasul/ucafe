@@ -1,6 +1,6 @@
 # CRM analytics data requirements
 
-No platform CRM analytics is implemented. Current /admin/analytics is Tenant Analytics and has separate Tenant permissions and plan-feature gates. Platform CRM reporting must be separate and must not reinterpret cafe order value as sales revenue. Phase 2 now retains Lead source, `created_at`, `qualified_at`, `converted_at`, `source_request_id`, and append-only status history as the minimum Lead funnel source data.
+No standalone platform CRM analytics/reporting page is implemented. Current /admin/analytics is Tenant Analytics and has separate Tenant permissions and plan-feature gates. The Phase 3 pipeline board exposes operational per-stage open Deal counts and sums of optional estimates; these are not a historical report and must not be presented as collected revenue. Phase 2 retains Lead source, `created_at`, `qualified_at`, `converted_at`, `source_request_id`, and append-only status history as the minimum Lead funnel source data.
 
 ## Data to preserve from the first workflow phase
 
@@ -16,6 +16,6 @@ No platform CRM analytics is implemented. Current /admin/analytics is Tenant Ana
 
 Deal estimated value and closed-won counts are sales measures, not collected revenue. Payment, subscription, and tenant facts remain separate. Do not calculate a paid-revenue metric from a Deal, Tenant status, or plan price.
 
-Keep stage history from the first Deal release. The current stage alone cannot support time-in-stage, historical funnels, or conversion-by-stage reports. Preserve a stable Lead source key and avoid overwriting source attribution when a Lead changes status.
+Phase 3 retains stage history from the first Deal release. The current stage alone cannot support time-in-stage, historical funnels, or conversion-by-stage reports. Preserve a stable Lead source key and avoid overwriting source attribution when a Lead changes status.
 
 Analytics should begin in Phase 10 after enough CRM data exists. Use bounded SQL aggregates over indexed histories, return business measures rather than UI colors, and define periods/timezone before reporting. Do not add a CRM Analytics plan feature or couple to tenant Analytics without a product decision.

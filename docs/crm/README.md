@@ -1,14 +1,14 @@
 # UCafe Platform CRM
 
-**Status:** Phase 0 foundation, Phase 1 Organizations & Contacts, and Phase 2 Lead Management are implemented. Deals and pipeline remain Phase 3; Activity, Task, Note, timeline, and CRM analytics workflows remain later work.
+**Status:** Phases 0–3 are implemented: Organizations & Contacts, Lead Management, Deals, and the default sales pipeline. Activity, Task, Note, unified timeline, and CRM analytics workflows remain later work.
 
 ## Purpose and boundary
 
-Platform CRM is an internal UCafe capability for platform operators and future platform sales staff to manage UCafe's relationship with prospective and existing café businesses. It will cover organizations, contacts, leads, sales opportunities, follow-up work, and their history.
+Platform CRM is an internal UCafe capability for platform operators and future platform sales staff to manage UCafe's relationship with prospective and existing café businesses. It currently covers organizations, contacts, leads, sales opportunities, and stage history; follow-up work remains planned.
 
 It is not a CRM for a café's own customers. Tenant CRM remains a separate possible product. CRM records have platform scope and are not tenant-owned.
 
-CRM owns commercial Organization and Contact details and Lead sales workflow. It does not own café tenant lifecycle, subscriptions or trial rules, plan pricing, payment or invoice state, administrative identity, tenant clients, or public consultation submission delivery. A CRM Organization can exist before a Tenant and may later link to one. A Contact is not a platform User or tenant Client. A Deal is not a Subscription, Invoice, or Payment.
+CRM owns commercial Organization and Contact details, Lead sales workflow, and Deal pipeline judgments. A Deal may reference the code-defined pipeline, a qualified or converted Lead, an expected Plan, and an estimate, but does not own café tenant lifecycle, subscriptions or trial rules, plan pricing, payment or invoice state, administrative identity, tenant clients, or public consultation submission delivery. A CRM Organization can exist before a Tenant and may later link to one. A Contact is not a platform User or tenant Client. A Deal is not a Subscription, Invoice, or Payment.
 
 There is no Sales Engine in UCafe. This roadmap does not assume one or build one; another system could become a future consumer of documented CRM contracts.
 
@@ -29,13 +29,13 @@ CRM is a platform-only module in the existing API and web application. Phase 2 a
 - **Note:** internal context, separate from an interaction and scheduled work.
 - **History:** append-only lead-status and deal-stage transitions; it supports audit and timeline views without event sourcing.
 
-Phase 1 implements Organization and Contact. Phase 2 adds Lead snapshots, exact duplicate warnings, assignment, qualification, unqualification, status history, archive/restore, and conversion to an Organization plus Contact. Leads keep their entered snapshot and do not create a Deal. Lead phone/email are encrypted at rest with keyed exact-match hashes. Contacts do not carry a decision-maker boolean; use the person's business title/role. See [DATA_MODEL.md](DATA_MODEL.md), [LIFECYCLE.md](LIFECYCLE.md), [API.md](API.md), and [UX.md](UX.md) for the implemented contract.
+Phase 1 implements Organization and Contact. Phase 2 adds Lead snapshots, exact duplicate warnings, assignment, qualification, unqualification, status history, archive/restore, and conversion to an Organization plus Contact. Conversion itself creates no Deal; Phase 3 allows an operator to explicitly create a Deal from a qualified or converted Lead already linked to an Organization. Lead phone/email are encrypted at rest with keyed exact-match hashes. Contacts do not carry a decision-maker boolean; use the person's business title/role. See [DATA_MODEL.md](DATA_MODEL.md), [LIFECYCLE.md](LIFECYCLE.md), [API.md](API.md), and [UX.md](UX.md) for the implemented contract.
 
 For the initial product, one CRM Organization may link to at most one Tenant, and a Tenant to at most one CRM Organization. One Tenant already supports multiple branches. Revisit this simple link only if UCafe has a real business-group case with several independently provisioned Tenants.
 
 ## Source-of-truth rules
 
-CRM owns Organization and Contact details used for sales, Lead source/status/assignment/qualification and conversion. Deal stage/outcome/estimated value and manually recorded sales Activities, Tasks, and Notes are later phases.
+CRM owns Organization and Contact details used for sales, Lead source/status/assignment/qualification and conversion, plus Deal stage/outcome/estimated value. Manually recorded sales Activities, Tasks, and Notes are later phases.
 
 Tenant, Subscription, Trial, Plan, and Payment facts remain with their existing modules. CRM may display them through read-only projections and link to their existing administration flows; it must not calculate or mutate their lifecycle. See [INTEGRATIONS.md](INTEGRATIONS.md).
 

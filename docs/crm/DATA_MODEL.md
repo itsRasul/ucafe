@@ -1,6 +1,6 @@
 # Conceptual data model
 
-Phase 1 adds `crm_organizations` and `crm_contacts` through migration `1790510000000-CreatePlatformCrmOrganizationsAndContacts`. Phase 2 adds `crm_leads` and `crm_lead_status_history` through `1790520000000-CreatePlatformCrmLeads`. Deal and work-record rows remain future-phase proposals.
+Phase 1 adds `crm_organizations` and `crm_contacts` through migration `1790510000000-CreatePlatformCrmOrganizationsAndContacts`. Phase 2 adds `crm_leads` and `crm_lead_status_history` through `1790520000000-CreatePlatformCrmLeads`. Phase 3 adds `crm_deals` and `crm_deal_stage_history` through `1790530000000-CreatePlatformCrmDeals`. Activity, Task, and Note rows remain future-phase proposals.
 
 ~~~mermaid
 erDiagram
@@ -38,13 +38,19 @@ All new CRM primary keys should be UUIDs. Use explicit snake_case table/column n
 | CRM Contact (`crm_contacts`) | id, `organization_id`, name, optional role/title, optional AES-GCM encrypted phone/email and keyed exact-match hashes, created/updated actor and timestamps, `archived_at` | CRM-owned business contact. One Organization per Contact, with multiple Contacts per Organization. Archive while preserving the Organization. |
 | CRM Lead (`crm_leads`) | id, business name and normalized name, optional contact name, encrypted phone/email with keyed hashes, optional normalized city, website/host and Instagram, optional description, code-defined source/status/priority, nullable platform owner, optional Organization and primary Contact, optional unique source request, qualification/unqualified fields, qualified/converted timestamps, creator/updater, timestamps, `archived_at` | CRM-owned prospect snapshot retained after conversion. Conversion requires an Organization and Contact; Phase 2 does not create a Deal. |
 | CRM LeadStatusHistory (`crm_lead_status_history`) | id, lead_id, previous_status, next_status, optional reason, nullable actor, created_at | Append-only transition history. Initial creation records a null previous status; public intake has a null actor. |
-| CRM Deal | id, organization_id, optional primary_contact_id and originating_lead_id, name, optional estimated_amount_toman, stage, outcome, loss_reason, created/updated actor and timestamps, closed_at, won_at/lost_at, archived_at | Future Phase 3 opportunity estimate and explicit sales decision. Stage changes should write DealStageHistory transactionally. |
+| CRM Deal (`crm_deals`) | id, unique optional `originating_lead_id`, organization/contact/owner/expected-plan references, title, integer-Toman `estimated_amount_toman`, date `expected_close_date`, code-defined pipeline/stage/status, outcome/loss details, actor/timestamps, close timestamps, archive state | CRM opportunity in one code-defined pipeline. Lead origin is unique; stage/outcome updates and their history/audit rows are transactional. |
 | CRM Activity | id, organization_id, optional contact/lead/deal/task ids, type, occurred_at, summary, actor_user_id, created_at | Historical interaction. Append-only except a narrowly audited correction/redaction path. |
 | CRM Task | id, organization_id, optional contact/lead/deal ids, type, title, due_at, assigned_to_user_id, status, completed_at/by, canceled_at/by, created/updated actor and timestamps, archived_at | Future work and retained completion/cancellation. |
 | CRM Note | id, organization_id, optional lead/deal ids, body, author_user_id, created/updated timestamps, archived_at | Internal context, access-controlled and retained; redact sensitive content deliberately instead of cascade deletion. |
-| CRM DealStageHistory | id, deal_id, previous_stage, next_stage, reason, actor_user_id, created_at | Append-only transition history and source for time-in-stage analytics. |
+| CRM DealStageHistory (`crm_deal_stage_history`) | id, deal_id, pipeline_key, nullable from_stage, to_stage, optional reason, actor_user_id, created_at | Append-only transition history and source for time-in-stage analytics. Initial creation records a null previous stage. |
 
-Deal, Activity, Task, Note, and DealStageHistory field details remain candidates for implementation review. Do not store a second copy of Tenant status, subscription dates, plan features, invoice status, or payment state.
+### Phase 3 schema actually installed
+
+- `crm_deals` stores `title`, required Organization, optional same-Organization Contact, optional unique originating qualified/converted Lead already linked to that Organization, nullable platform owner, optional `subscription_plans` reference for the expected Plan, optional nonnegative `bigint` amount in Toman, optional expected close date, `ucafe-default` pipeline key, one of six stable stages, OPEN/WON/LOST outcome, loss reason/detail, actor IDs, lifecycle timestamps, and archive state.
+- `crm_deal_stage_history` is append-only, references its Deal with `ON DELETE RESTRICT`, retains pipeline/from/to stage, optional reason, actor, and timestamp. Indexes cover Deal history order and active pipeline/stage/update order, owner, Organization, expected Plan, and expected close date. A unique partial index prevents two Deals from claiming one originating Lead.
+- Foreign keys/checks enforce same-Organization Contact and Lead links, expected Plan reference, nonnegative estimate, stage/status/loss keys, and consistent open/closed outcome timestamps. Service validation requires a qualified/converted Lead and a matching Organization. FKs are restrictive for business history; actor references become null on user deletion. No pipeline/stage lookup tables are created.
+
+Activity, Task, and Note field details remain candidates for implementation review. Do not store a second copy of Tenant status, subscription dates, plan features, invoice status, or payment state.
 
 ## Relationships and constraints
 

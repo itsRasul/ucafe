@@ -1,6 +1,6 @@
 # Platform CRM information architecture
 
-This document records the implemented Phase 1/2 placement and the deferred roadmap UX. Organization, Contact, and Lead workflows use nested App Router pages inside the existing platform application.
+This document records the implemented Phase 1–3 placement and the deferred roadmap UX. Organization, Contact, Lead, and Deal workflows use nested App Router pages inside the existing platform application.
 
 ## Current platform surface
 
@@ -22,7 +22,7 @@ CRM navigation:
 
 Implemented routes include `/platform/crm`, `/platform/crm/organizations/new`, `/platform/crm/organizations/:organizationId`, `/platform/crm/leads`, `/platform/crm/leads/new`, and `/platform/crm/leads/:leadId`. The organization detail page shows the business profile, paginated/searchable Contacts, inline Contact creation/editing, archive/restore, and read-only linked Tenant information. Operators with both `crm.read` and `tenants.read` can link or unlink an available Tenant. Lead pages use the same platform session, same-origin API, RTL CSS, and permission contract.
 
-Pipeline is a later Phase 3 destination; Tasks are Phase 4 and reports Phase 10. Keep CRM Settings out until stages, tags, or other configuration actually exist. Avoid duplicating a flat list of every CRM object in the mobile bottom navigation.
+The Pipeline destination is `/platform/crm/pipeline`; Tasks are Phase 4 and standalone reports Phase 10. Keep CRM Settings out because stages are code-defined. Avoid duplicating a flat list of every CRM object in the mobile bottom navigation.
 
 ## Page structure
 
@@ -38,9 +38,9 @@ Contacts are shown within an Organization. Contact search supports name/role tex
 
 The implemented queue filters by status, source, priority, assignee (including unassigned), archive state, and text search; it supports allowlisted sorting and 25-row paging. Create/edit forms include source, priority, assignment, snapshot fields, and optional Organization/Contact links. Exact duplicate candidates show record type, display label, matching fields, and status without exposing phone/email; an operator can link an existing record or explicitly continue with a separate Lead. Detail shows protected contact fields, source-request stage/services, qualification and unqualification context, linked Organization/Contact, timestamps, and append-only status history. Separate actions change ordinary status, qualify, unqualify with a reason, convert, archive, and restore. Conversion requires a canonical Organization and Contact and does not create a Deal. Loading, empty, error, and success feedback use accessible status/alert regions; forms provide visible keyboard focus and mobile touch targets.
 
-### Pipeline and Tasks
+### Deals and Pipeline
 
-Pipeline is a Deal board/list by current CRM stage and outcome, with an accessible list alternative to drag/drop. Tasks should emphasize due/overdue work, assignee, and related Organization/Deal. Do not make hover or color the only status signal.
+`/platform/crm/deals` is the searchable, filterable, sortable, paginated Deal list. `/platform/crm/pipeline` is a six-column board for the fixed ordered stages, with open count and estimate totals per stage. Cards expose an accessible labeled stage selector; moving between columns is supported with native drag/drop and both paths call the same permission-protected transition API. Skips/backtracks request a reason and stale stage updates are rejected. Won/Lost are separate outcomes, displayed outside open-stage meaning. Create/edit, loss details, archive/restore, organization/contact/converted-Lead links, expected Plan, owner, estimated value, expected close date, and append-only stage history have dedicated controls/details. The form states that expected Plan and forecast are non-binding and do not change subscription/payment state. Avoid duplicating a flat list of every CRM object in the mobile bottom navigation. Tasks should emphasize due/overdue work, assignee, and related Organization/Deal. Do not make hover or color the only status signal.
 
 ### Organization 360
 

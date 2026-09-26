@@ -114,7 +114,7 @@ export class CrmLeadService {
   async create(input: CreateCrmLeadDto, actorId: string) {
     const values = this.leadValues(input);
     return this.dataSource.transaction(async (manager) => {
-      await this.assertAssignee(manager, input.ownerId ?? null);
+      await this.assertCrmAssignee(manager, input.ownerId ?? null);
       const links = await this.resolveLinks(manager, input.organizationId ?? null, input.primaryContactId ?? null);
       const duplicates = await this.findPotentialDuplicates(manager, values);
       const remaining = this.withoutSelected(duplicates, links.organizationId, links.contactId);
@@ -146,7 +146,7 @@ export class CrmLeadService {
         description: input.description === undefined ? current.description : input.description,
       });
       const ownerId = input.ownerId === undefined ? current.owner_id : input.ownerId;
-      if (input.ownerId !== undefined) await this.assertAssignee(manager, ownerId);
+      if (input.ownerId !== undefined) await this.assertCrmAssignee(manager, ownerId);
       const organizationId = input.organizationId === undefined ? current.organization_id : input.organizationId;
       const contactId = input.primaryContactId === undefined ? current.primary_contact_id : input.primaryContactId;
       const organizationChanged = organizationId !== current.organization_id;
@@ -392,7 +392,7 @@ export class CrmLeadService {
     return { organizationId, contactId };
   }
 
-  private async assertAssignee(manager: EntityManager, userId: string | null) {
+  async assertCrmAssignee(manager: EntityManager, userId: string | null) {
     if (!userId) return;
     const rows = await manager.query<DbRow[]>(`
       SELECT u.id FROM users u

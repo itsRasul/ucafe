@@ -2,6 +2,14 @@
 
 Last updated: 2026-09-26
 
+## UCafe Platform CRM Phase 3: Deals & sales pipeline
+
+Implemented `crm_deals` and append-only `crm_deal_stage_history` on top of the CRM Organization/Contact/Lead model. CRM now has one code-defined `ucafe-default` pipeline with six ordered open stages, reasoned skip/backtrack corrections, optimistic stale-stage rejection, explicit WON/LOST outcomes, controlled loss reasons, archive/restore, and operational per-stage open counts/estimated Toman totals. Deals link to an Organization, optional same-Organization Contact, optional unique qualified/converted Lead already linked to the same Organization, CRM owner, and read-only expected Plan reference. Estimates and stage names never create or change subscription/payment state.
+
+The platform UI adds `/platform/crm/deals` list/create/detail/edit flows and `/platform/crm/pipeline` with stage columns, totals, accessible stage controls, and drag/drop. Deal history and PII-free audit writes share state transactions. No general event bus, custom pipeline editor, CRM analytics report, Activity, Task, or Note was added. Migration `1790530000000-CreatePlatformCrmDeals` is applied to the development database.
+
+Verification: API suite passed (139 passed, 20 environment/database-gated skips); all four CRM PostgreSQL integration cases passed, including qualified-Lead Deal creation; API/web typechecks and API/web production builds passed. Migration show confirmed migration 179053 applied. Compose image refresh/live route checks could not be completed because Docker Desktop BuildKit failed with a metadata-store I/O error and the daemon became unavailable. No lint command exists. Authenticated visual interaction review still requires a platform session.
+
 ## UCafe Platform CRM Phase 2: Lead management
 
 Implemented platform-scoped Leads on the Phase 1 Organization/Contact foundation. Leads retain a normalized prospect snapshot, encrypted phone/email and keyed lookup hashes, code-defined source/status/priority, active CRM owner, optional Organization/Contact links, qualification notes, controlled unqualified reason/detail, lifecycle timestamps, source-request link, archive state, and append-only status history. Platform staff can create, search/filter/sort/page, edit, assign/reassign, change status, qualify, unqualify, archive/restore, inspect source context/history, and safely convert a qualified Lead into an Organization plus Contact. Duplicate candidates are shown without phone/email; an explicit link or confirmation is required. Conversion is row-locked, transactional, idempotent, and creates no Deal.

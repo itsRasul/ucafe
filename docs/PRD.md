@@ -65,7 +65,7 @@ The product is aimed at independent cafes that need a professional storefront, e
 
 ## Platform capability: Platform CRM
 
-Platform CRM manages UCafe's commercial relationships with café businesses as internal platform staff functionality, not a Tenant CRM. Phases 1 and 2 provide Organizations, Contacts, Leads, exact duplicate review, assignment, qualification, status history, archive/restore, safe conversion to Organization + Contact, and an optional unique Organization link to an existing Tenant. Accepted public consultation submissions create a linked Lead in the same transaction while preserving the existing request, response, notification, and inbox contracts. Deals and Pipeline are Phase 3; activities, tasks, and reporting remain later work. See [docs/crm/README.md](crm/README.md).
+Platform CRM manages UCafe's commercial relationships with café businesses as internal platform staff functionality, not a Tenant CRM. Phases 1–3 provide Organizations, Contacts, Leads, exact duplicate review, assignment, qualification, status history, safe conversion to Organization + Contact, a single code-defined Deal pipeline, stage history, outcomes, and operational board totals. Accepted public consultation submissions create a linked Lead in the same transaction while preserving the existing request, response, notification, and inbox contracts. Activities, tasks, unified timeline, and standalone reporting remain later work. See [docs/crm/README.md](crm/README.md).
 
 ## Product constraints
 
@@ -79,7 +79,7 @@ Platform CRM manages UCafe's commercial relationships with café businesses as i
 ## Not currently supported
 
 - recurring or automatic subscription billing, refunds UI, and customer online order payment
-- Platform CRM Deals/Pipeline, activities, tasks, and sales analytics; Organizations, Contacts, and Lead management are available in Phases 1 and 2.
+- Platform CRM activities, tasks, unified timeline, and standalone sales analytics; Organizations, Contacts, Lead management, and Deals/Pipeline are available in Phases 1–3.
 - customer self-service reservation cancellation
 - physical table/floor assignment and overnight opening-hour ranges
 - an operational custom-domain onboarding/verification workflow
