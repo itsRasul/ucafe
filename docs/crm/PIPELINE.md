@@ -26,6 +26,10 @@ Closing a Deal sets its separate outcome to WON or LOST; do not create fake WON/
 
 History enables the operational history view and future time-in-stage reporting. The current stage column alone cannot answer those questions. Stage summary counts and estimated amounts are operational board totals, not recognized or collected revenue.
 
+## Phase 5 Timeline
+
+Deal creation is read from `crm_deals.created_at`; stage changes are read from `crm_deal_stage_history`; a Won/Lost event uses `won_at`/`lost_at` from the Deal row and the matching transactional audit action only for actor attribution. Initial stage-history rows are omitted because Deal creation already represents that moment. Closed Deals cannot be reopened; a renewal or reactivation pursuit is a new Deal, so no `DEAL_REOPENED` event exists. Archived Deals retain Timeline history.
+
 ## Future flexibility
 
 If UCafe needs multiple product lines, sales teams, or operators with distinct funnels, consider configuration only after real workflow evidence exists. Preserve stable history semantics if stage labels/order change.

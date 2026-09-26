@@ -112,3 +112,9 @@ Use UTC timestamptz values for CRM timestamps and render Persian-local dates in 
 ## Archive and delete policy
 
 Archive Organizations, Contacts, Leads, and Deals; reject new or changed work on archived records unless they are explicitly restored. Activities and Notes may be edited while active, then archived/restored while retaining content. Tasks remain after completion or cancellation; an OPEN Task must first be completed or canceled before archive. Work and transition history are retained and have no hard-delete route. Do not cascade-delete CRM rows when a Tenant, User, or linked request is archived or soft-deleted. A future privacy/retention operation requires an explicit policy and reference checks.
+
+## Phase 5 read views
+
+No Timeline or Organization 360 table, entity, materialized view, migration, or backfill was added. `GET /organizations/:id/timeline` builds normalized rows at read time from `crm_leads`, `crm_lead_status_history`, `crm_deals`, `crm_deal_stage_history`, `crm_activities`, `crm_tasks`, `crm_notes`, and narrowly selected `platform_audit_events` actions. Task completion/cancellation/reopen actions are written transactionally by the Task service; Deal win/loss timestamps remain on `crm_deals`, and matching audit rows supply the actor. The audit log is not otherwise a Timeline source.
+
+Organization 360 queries existing tables and returns bounded summaries/previews. Counts, last Activity, and next Task are derived; Contacts remain in their existing paginated endpoint. No Organization, Deal, Subscription, or Tenant business fields are duplicated. See [TIMELINE.md](TIMELINE.md) for ordering, filtering, archive, and relationship semantics.

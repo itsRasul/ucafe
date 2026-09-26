@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { PlatformApi as Api, usePlatformSession } from "../use-platform-session";
 import { CrmWorkSections } from "./work";
+import { Organization360 } from "./organization-360";
 
 type Page<T> = { items: T[]; total: number; page: number; pageSize: number };
 type Organization = { id: string; name: string; city: string | null; website: string | null; instagram: string | null; coffeeShopId: string | null; tenant: { id: string; name: string; status: string } | null; archivedAt: string | null; createdAt: string; updatedAt: string; contactCount?: number };
@@ -121,21 +122,26 @@ function OrganizationDetail({ api, canManage, canLinkTenant, organizationId }: {
   const [contactArchive, setContactArchive] = useState("ACTIVE");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [contactError, setContactError] = useState("");
   const [editing, setEditing] = useState(false);
   const [contactEditor, setContactEditor] = useState<{ id?: string } | null>(null);
   const [confirmOrgArchive, setConfirmOrgArchive] = useState(false);
   const [confirmContactArchive, setConfirmContactArchive] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const load = useCallback(async () => {
-    setLoading(true); setError("");
+    setLoading(true); setError(""); setContactError("");
     try {
       const query = encode({ page: String(contactPage), pageSize: "25", q: contactQ, archiveStatus: contactArchive, sort: "name", direction: "ASC" });
-      const [org, contactPageResult, tenantChoices] = await Promise.all([
+      const [orgResult, contactPageResult, tenantChoices] = await Promise.allSettled([
         api<Organization>(`/platform/crm/organizations/${organizationId}`),
         api<Page<Contact>>(`/platform/crm/organizations/${organizationId}/contacts?${query}`),
         canLinkTenant ? api<TenantOption[]>(`/platform/crm/tenant-link-candidates?organizationId=${organizationId}`) : Promise.resolve([]),
       ]);
-      setOrganization(org); setContacts(contactPageResult); setTenantOptions(tenantChoices);
+      if (orgResult.status === "rejected") throw orgResult.reason;
+      setOrganization(orgResult.value);
+      if (contactPageResult.status === "fulfilled") { setContacts(contactPageResult.value); setContactError(""); }
+      else setContactError((contactPageResult.reason as Error).message);
+      setTenantOptions(tenantChoices.status === "fulfilled" ? tenantChoices.value : []);
     } catch (reason) { setError((reason as Error).message); }
     finally { setLoading(false); }
   }, [api, organizationId, contactPage, contactQ, contactArchive, canLinkTenant]);
@@ -164,10 +170,11 @@ function OrganizationDetail({ api, canManage, canLinkTenant, organizationId }: {
     {editing && canManage ? <OrganizationFields values={orgValues} field={(key) => (event) => { const next = { ...orgValues, [key]: event.target.value }; setOrganization({ ...organization, ...next, tenant: organization.tenant }); }} tenantOptions={tenantOptions} canLinkTenant={canLinkTenant} onSubmit={async (event) => { event.preventDefault(); try { await updateOrg(orgValues); } catch (reason) { setError((reason as Error).message); } }} saving={false} error="" submitLabel="ذخیره تغییرات" /> : <section className="detail crm-org-detail"><header><div><h1>{organization.name}</h1><p>{organization.city || "شهر ثبت نشده"} · {organization.archivedAt ? "بایگانی‌شده" : "فعال"}</p></div>{canManage && <div className="crm-actions"><button type="button" onClick={() => setEditing(true)}>ویرایش</button>{organization.archivedAt ? <button type="button" onClick={() => void archiveOrganization(false)}>بازیابی سازمان</button> : confirmOrgArchive ? <><span>بایگانی شود؟</span><button type="button" onClick={() => void archiveOrganization(true)}>بله، بایگانی کن</button><button type="button" onClick={() => setConfirmOrgArchive(false)}>انصراف</button></> : <button type="button" className="crm-danger" onClick={() => setConfirmOrgArchive(true)}>بایگانی سازمان</button>}</div>}</header>
       <dl className="crm-facts"><div><dt>وب‌سایت</dt><dd>{organization.website ? <a href={organization.website} target="_blank" rel="noreferrer">{organization.website}</a> : "ثبت نشده"}</dd></div><div><dt>اینستاگرام</dt><dd>{organization.instagram ? <a href={`https://www.instagram.com/${organization.instagram}/`} target="_blank" rel="noreferrer">@{organization.instagram}</a> : "ثبت نشده"}</dd></div><div><dt>کافه متصل در UCafe</dt><dd>{organization.tenant ? `${organization.tenant.name} (${organization.tenant.status})` : "متصل نیست"}</dd></div><div><dt>تاریخ ثبت</dt><dd>{formatDate(organization.createdAt)}</dd></div><div><dt>آخرین تغییر</dt><dd>{formatDate(organization.updatedAt)}</dd></div></dl>
     </section>}
-    <section className="crm-contacts" aria-labelledby="crm-contacts-title"><header className="crm-section-heading"><div><h2 id="crm-contacts-title">ارتباط‌ها</h2><p>افرادی که با این کسب‌وکار در ارتباط هستند.</p></div>{canManage && !organization.archivedAt && <button type="button" onClick={() => setContactEditor({})}>افزودن ارتباط</button>}</header>
+    <Organization360 key={organizationId} api={api} organizationId={organizationId} />
+    <section className="crm-contacts" id="crm-contacts" aria-labelledby="crm-contacts-title"><header className="crm-section-heading"><div><h2 id="crm-contacts-title">ارتباط‌ها</h2><p>افرادی که با این کسب‌وکار در ارتباط هستند.</p></div>{canManage && !organization.archivedAt && <button type="button" onClick={() => setContactEditor({})}>افزودن ارتباط</button>}</header>
       {contactEditor && <ContactEditor key={contactEditor.id ?? "new"} api={api} organizationId={organizationId} contactId={contactEditor.id} onCancel={() => setContactEditor(null)} onSaved={async () => { setContactEditor(null); setNotice("اطلاعات ارتباط ذخیره شد."); await load(); }} />}
       <div className="crm-contact-filters"><label>جست‌وجوی ارتباط<input value={contactQ} onChange={(event) => { setContactQ(event.target.value); setContactPage(1); }} placeholder="نام، عنوان، شماره یا ایمیل" /></label><label>نمایش<select value={contactArchive} onChange={(event) => { setContactArchive(event.target.value); setContactPage(1); }}><option value="ACTIVE">فعال</option><option value="ARCHIVED">بایگانی‌شده</option><option value="ALL">همه</option></select></label></div>
-      {loading ? <p className="empty">در حال دریافت ارتباط‌ها…</p> : contacts.items.length === 0 ? <div className="empty crm-empty"><strong>هنوز ارتباطی ثبت نشده است.</strong><p>می‌توانید مالک، مدیر یا فرد مرتبط دیگری را به این سازمان اضافه کنید.</p></div> : <div className="crm-contact-list">{contacts.items.map((contact) => <article key={contact.id} className="crm-contact-row"><div><strong><Link href={`/platform/crm/contacts/${contact.id}`}>{contact.name}</Link></strong><small>{contact.role || "عنوان شغلی ثبت نشده"}{contact.archivedAt ? " · بایگانی‌شده" : ""}</small><small>ثبت‌شده در {formatDate(contact.createdAt)}</small></div>{canManage && <div className="crm-actions">{!contact.archivedAt && !organization.archivedAt && <button type="button" onClick={() => setContactEditor({ id: contact.id })}>ویرایش</button>}{contact.archivedAt ? <button type="button" onClick={() => void archiveContact(contact, false)}>بازیابی</button> : confirmContactArchive === contact.id ? <><span>بایگانی شود؟</span><button type="button" onClick={() => void archiveContact(contact, true)}>بایگانی کن</button><button type="button" onClick={() => setConfirmContactArchive(null)}>انصراف</button></> : <button className="crm-danger" type="button" onClick={() => setConfirmContactArchive(contact.id)}>بایگانی</button>}</div>}</article>)}</div>}
+      {loading ? <p className="empty">در حال دریافت ارتباط‌ها…</p> : contactError ? <p className="message error" role="alert">ارتباط‌ها بارگذاری نشدند. <button type="button" onClick={() => void load()}>تلاش دوباره</button></p> : contacts.items.length === 0 ? <div className="empty crm-empty"><strong>هنوز ارتباطی ثبت نشده است.</strong><p>می‌توانید مالک، مدیر یا فرد مرتبط دیگری را به این سازمان اضافه کنید.</p></div> : <div className="crm-contact-list">{contacts.items.map((contact) => <article key={contact.id} className="crm-contact-row"><div><strong><Link href={`/platform/crm/contacts/${contact.id}`}>{contact.name}</Link></strong><small>{contact.role || "عنوان شغلی ثبت نشده"}{contact.archivedAt ? " · بایگانی‌شده" : ""}</small><small>ثبت‌شده در {formatDate(contact.createdAt)}</small></div>{canManage && <div className="crm-actions">{!contact.archivedAt && !organization.archivedAt && <button type="button" onClick={() => setContactEditor({ id: contact.id })}>ویرایش</button>}{contact.archivedAt ? <button type="button" onClick={() => void archiveContact(contact, false)}>بازیابی</button> : confirmContactArchive === contact.id ? <><span>بایگانی شود؟</span><button type="button" onClick={() => void archiveContact(contact, true)}>بایگانی کن</button><button type="button" onClick={() => setConfirmContactArchive(null)}>انصراف</button></> : <button className="crm-danger" type="button" onClick={() => setConfirmContactArchive(contact.id)}>بایگانی</button>}</div>}</article>)}</div>}
       <div className="crm-pagination"><span>مجموع: {fa.format(contacts.total)}</span><div><button type="button" disabled={contactPage <= 1 || loading} onClick={() => setContactPage((value) => value - 1)}>قبلی</button><span>صفحه {fa.format(contactPage)}</span><button type="button" disabled={loading || contactPage * 25 >= contacts.total} onClick={() => setContactPage((value) => value + 1)}>بعدی</button></div></div>
     </section>
     <CrmWorkSections api={api} canManage={canManage && !organization.archivedAt} context={{ organizationId, displayName: organization.name }} />

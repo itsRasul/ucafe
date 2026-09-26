@@ -76,7 +76,7 @@ export function CrmWorkSections({ api, context, canManage }: { api: Api; context
   }
   const relationFields = { organizationId: context.organizationId ?? null, contactId: context.contactId ?? null, leadId: context.leadId ?? null, dealId: context.dealId ?? null };
 
-  return <section className="crm-work" aria-label="فعالیت‌ها، وظایف و یادداشت‌ها">
+  return <section className="crm-work" id="crm-work" aria-label="فعالیت‌ها، وظایف و یادداشت‌ها">
     <header className="crm-work-heading"><div><h2>کارهای CRM</h2><p>تعامل‌ها، پیگیری‌های باز و یادداشت‌های این رکورد</p></div>
       {canManage && <div className="crm-work-actions"><button type="button" onClick={() => setComposer({ kind: "ACTIVITY" })}>ثبت فعالیت</button><button type="button" className="crm-secondary" onClick={() => setComposer({ kind: "TASK" })}>وظیفه جدید</button><button type="button" className="crm-secondary" onClick={() => setComposer({ kind: "TASK", followUp: true })}>پیگیری</button><button type="button" className="crm-secondary" onClick={() => setComposer({ kind: "NOTE" })}>یادداشت</button></div>}
     </header>

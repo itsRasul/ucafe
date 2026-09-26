@@ -32,3 +32,7 @@ Organization, Contact, Lead, and Deal details provide a quick `پیگیری` act
 ## Retention and audit
 
 Completed/canceled Tasks remain queryable and are not deleted. Each consequential mutation and its `platform_audit_events` row commit in one transaction. Audit summaries contain lifecycle/category metadata, never the Task title or description. See [API.md](API.md) and [EVENTS.md](EVENTS.md).
+
+## Phase 5 Timeline
+
+Timeline shows Task creation from the Task row and each `crm.task.completed`, `crm.task.canceled`, and `crm.task.reopened` audit action. Those lifecycle actions are written in the same transaction as each state transition and retain actor/time for repeated complete/reopen cycles. Other audit actions, including ordinary Task edits and archive/restore, are excluded. The Task row supplies current title and Organization association; history is read at query time and no Task history or Timeline table was introduced.

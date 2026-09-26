@@ -1,6 +1,6 @@
 # CRM analytics data requirements
 
-No standalone platform CRM analytics/reporting page is implemented. Current /admin/analytics is Tenant Analytics and has separate Tenant permissions and plan-feature gates. The Phase 3 pipeline board exposes operational per-stage open Deal counts and sums of optional estimates; these are not a historical report and must not be presented as collected revenue. Phases 2–4 retain Lead status history, Deal stage history, Activities, and Task lifecycle timestamps to support later definitions. Phase 4 does not add analytics aggregation or UI.
+No standalone platform CRM analytics/reporting page is implemented. Current /admin/analytics is Tenant Analytics and has separate Tenant permissions and plan-feature gates. The Phase 3 pipeline board exposes operational per-stage open Deal counts and sums of optional estimates; these are not a historical report and must not be presented as collected revenue. Phase 5 adds operational Organization 360 counts, last Activity, next Task, and recent previews, all derived from current source records. These values are not historical analytics, persisted metrics, funnels, or revenue. Lead status history, Deal stage history, Activities, and selected Task lifecycle timestamps can support later metric definitions without changing their source ownership.
 
 ## Data to preserve from the first workflow phase
 

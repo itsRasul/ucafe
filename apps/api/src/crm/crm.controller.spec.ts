@@ -16,6 +16,8 @@ test("every CRM handler is protected by both platform guards and explicit permis
     organizationDuplicates: [PlatformPermissions.CrmRead],
     tenantLinkCandidates: [PlatformPermissions.CrmRead, PlatformPermissions.TenantsRead],
     getOrganization: [PlatformPermissions.CrmRead],
+    organizationOverview: [PlatformPermissions.CrmRead],
+    organizationTimeline: [PlatformPermissions.CrmRead],
     updateOrganization: [PlatformPermissions.CrmManage],
     archiveOrganization: [PlatformPermissions.CrmManage],
     restoreOrganization: [PlatformPermissions.CrmManage],

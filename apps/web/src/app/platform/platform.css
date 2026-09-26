@@ -281,3 +281,67 @@
 .crm-task-directory .crm-work-item{background:#fff}
 @media(max-width:700px){.crm-task-filters{grid-template-columns:1fr 1fr}.crm-task-filters label:first-child{grid-column:1/-1}}
 @media(max-width:520px){.crm-work{padding:.7rem}.crm-work-heading{display:grid}.crm-work-actions{display:grid;grid-template-columns:1fr 1fr}.crm-work-actions button{width:100%}.crm-work-item{display:grid}.crm-work-item-actions{width:100%;justify-content:flex-start}.crm-work-item-actions button{min-width:6.3rem}.crm-work-form{grid-template-columns:1fr}.crm-work-form h3,.crm-work-wide,.crm-work-form .crm-form-actions{grid-column:auto}.crm-task-filters{grid-template-columns:1fr}.crm-task-filters label:first-child{grid-column:auto}}
+
+/* Platform CRM Phase 5 — Organization 360 and unified timeline */
+.crm-360{display:grid;gap:1rem;margin:1rem 0}
+.crm-360 a:focus-visible,.crm-360 button:focus-visible,.crm-360 select:focus-visible{outline:3px solid #38bdf8;outline-offset:2px}
+.crm-360-nav{display:flex;gap:.35rem;overflow:auto;padding:.2rem .05rem .4rem;scrollbar-width:thin}
+.crm-360-nav a{display:flex;min-height:2.75rem;align-items:center;flex:0 0 auto;padding:.45rem .7rem;border:1px solid #dbe3eb;border-radius:99rem;background:#fff;color:#334155;font-size:.74rem;font-weight:800;text-decoration:none}
+.crm-360-nav a:hover{border-color:#7dd3fc;background:#f0f9ff;color:#075985}
+.crm-360-overview,.crm-360-list,.crm-360-timeline{min-width:0;padding:clamp(.8rem,2vw,1.1rem);border:1px solid var(--platform-line);border-radius:.8rem;background:#fff}
+.crm-360-heading,.crm-360-timeline>header,.crm-360-list>header{display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem}
+.crm-360-heading>div>p,.crm-360-timeline>header>div>p{margin:0 0 .2rem;color:#64748b;font-size:.7rem;font-weight:800}
+.crm-360-heading h2,.crm-360-timeline h2,.crm-360-list h2{margin:0;color:#0f172a;font-size:1rem;font-weight:900}
+.crm-360-heading>a,.crm-360-list>header>a,.crm-timeline-item article>header>a{color:#0369a1;font-size:.72rem;font-weight:850;text-decoration:none}
+.crm-360-heading>a:hover,.crm-360-list>header>a:hover,.crm-timeline-item article>header>a:hover{text-decoration:underline}
+.crm-360-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.55rem;margin:.9rem 0}
+.crm-360-metrics>a{display:grid;gap:.12rem;padding:.7rem;border:1px solid #e2e8f0;border-radius:.65rem;background:#f8fafc;text-decoration:none}
+.crm-360-metrics>a:hover{border-color:#7dd3fc;background:#f0f9ff}
+.crm-360-metrics strong{color:#0f172a;font-size:1.2rem;line-height:1.3}
+.crm-360-metrics span{color:#64748b;font-size:.7rem;font-weight:800}
+.crm-360-highlights{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem}
+.crm-360-highlights>article{display:grid;align-content:start;gap:.25rem;min-width:0;padding:.7rem;border-right:2px solid #38bdf8;border-radius:.35rem;background:#f8fafc}
+.crm-360-highlights small{color:#64748b;font-size:.68rem;font-weight:800}
+.crm-360-highlights strong,.crm-360-highlights a{color:#0f172a;font-size:.8rem;line-height:1.6;overflow-wrap:anywhere}
+.crm-360-highlights time,.crm-360-highlights>article>span{color:#64748b;font-size:.7rem}
+.crm-360-highlights p,.crm-360-state{margin:0;color:#64748b;font-size:.75rem;line-height:1.7}
+.crm-360-error{color:#991b1b}
+.crm-360-state button{margin-inline-start:.4rem;padding:.3rem .55rem;border:1px solid #dbe3eb;border-radius:.4rem;background:#fff;color:#075985;font:inherit;font-size:.72rem;font-weight:800;cursor:pointer}
+.crm-360-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}
+.crm-360-recent{grid-template-columns:repeat(3,minmax(0,1fr))}
+.crm-360-list>header{align-items:center;margin-bottom:.65rem}
+.crm-360-list>header>div{display:flex;align-items:center;gap:.45rem}
+.crm-360-list>header>div>span{display:grid;min-width:1.6rem;height:1.6rem;place-items:center;padding:0 .3rem;border-radius:99rem;background:#f1f5f9;color:#475569;font-size:.68rem;font-weight:850}
+.crm-360-list ul{display:grid;gap:.45rem;margin:0;padding:0;list-style:none}
+.crm-360-list li{display:grid;gap:.18rem;min-width:0;padding:.55rem .6rem;border:1px solid #e8edf2;border-radius:.55rem;background:#fbfdff}
+.crm-360-list li>a{display:grid;gap:.15rem;color:#0f172a;text-decoration:none}
+.crm-360-list li>a:hover strong{text-decoration:underline}
+.crm-360-list li strong{font-size:.76rem;line-height:1.6;overflow-wrap:anywhere}
+.crm-360-list li span,.crm-360-list li small{color:#64748b;font-size:.67rem;line-height:1.6;overflow-wrap:anywhere}
+.crm-360-list li small{padding-inline-start:.1rem}
+.crm-360-timeline>header{align-items:center;margin-bottom:.8rem}
+.crm-360-filters{display:flex;flex-wrap:wrap;gap:.5rem}
+.crm-360-filters label{display:grid;gap:.2rem;color:#475569;font-size:.68rem;font-weight:800}
+.crm-360-filters select,.crm-360-filters input{min-height:2.75rem;min-width:8rem;padding:.35rem .55rem;border:1px solid #cbd5e1;border-radius:.45rem;background:#fff;color:#0f172a;font:inherit;font-size:.75rem}
+.crm-timeline-list{display:grid;gap:.55rem;margin:.2rem 0;padding:0 .6rem 0 0;border-right:2px solid #dbeafe;list-style:none}
+.crm-timeline-item{display:grid;grid-template-columns:1.8rem minmax(0,1fr);align-items:start;gap:.55rem;min-width:0}
+.crm-timeline-marker{display:grid;width:1.65rem;height:1.65rem;place-items:center;margin-right:-1.55rem;border:2px solid #fff;border-radius:50%;background:#e0f2fe;color:#075985;font-size:.68rem;font-weight:900;box-shadow:0 0 0 1px #bae6fd}
+.crm-timeline-deal .crm-timeline-marker{background:#fef3c7;color:#92400e;box-shadow:0 0 0 1px #fde68a}
+.crm-timeline-task .crm-timeline-marker{background:#dcfce7;color:#166534;box-shadow:0 0 0 1px #bbf7d0}
+.crm-timeline-note .crm-timeline-marker{background:#f3e8ff;color:#6b21a8;box-shadow:0 0 0 1px #e9d5ff}
+.crm-timeline-activity .crm-timeline-marker{background:#cffafe;color:#155e75;box-shadow:0 0 0 1px #a5f3fc}
+.crm-timeline-item>article{display:grid;gap:.25rem;min-width:0;padding:.6rem .7rem;border:1px solid #e2e8f0;border-radius:.6rem;background:#fff}
+.crm-timeline-item article>header{display:flex;align-items:flex-start;justify-content:space-between;gap:.55rem}
+.crm-timeline-item article>header>strong{color:#0f172a;font-size:.78rem;line-height:1.7;overflow-wrap:anywhere}
+.crm-timeline-item article>p,.crm-timeline-item details>p{margin:0;color:#334155;font-size:.75rem;line-height:1.8;white-space:pre-wrap;overflow-wrap:anywhere}
+.crm-timeline-item .crm-timeline-note{max-height:9rem;overflow:auto;padding:.45rem .55rem;border-right:2px solid #c4b5fd;border-radius:.25rem;background:#faf5ff}
+.crm-timeline-item details>summary{width:max-content;color:#0369a1;font-size:.7rem;font-weight:800;cursor:pointer}
+.crm-timeline-item details>p{margin-top:.35rem}
+.crm-timeline-detail{color:#475569;font-size:.7rem}
+.crm-timeline-item article>footer{display:flex;flex-wrap:wrap;gap:.25rem .7rem;margin-top:.12rem;color:#64748b;font-size:.66rem}
+.crm-timeline-item article>footer span{overflow-wrap:anywhere}
+.crm-360-pagination{display:flex;align-items:center;justify-content:flex-end;gap:.55rem;margin-top:.8rem;color:#64748b;font-size:.7rem}
+.crm-360-pagination button{min-height:2.75rem;padding:.35rem .6rem;border:1px solid #d8e1eb;border-radius:.45rem;background:#fff;color:#334155;font:inherit;font-weight:800;cursor:pointer}
+.crm-360-pagination button:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:900px){.crm-360-recent{grid-template-columns:repeat(2,minmax(0,1fr))}.crm-360-recent>.crm-360-list:last-child{grid-column:1/-1}}
+@media(max-width:600px){.crm-360-columns,.crm-360-recent{grid-template-columns:1fr}.crm-360-recent>.crm-360-list:last-child{grid-column:auto}.crm-360-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.crm-360-highlights{grid-template-columns:1fr}.crm-360-heading,.crm-360-timeline>header{display:grid}.crm-360-filters{display:grid;grid-template-columns:1fr}.crm-360-filters label{grid-template-columns:5rem minmax(8rem,1fr);align-items:center}.crm-360-pagination{justify-content:space-between}.crm-360-list,.crm-360-overview,.crm-360-timeline{padding:.7rem}.crm-timeline-item article>header{display:grid}}

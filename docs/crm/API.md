@@ -1,6 +1,6 @@
 # Platform CRM API
 
-Phases 1–4 APIs are implemented under `/api/v1/platform/crm`. Every route uses `AccessTokenGuard` and `PlatformPermissionGuard`. Resource IDs are UUID-validated, request DTOs use the global whitelist/forbid/transform validation pipe, and results use parameterized SQL.
+Phases 1–5 APIs are implemented under `/api/v1/platform/crm`. Every route uses `AccessTokenGuard` and `PlatformPermissionGuard`. Resource IDs are UUID-validated, request DTOs use the global whitelist/forbid/transform validation pipe, and results use parameterized SQL.
 
 ## Implemented routes
 
@@ -9,6 +9,8 @@ GET    /api/v1/platform/crm/organizations
 POST   /api/v1/platform/crm/organizations
 GET    /api/v1/platform/crm/organizations/duplicate-candidates
 GET    /api/v1/platform/crm/organizations/:organizationId
+GET    /api/v1/platform/crm/organizations/:organizationId/overview
+GET    /api/v1/platform/crm/organizations/:organizationId/timeline
 PATCH  /api/v1/platform/crm/organizations/:organizationId
 POST   /api/v1/platform/crm/organizations/:organizationId/archive
 POST   /api/v1/platform/crm/organizations/:organizationId/restore
@@ -66,7 +68,21 @@ POST   /api/v1/platform/crm/notes/:noteId/archive
 POST   /api/v1/platform/crm/notes/:noteId/restore
 ~~~
 
-There is no CRM `DELETE` route. Public consultation intake keeps its existing contract; accepted submissions create a Lead transactionally. There is no unified timeline endpoint.
+There is no CRM `DELETE` route. Public consultation intake keeps its existing contract; accepted submissions create a Lead transactionally.
+
+### Organization overview and Timeline (Phase 5)
+
+`GET /organizations/:organizationId/overview` requires `crm.read` and composes existing CRM tables into a bounded Organization 360 response. It returns `summary` (active Contact count, linked Lead count, active Deal count, active OPEN Deal count, open Task count, latest active Activity, and next open Task), up to six recent `leads`, six recent `deals`, six `openTasks`, six `recentActivities`, six `recentNotes`, and `sectionErrors`. Summary count fields are `null` if their query fails; a failed preview section is named in `sectionErrors` while other sections remain available. Contact details continue to come from the existing paginated Contacts endpoint.
+
+`GET /organizations/:organizationId/timeline` requires `crm.read` and returns `{ items, total, page, pageSize }`; defaults are page `1` and pageSize `20`, maximum `100`. Optional filters are `category=LEAD|DEAL|ACTIVITY|TASK|NOTE`, `dateFrom`, and `dateTo` (ISO-8601 timestamps; lower bound inclusive, upper bound exclusive). The UI's native date controls convert the selected local days to ISO timestamp boundaries. Items use stable IDs/types, source occurrence time, actor projection, source/related record IDs, localized-at-render-time metadata, and current source text where the source has no edit history. Results are ordered by `occurredAt DESC, category ASC, id ASC`. Offset pagination is stable for an unchanged result set; concurrent inserts can shift offsets. No entire-history load or Timeline write endpoint exists.
+
+Example:
+
+~~~http
+GET /api/v1/platform/crm/organizations/8f6252a7-2b68-4e0e-b0c4-5b8896e7eaab/timeline?category=TASK&dateFrom=2026-09-01T00%3A00%3A00.000Z&page=1&pageSize=20
+~~~
+
+The Timeline includes Lead creation/status, Deal creation/stage/outcome, Activity creation, Task creation/completion/cancellation/reopen, and Note creation. Task lifecycle attribution uses only transactional `crm.task.completed|canceled|reopened` audit records; Deal outcome time/status comes from the Deal row and the matching audit action supplies its actor. See [TIMELINE.md](TIMELINE.md) for association, archive, and timestamp details.
 
 ## Organizations
 
@@ -140,7 +156,7 @@ Every work record must reference at least one Organization, Contact, Lead, or De
 - **Tasks:** create/update accepts `title`, optional `description`, `kind` (`GENERAL|FOLLOW_UP`), `priority` (`LOW|NORMAL|HIGH|URGENT`), `dueAt`, `assignedToUserId`, and association IDs. Assignees must be active platform Users with CRM access. List filters include text, status, priority, kind, assignee (`ME`, `UNASSIGNED`, or UUID), views (`OPEN|OVERDUE|UPCOMING|COMPLETED|CANCELED|NO_DUE_DATE`), association IDs, due range, sort, direction, and archive state. `OVERDUE` is derived from OPEN plus a due time before database now; it is never stored. `dueFrom` is inclusive and `dueTo` exclusive. Complete/cancel set status, timestamp, and actor together; reopening clears prior terminal metadata. OPEN Tasks cannot be archived.
 - **Notes:** create/update accepts a plain-text `body` and association IDs. List filters include association IDs, archive state, sort (`createdAt|updatedAt`) and direction. Notes have no hard-delete route.
 
-Completing a Task does not create an Activity. Follow-up quick actions create a regular Task with kind `FOLLOW_UP`; Phase 4 does not schedule reminder delivery or expose a unified timeline.
+Completing a Task does not create an Activity. Follow-up quick actions create a regular Task with kind `FOLLOW_UP`; Phase 5 exposes the selected CRM histories and work records through a read-only Organization Timeline. It does not schedule reminders or include Tenant, Subscription, or Payment events.
 
 ## Errors and archive behavior
 

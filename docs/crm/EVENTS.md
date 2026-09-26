@@ -9,7 +9,7 @@ UCafe has no general internal domain-event bus, message broker, or CRM event pub
 - Tenant, Subscription, and Payment state is stored in their owning tables/services. Their current writes do not publish the event names below as a public contract.
 - The worker workspace is a bootstrap scaffold and does not currently coordinate these jobs.
 
-## Phase 2–4 records, not published events
+## Phase 2–5 records and read projections, not published events
 
 Phase 2 adds no event bus, publisher, outbox, or inter-module event contract. The actual Lead workflow persists history and operator audit records:
 
@@ -29,7 +29,9 @@ Phase 4 action names stored in `platform_audit_events.action` are:
 - Task: `crm.task.created`, `crm.task.updated`, `crm.task.completed`, `crm.task.canceled`, `crm.task.reopened`, `crm.task.archived`, `crm.task.restored`.
 - Note: `crm.note.created`, `crm.note.updated`, `crm.note.archived`, `crm.note.restored`.
 
-These audit actions are the Phase 4 event-support boundary. They are transactional and PII/content-safe, but no CRM integration event is published or made available for subscription.
+These audit actions remain audit records, not published events. Phase 5 reads only `crm.task.completed`, `crm.task.canceled`, and `crm.task.reopened` to preserve Task lifecycle occurrence times and actors after the mutable Task row clears terminal timestamps. Deal `crm.deal.won`/`crm.deal.lost` audit rows provide only the actor; outcome type/time are read from the Deal's status and won/lost timestamp. Other audit actions are not Timeline entries. Lead and Deal relational history, Activity, Task, and Note rows are queried directly into a paginated Organization Timeline; no event subscription, publisher, or projection table was added.
+
+The Organization Timeline is an API read model, not an event catalog or delivery contract. It normalizes source rows for display and never publishes or stores a second copy. See [TIMELINE.md](TIMELINE.md).
 
 ## Planned external facts of interest
 

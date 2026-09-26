@@ -1,23 +1,68 @@
-# Activities, tasks, notes, and timeline
+# Unified CRM Timeline
 
-## Record the right kind of work
+**Status:** Implemented in Phase 5. The Timeline and Organization 360 are derived read views; neither is a persisted CRM entity.
 
-- **Activity = something that happened.** Examples include CALL, MEETING, EMAIL, SMS, WHATSAPP, DEMO, FOLLOW_UP, and OTHER. Store the actor, occurred-at time, interaction type, concise summary, and related Organization plus optional Contact, Lead, Deal, or Task.
-- **Task = something that needs to happen.** Store title/type, due-at time, assignee, status (OPEN, COMPLETED, CANCELED), and optional relationship to Contact, Lead, or Deal under its Organization. Completion records completed-at and completed-by. A task is not proof of an interaction.
-- **Note = internal context.** Store author/time/body and relate it to an Organization, optionally a Lead or Deal. A note is not an outbound message or Activity.
+## Source-of-truth rule
 
-Activities are historical evidence and are append-only except for an audited correction or privacy redaction. Completed and canceled Tasks remain. Notes may be corrected or redacted only with an authorized action and retained audit metadata. No VoIP, email sync, SMS automation, WhatsApp integration, or bulk messaging is included in this phase plan.
+Timeline represents durable source records and histories. It does not replace or copy Lead, Deal, Activity, Task, or Note state. No Timeline table, materialized view, event bus, migration, or historical projection backfill exists.
 
-The initial Task flow is OPEN to COMPLETED or CANCELED. Both outcomes are terminal. If further work is needed, create another Task so the original due date and result remain clear.
+| Timeline content | Read source | Occurrence time |
+|---|---|---|
+| Lead created | `crm_leads` | `created_at` |
+| Lead status, qualification, unqualification, conversion | `crm_lead_status_history` joined to the current Lead/Organization relationship | history `created_at` |
+| Deal created | `crm_deals` | `created_at` |
+| Deal stage changed | `crm_deal_stage_history` (initial `from_stage IS NULL` row omitted) | history `created_at` |
+| Deal won/lost | `crm_deals` outcome and `won_at`/`lost_at`; the matching transactional audit row supplies the actor | `won_at` or `lost_at` |
+| Activity | `crm_activities` | `occurred_at` |
+| Task created | `crm_tasks` | `created_at` |
+| Task completed, canceled, reopened | Only `crm.task.completed`, `crm.task.canceled`, and `crm.task.reopened` rows in `platform_audit_events` joined to the Task | audit `created_at` |
+| Note | `crm_notes` | `created_at` |
 
-## Future Organization/Deal timeline
+The Task lifecycle audit actions are recorded in the same transaction as each Task state transition and retain repeated complete/reopen cycles that the current Task row alone cannot show. Deal status cannot be reopened; Deal fields retain its terminal timestamp, and its single matching audit action supplies actor attribution. No other audit action is included. Audit summaries stay free of Task or Note content.
 
-A future Organization 360 timeline can combine records without making the timeline itself the source of truth:
+## Item contract
 
-1. CRM-owned Activity and Note records, Task creation/completion, Lead status history, and Deal stage/outcome history.
-2. Read-only source facts from Tenant, Subscription, and payment records where those records provide trustworthy timestamps and the operator is authorized to see them.
-3. Source labels and deep links that distinguish CRM actions from external domain facts.
+`GET /api/v1/platform/crm/organizations/:organizationId/timeline` returns `{ items, total, page, pageSize }`. Each item has:
 
-Build the first timeline as a bounded, dynamically assembled read projection over those source records. It is not CQRS, event sourcing, or an append-only copy of every Tenant event. Do not use platform_audit_events as the main timeline because it records selected operator actions, not complete histories. Do not invent past lifecycle transitions from current-state columns.
+```text
+id, type, category, occurredAt,
+actor { userId, label, kind }, title, description?,
+organizationId, contactId?, leadId?, dealId?,
+sourceType, sourceId, metadata?
+```
 
-If a future requirement needs complete external lifecycle history or reliable asynchronous consumers, define source-owned events and delivery guarantees then. Keep that concern out of Phase 0.
+IDs are stable and event-specific: for example `activity:<activityId>`, `lead-status:<historyId>`, `deal-stage:<historyId>`, `task-lifecycle:<auditId>`, and `note:<noteId>`. The same Deal/Task may therefore contribute distinct creation, transition, and outcome items. Actor labels follow the CRM's masked Platform User convention. A null actor is never replaced by a fake User; an initial `LANDING_FORM` Lead is labeled as coming from the public consultation form.
+
+Stable types are `LEAD_CREATED`, `LEAD_STATUS_CHANGED`, `LEAD_QUALIFIED`, `LEAD_UNQUALIFIED`, `LEAD_CONVERTED`, `DEAL_CREATED`, `DEAL_STAGE_CHANGED`, `DEAL_WON`, `DEAL_LOST`, `ACTIVITY_LOGGED`, `TASK_CREATED`, `TASK_COMPLETED`, `TASK_CANCELED`, `TASK_REOPENED`, and `NOTE_ADDED`. Deal reopen and Note update events are not emitted: closed Deals are terminal, and Notes have no immutable edit history. A Note is one Timeline item using its original creation time and current source body, not a second note-update event.
+
+Categories are `LEAD`, `DEAL`, `ACTIVITY`, `TASK`, and `NOTE`. Structured metadata carries source keys such as previous/next Lead status, Deal stages/outcome/loss reason, Activity type/outcome, Task status transition, or Note `updatedAt`. The API does not store translated presentation sentences. The Persian UI localizes stable type and metadata values and falls back to a generic CRM event for unknown future types.
+
+## Organization association and deduplication
+
+Every source branch scopes against the requested Organization ID. Direct Organization, Contact, Lead, and Deal relationships are used; records are never matched by name, phone, or email. Phase 4 same-Organization constraints ensure combined relationships agree. Lead-only work created before conversion becomes visible after the Lead is linked to its Organization because the read joins the Lead's current `organization_id`; its original occurred time is unchanged.
+
+Each Activity, Task, and Note is selected from its source row once, even when it has multiple links to the same Organization. Related archived records are not removed from history. Archived Organizations remain readable to an authorized `crm.read` user. Hard deletion remains constrained by CRM foreign keys.
+
+## Ordering, filtering, and pagination
+
+The implementation uses one PostgreSQL `UNION ALL` query with source-specific filters, a count, and one requested page; it does not load full history into application memory. Page defaults to 1, `pageSize` defaults to 20 and is capped at 100. Offset pagination follows current CRM list conventions. Stable order is `occurredAt DESC`, then `category ASC`, then item ID ascending, so equal timestamps keep their order across pages. Event identity is source/event-specific, preventing overlap between distinct events on one record.
+
+Optional `category` accepts one of the five categories. Optional ISO `dateFrom` is inclusive and `dateTo` is exclusive (`occurredAt >= dateFrom`, `occurredAt < dateTo`); reversed ranges are rejected. The UI sends local midnight and the next local midnight for date controls, so daylight-saving/date-boundary behavior follows the operator's browser. Filters are applied in each source branch before union ordering/pagination.
+
+## Organization 360
+
+`GET /api/v1/platform/crm/organizations/:organizationId/overview` composes a bounded view over existing sources. It returns:
+
+- active Contact count, total linked Lead count, active Deal count, active open Deal count, and active open Task count;
+- the most recent active Activity and next open Task, both derived at read time;
+- up to six linked Leads and Deals (including archive markers), up to six open Tasks, six recent active Activities, and six recent active Notes.
+
+The Contact directory remains separately paginated and retains its existing archive/search/edit flow. Overview sections are read with a fixed number of bounded queries, not one query per record. Each query may fail independently; `sectionErrors` names failed sections while successful sections remain available. Summary counts use `null` when their query fails. Activity and Note previews omit archived rows; Timeline retains historical archived sources.
+
+The UI keeps the existing Organization header and Contact/work flows, adds an operational summary, related Lead/Deal lists, open Task and recent Activity/Note previews, and embeds the paginated Timeline. Quick actions reuse Phase 4 Activity/Task/Note forms. An archived Organization remains a historical read view; existing manage controls stay disabled.
+
+## Authorization, UX, and future scope
+
+Both endpoints require `AccessTokenGuard`, `PlatformPermissionGuard`, and `crm.read`; assignment is not a visibility filter. The Timeline contains no Tenant, Trial, Subscription, Plan, or Payment events. Phase 6 may add authorized read-only source facts only after each owning module exposes a trustworthy timestamp/read projection and its permission boundary. It must not change this view into a second state store or generic audit feed.
+
+Timeline is Persian-first, RTL, responsive, and keyboard accessible. Category and local-day date filters use labeled native controls; type markers include text/shape cues beyond color, long content can expand, and errors/loading/empty states are contained to each overview or Timeline section.

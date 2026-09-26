@@ -24,6 +24,6 @@ A Lead-only Activity is valid before conversion. It remains attached to that Lea
 
 The API orders by `occurredAt` by default and supports type, outcome, actor, association, occurred-time range, text search, archive state, and pagination. See [API.md](API.md).
 
-## Future Timeline
+## Phase 5 Timeline
 
-Activities are relational source records for the Phase 5 Unified Timeline. They are not a pre-aggregated stream, DealStageHistory, LeadStatusHistory, audit event, or external communication proof. Phase 4 does not publish them to an event bus.
+Each Activity appears once in the Organization Timeline, using `occurred_at` and its saved actor. The query scopes it through explicit Organization, Contact, Lead, or Deal relationships and does not emit a duplicate when multiple links point to the same Organization. Archived Activities remain available in historical Timeline pages. Edits affect the current source row; no separate Activity edit event is synthesized. Activities are not a pre-aggregated stream, Lead/Deal history, or external communication proof.

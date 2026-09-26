@@ -72,3 +72,7 @@ CRM must never infer WON from tenant provisioning or subscription/payment rows, 
 | Payment intent | Payments | PENDING, VERIFYING, PAID, FAILED, EXPIRED, CANCELED | Read invoice/payment context only. |
 
 Trial is not a Lead status or Deal outcome. Deal stage TRIAL_ACTIVE means the sales team believes a UCafe trial is underway; the Subscription module remains authoritative for whether one exists and its dates.
+
+## Organization 360 and Timeline
+
+Organization 360 and the Timeline are read views over these lifecycle sources, not new CRM lifecycle state. Lead creation/status timestamps come from the Lead and append-only status history; Deal creation/stage/outcome timestamps come from the Deal and append-only stage history. A Deal outcome is terminal. Task complete/cancel/reopen occurrence times are read from their corresponding transactional audit actions because the Task row clears terminal metadata on reopen. Activities and Notes use their own source rows. A Note edit changes its current text but does not create a historical update event. See [TIMELINE.md](TIMELINE.md).

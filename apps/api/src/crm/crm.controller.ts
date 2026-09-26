@@ -6,11 +6,18 @@ import { PlatformPermissionGuard } from "../authorization/platform-permission.gu
 import { PlatformPermissions } from "../authorization/permission.constants";
 import { ContactDuplicateQueryDto, CreateContactDto, CreateOrganizationDto, CrmContactListQueryDto, CrmListQueryDto, OrganizationDuplicateQueryDto, TenantLinkCandidatesQueryDto, UpdateContactDto, UpdateOrganizationDto } from "./dto/crm.dto";
 import { CrmService } from "./crm.service";
+import { CrmTimelineQueryDto } from "./dto/crm-timeline.dto";
+import { CrmTimelineService } from "./crm-timeline.service";
+import { CrmOrganization360Service } from "./crm-organization-360.service";
 
 @Controller("platform/crm")
 @UseGuards(AccessTokenGuard, PlatformPermissionGuard)
 export class CrmController {
-  constructor(private readonly crm: CrmService) {}
+  constructor(
+    private readonly crm: CrmService,
+    private readonly organization360: CrmOrganization360Service,
+    private readonly timeline: CrmTimelineService,
+  ) {}
 
   @Get("organizations") @RequirePlatformPermissions(PlatformPermissions.CrmRead)
   listOrganizations(@Query() query: CrmListQueryDto) { return this.crm.listOrganizations(query); }
@@ -26,6 +33,12 @@ export class CrmController {
 
   @Get("organizations/:organizationId") @RequirePlatformPermissions(PlatformPermissions.CrmRead)
   getOrganization(@Param("organizationId", ParseUUIDPipe) id: string) { return this.crm.getOrganization(id); }
+
+  @Get("organizations/:organizationId/overview") @RequirePlatformPermissions(PlatformPermissions.CrmRead)
+  organizationOverview(@Param("organizationId", ParseUUIDPipe) id: string) { return this.organization360.overview(id); }
+
+  @Get("organizations/:organizationId/timeline") @RequirePlatformPermissions(PlatformPermissions.CrmRead)
+  organizationTimeline(@Param("organizationId", ParseUUIDPipe) id: string, @Query() query: CrmTimelineQueryDto) { return this.timeline.list(id, query); }
 
   @Patch("organizations/:organizationId") @RequirePlatformPermissions(PlatformPermissions.CrmManage)
   updateOrganization(@Param("organizationId", ParseUUIDPipe) id: string, @Body() input: UpdateOrganizationDto, @Req() req: AuthorizedRequest) { return this.crm.updateOrganization(id, input, req[AUTH_PRINCIPAL]!.userId); }

@@ -6,7 +6,7 @@ Platform CRM is a platform-domain workspace for managing UCafe's commercial rela
 
 CRM owns sales context and workflow. It does not own Tenant identity/lifecycle, subscriptions/trials/plans, payments/invoices, platform or tenant authentication, cafe Clients, promotion segments, or Tenant Analytics.
 
-Phases 1–4 implement Organization, Contact, Lead, Deal, Activity, Task, Note, and their relevant relational histories. Unified Timeline / Organization 360 remains Phase 5. Current fields and persistence choices are listed in [DATA_MODEL.md](DATA_MODEL.md).
+Phases 1–5 implement Organization, Contact, Lead, Deal, Activity, Task, Note, their relevant histories, Unified Timeline, and Organization 360. The latter two are application projections, not domain entities. Current fields and persistence choices are listed in [DATA_MODEL.md](DATA_MODEL.md).
 
 ## Concepts
 
@@ -21,6 +21,8 @@ Phases 1–4 implement Organization, Contact, Lead, Deal, Activity, Task, Note, 
 | Note | Plain-text internal business context authored by platform staff, with explicit edit/archive metadata. | Explicit optional Organization, Contact, Lead, and Deal FKs; at least one context is required. A Lead-only association is valid before conversion. | Not an Activity, customer-facing message, or a payment/subscription memo. |
 | Lead status history | Append-only record of each Lead status transition, actor, timestamp, and optional reason. | Belongs to one Lead. | Not a general event bus or replacement for the current Lead status. |
 | Deal stage history | Append-only record of each stage transition, actor, timestamp, and optional reason. | Belongs to one Deal. | Not Subscription history or a financial ledger. |
+| Unified Timeline | Normalized chronological application view of selected CRM history and work records. | Derived from explicit Organization/Contact/Lead/Deal links and source histories. | Not a persisted entity, event bus, or replacement for source records. |
+| Organization 360 | Bounded composed view of Organization, associated CRM records, derived summary facts, and a paginated Timeline. | Read-only application layer over existing source modules. | Not a second Organization model or owner of Tenant/Subscription state. |
 
 An Organization is a long-lived business identity. A Lead is one sales engagement; the same Organization may have separate Leads over time. A Deal is a specific opportunity. After a closed opportunity, a future renewal or reactivation pursuit should create a new Deal rather than reopen a closed historical one.
 
@@ -41,7 +43,7 @@ The Lead is never deleted as a side effect of conversion. Detailed state transit
 - Activity is something that happened. Task is something that needs to happen.
 - Follow-up is a CRM Task with kind `FOLLOW_UP`; it is not a separate domain or reminder job.
 - Work relationships use explicit foreign keys and must agree on Organization. Lead-only records remain attached to a pre-conversion Lead and are visible from its Organization after conversion through a read projection.
-- Activity, Task, and Note are not LeadStatusHistory, DealStageHistory, platform audit records, or a Phase 5 Timeline projection.
+- Activity, Task, Note, LeadStatusHistory, and DealStageHistory remain separate sources. Timeline normalizes them at read time and does not copy them into another projection table. Only selected Task lifecycle actions and Deal closure attribution are read from `platform_audit_events`, as documented in [TIMELINE.md](TIMELINE.md).
 
 In Phase 1 a Contact's role/title is free text and can describe an owner or decision maker. There is no separate decision-maker flag or primary-contact pointer because neither was approved in the Phase 0 model.
 

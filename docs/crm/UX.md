@@ -1,6 +1,6 @@
 # Platform CRM information architecture
 
-This document records the implemented Phase 1–4 placement and the deferred roadmap UX. Organization, Contact, Lead, Deal, Activity, Task, and Note workflows use nested App Router pages inside the existing platform application.
+This document records the implemented Phase 1–5 placement and the deferred roadmap UX. Organization, Contact, Lead, Deal, Activity, Task, and Note workflows use nested App Router pages inside the existing platform application.
 
 ## Current platform surface
 
@@ -44,11 +44,13 @@ The implemented queue filters by status, source, priority, assignee (including u
 
 ### Activities, Tasks, and Notes
 
-The Tasks queue at `/platform/crm/tasks` provides Today, Overdue, Upcoming, All Open, and Completed views, text search, assignee and priority filters, pagination, and completion/cancellation/reopen actions. Due-date boundaries for Today use the browser's local day. Organization, Contact, Lead, and Deal details provide related work sections; Lead-only work remains visible after Lead conversion through the Organization projection. Follow-ups are regular Tasks with kind `FOLLOW_UP`. Activities record past interactions, Notes store plain-text context, and Task completion does not automatically create an Activity. No unified timeline, notification, or automation is included in Phase 4.
+The Tasks queue at `/platform/crm/tasks` provides Today, Overdue, Upcoming, All Open, and Completed views, text search, assignee and priority filters, pagination, and completion/cancellation/reopen actions. Due-date boundaries for Today use the browser's local day. Organization, Contact, Lead, and Deal details provide related work sections; Lead-only work remains visible after Lead conversion through the Organization projection. Follow-ups are regular Tasks with kind `FOLLOW_UP`. Activities record past interactions, Notes store plain-text context, and Task completion does not automatically create an Activity. Phase 5 adds a derived Organization Timeline; notification and automation remain out of scope.
 
 ### Organization 360
 
-The consolidated cross-domain Organization 360 view remains Phase 5. Keep Tenant and Subscription facts in a separate labeled, read-only section with links to existing platform tools. CRM's Activity/Task/Note records and Lead/Deal histories remain distinct from provider/payment history.
+Organization detail now composes a Persian-first 360 workspace above the existing Contact and work sections. It shows derived Contact/Lead/Deal/open-Deal/open-Task counts, last Activity, next Task, bounded recent Lead and Deal lists, open Task previews, recent Activity and Note previews, and the separately paginated Timeline. The Contact directory retains its existing search, pagination, archive, and edit flow; Contacts have no Organization-wide primary flag, so the 360 view does not invent one. Existing Activity/Task/Note forms remain the quick actions. Leads, Deals, Tasks, Contacts, and source records link to their existing pages. No Tenant/Subscription history is merged into this Phase 5 Timeline; existing linked Tenant context remains read-only in the Organization header.
+
+Timeline filtering supports one CRM category and inclusive local-day date bounds. Pages contain 20 items by default, with an API maximum of 100. Mixed event types render from stable machine types and metadata into Persian text, display masked operator labels or an explicit system/source label, and link back to the associated Lead, Deal, Contact, or work section. Loading, empty, retryable error, and overview section-error states are kept local to the affected area. The section navigation and timeline controls remain keyboard labeled and responsive in RTL layouts.
 
 ## Existing design and implementation guidance
 

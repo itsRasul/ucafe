@@ -10,12 +10,14 @@ The fixed permission catalog includes `crm.read` and `crm.manage`, initially add
 
 Phase 1 adds the smallest fixed platform-scope permission pair:
 
-- `crm.read` for CRM lists, detail, search, duplicate candidates, and read-only linked context.
+- `crm.read` for CRM lists, detail, search, duplicate candidates, read-only linked context, Organization 360 overview, and Timeline.
 - `crm.manage` for creating, editing, assigning, qualifying, unqualifying, converting, archiving, and restoring Organizations, Contacts, Leads, Deals, Activities, Tasks, and Notes, and for Task lifecycle actions.
 
 The permission catalog can split these later into organization/contact/lead/deal permissions only when real staffing needs require different grants. Do not start with per-record sharing or an enterprise permissions matrix. Record assignment is for workload ownership, not a security filter.
 
 Every CRM API handler declares its required permission using the existing decorator and guard. The Tenant-link candidate endpoint additionally requires `tenants.read`. Do not trust role names, URL prefixes, hidden navigation, or possession of a UUID. A tenant-only user without a platform role cannot enter CRM.
+
+Both Phase 5 Organization read endpoints validate the Organization and require the same platform `crm.read` permission. The composed queries remain inside the guarded CRM controller/service and scope every source to that Organization through its direct or same-Organization Contact/Lead/Deal relationship. They do not broaden access to Tenant, Subscription, or Payment details.
 
 `crm.read` grants platform operators access to Contact PII on a single-Contact detail/edit projection. Organization and Contact lists, duplicate results, and audit summaries omit full phone/email values and hashes. Add a separate PII permission only if an actual separation-of-duties need appears.
 
