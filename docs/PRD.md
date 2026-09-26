@@ -27,7 +27,7 @@ The product is aimed at independent cafes that need a professional storefront, e
 ### Menu and content
 
 - Owners manage approved site identity, story, theme, contact, location, opening hours, logo, hero, gallery, categories, items, variants, prices, availability, featured state, and menu-item images.
-- Owners with menu-management permission can run scheduled, tenant-scoped product/category and order promotions, coupons, Buy X Get Y/BOGO, fixed-price bundles, quantity-tier discounts, and customer eligibility rules for first order, order history, spend, registration/inactivity age, or manual customer segments. Cart quotes and order creation use one server-side pricing flow; orders retain immutable price, customer-condition, and promotion-allocation snapshots. Customer groups remain a small capability of the existing Clients domain; UCafe has no CRM module.
+- Owners with menu-management permission can run scheduled, tenant-scoped product/category and order promotions, coupons, Buy X Get Y/BOGO, fixed-price bundles, quantity-tier discounts, and customer eligibility rules for first order, order history, spend, registration/inactivity age, or manual customer segments. Cart quotes and order creation use one server-side pricing flow; orders retain immutable price, customer-condition, and promotion-allocation snapshots. Customer groups remain a small capability of the existing Clients domain; Promotions does not depend on Platform CRM.
 - Media is decoded and transformed into fixed AVIF/WebP variants. The object bucket is private; public bytes are streamed through the tenant-aware API.
 
 ### Ordering
@@ -63,6 +63,10 @@ The product is aimed at independent cafes that need a professional storefront, e
 - An encrypted durable outbox covers consultation, order, reservation, reminder, subscription, and payment events with deduplication and bounded retries.
 - Delivery is asynchronous but currently dispatched inside each API process, not the worker.
 
+## Platform capability: Platform CRM
+
+Phase 1 implements a platform CRM foundation for UCafe's relationships with café businesses: Organizations and their Contacts, exact duplicate warnings, archive/restore, and an optional unique link to an existing Tenant. It is platform staff functionality, not a Tenant CRM for a café's own customers. Leads, Deals, activities, and sales follow-up history remain planned; the public consultation form and read-only platform request inbox remain the only acquisition intake workflow. See [docs/crm/README.md](crm/README.md).
+
 ## Product constraints
 
 - One shared database and codebase; tenant isolation is mandatory.
@@ -75,6 +79,7 @@ The product is aimed at independent cafes that need a professional storefront, e
 ## Not currently supported
 
 - recurring or automatic subscription billing, refunds UI, and customer online order payment
+- Platform CRM workflows for Leads, Deals, activities, and follow-up tasks; Organizations and Contacts are available in Phase 1. Consultation requests still have no CRM Lead workflow.
 - customer self-service reservation cancellation
 - physical table/floor assignment and overnight opening-hour ranges
 - an operational custom-domain onboarding/verification workflow

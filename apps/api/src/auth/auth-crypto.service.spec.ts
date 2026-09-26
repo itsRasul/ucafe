@@ -33,6 +33,14 @@ test("encrypts phone values with randomized authenticated encryption", () => {
   assert.throws(() => crypto.decryptPhone(parts.join(".")));
 });
 
+test("encrypts email as PII and hashes normalized values without exposing them", () => {
+  const encrypted = crypto.encryptPii("person@example.com");
+  assert.equal(crypto.decryptPii(encrypted), "person@example.com");
+  assert.notEqual(encrypted, "person@example.com");
+  assert.equal(crypto.hashEmail("person@example.com"), crypto.hashEmail("person@example.com"));
+  assert.notEqual(crypto.hashEmail("person@example.com"), crypto.hashEmail("other@example.com"));
+});
+
 test("creates unique opaque refresh tokens and stable hashes", () => {
   const first = crypto.generateRefreshToken();
   const second = crypto.generateRefreshToken();

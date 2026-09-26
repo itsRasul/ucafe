@@ -21,8 +21,11 @@ Read only the documents relevant to the current change; do not load the entire s
 | Code/change rules | `docs/CONVENTIONS.md` |
 | Current blockers/debt | `docs/CURRENT_STATE.md` |
 | Historical reasoning | `docs/DECISIONS.md` |
+| Platform CRM foundation | `docs/crm/README.md` and its linked topic documents |
 
 For feature work, read `PRD.md`, `BUSINESS_RULES.md`, and the relevant domain/technical document. Inspect the actual implementation, migrations, tests, Git status, and current Docker state before editing. If documentation and code disagree, investigate; code/config/migrations describe implementation while the PRD describes current product intent.
+
+Before changing Platform CRM, read `docs/crm/README.md`, `docs/crm/DOMAIN_MODEL.md`, `docs/crm/LIFECYCLE.md`, `docs/crm/INTEGRATIONS.md`, and `docs/crm/EVENTS.md`, then the CRM topic and existing domain documents relevant to the change. Keep CRM documentation updated in the same change whenever behavior, lifecycle, API contracts, permissions, integrations, or architecture changes. Phase 0 was documentation only; Phase 1 implements Organizations and Contacts. Later CRM phases remain planned work.
 
 ## Repository
 

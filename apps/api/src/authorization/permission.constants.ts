@@ -11,6 +11,8 @@ export const PlatformPermissions = {
   RolesManage: "roles.manage",
   PermissionsRead: "permissions.read",
   ConsultationRequestsRead: "consultation_requests.read",
+  CrmRead: "crm.read",
+  CrmManage: "crm.manage",
 } as const;
 
 export type PlatformPermissionKey = (typeof PlatformPermissions)[keyof typeof PlatformPermissions];

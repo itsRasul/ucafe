@@ -21,6 +21,7 @@ import { ClientsModule } from "./clients/clients.module";
 import { OrderingModule } from "./ordering/ordering.module";
 import { AnalyticsModule } from "./analytics/analytics.module";
 import { InventoryModule } from "./inventory/inventory.module";
+import { CrmModule } from "./crm/crm.module";
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { InventoryModule } from "./inventory/inventory.module";
     OrderingModule,
     AnalyticsModule,
     InventoryModule,
+    CrmModule,
   ],
   controllers: [HealthController],
 })

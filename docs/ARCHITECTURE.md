@@ -31,7 +31,9 @@ The proxy forwards authorization/cookies and an authenticated tenant-host overri
 
 The API exposes REST groups under `/api/v1`: `/public`, `/auth`, `/tenant`, `/platform`, and `/health`. Global validation whitelists/transforms DTO input and rejects unknown properties. Controllers handle transport/identity metadata; services own use cases and transactions; entities map persistence; small utilities hold deterministic rules.
 
-Major modules: tenants, identity/authorization, auth, clients, subscriptions, site, menu, promotions, media, ordering, inventory, analytics, reservations, notifications, payments, platform consultation requests, audit, and health. Inventory movement/balance and count semantics are in [INVENTORY.md](INVENTORY.md); discount pricing and order snapshots are in [DISCOUNTS.md](DISCOUNTS.md); analytics definitions and extension points are in [ANALYTICS.md](ANALYTICS.md).
+Major modules: tenants, identity/authorization, auth, clients, subscriptions, site, menu, promotions, media, ordering, inventory, analytics, reservations, notifications, payments, platform consultation requests, Platform CRM (Organizations and Contacts), audit, and health. Inventory movement/balance and count semantics are in [INVENTORY.md](INVENTORY.md); discount pricing and order snapshots are in [DISCOUNTS.md](DISCOUNTS.md); analytics definitions and extension points are in [ANALYTICS.md](ANALYTICS.md); CRM boundaries and current scope are in [docs/crm/README.md](crm/README.md).
+
+Platform CRM uses the existing modular monolith, PostgreSQL migration path, platform RBAC, audit records, and Next.js App Router. Phase 1 adds no Sales Engine or domain-event framework.
 
 Analytics imports the exported `InventoryVarianceService` for the Inventory Phase 7 report. That service reads tenant-scoped physical counts, source-validated movements and order recipe snapshots; it checks both effective `inventory` and `analytics` entitlements. Inventory does not depend on Analytics, and report reads do not post stock movements.
 

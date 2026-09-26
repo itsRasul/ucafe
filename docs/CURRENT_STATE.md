@@ -1,6 +1,6 @@
 # Current state
 
-**Reviewed:** 2026-09-23 (Asia/Tehran)
+**Reviewed:** 2026-09-26 (Asia/Tehran)
 
 ## Implemented
 
@@ -15,6 +15,12 @@
 - Phase 3 adds historical line-based product/category rankings, contribution, growth/decline, zero-sale products, category-at-sale snapshots, and product/category trends. See [ANALYTICS.md](ANALYTICS.md).
 - Inventory Phase 1 adds tenant-scoped item/category/location management, transactional opening balances and adjustments, stock/count/history views, and the configurable feature gate. See [INVENTORY.md](INVENTORY.md) and [PROGRESS.md](PROGRESS.md).
 - PostgreSQL/Redis/MinIO readiness, security headers, request IDs, backup/restore scripts, Docker development/production targets.
+
+## Platform CRM Phase 1
+
+- Phase 0 architecture and Phase 1 Organizations & Contacts are complete. The API, platform permissions, PostgreSQL tables, migration, and Persian RTL platform routes are implemented; see [docs/crm/README.md](crm/README.md), [API.md](crm/API.md), and [PROGRESS.md](PROGRESS.md).
+- A CRM Organization may link to one existing Tenant, and each Tenant to at most one Organization. This does not backfill existing Tenants or change their lifecycle.
+- Leads, Deals, activities, tasks, notes, consultation-request conversion, and CRM analytics remain future phases. Consultation intake stays in the existing platform request inbox.
 
 ## Production blockers
 
@@ -39,6 +45,6 @@ The software is not production-ready until [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIS
 
 ## Immediate next work
 
-1. Begin Phase 4 customer analytics from cafe-scoped client identity and delivered orders; keep [ANALYTICS.md](ANALYTICS.md) authoritative.
+1. Implement Platform CRM Phase 2 — Lead management only after defining its intake-link and lifecycle behavior in [docs/crm/PHASES.md](crm/PHASES.md).
 2. Complete provider and hosting acceptance without adding unrelated product scope.
 3. Move the dispatcher to a coordinated worker before horizontal API scaling.

@@ -2,6 +2,20 @@
 
 Last updated: 2026-09-26
 
+## UCafe Platform CRM Phase 1: Organizations & Contacts
+
+Implemented a platform-scoped Organization directory and Contact management in the existing NestJS/PostgreSQL and Next.js applications. Organizations support normalized business name, optional city/site/Instagram, an optional unique read-only Tenant association, search/filters/sorting/pagination, exact duplicate warnings, edits, and archive/restore. Contacts belong to one Organization and support name/title, optional mobile/email, per-Organization exact duplicate warnings, protected detail editing, and archive/restore. Duplicate matches require an explicit operator choice; no automatic merge or hard-delete route exists.
+
+Contact phone/email reuse `AuthCryptoService` AES-256-GCM encryption and keyed HMAC-SHA256 lookup hashes. List, duplicate, and audit projections omit PII. CRM changes use the existing platform permission guards and audit table. Migration `1790510000000-CreatePlatformCrmOrganizationsAndContacts` adds permissions, organizations, contacts, FKs, checks, and lookup/list indexes without backfill. Tenant and Contact parent references restrict hard deletion; archive never cascades. No Lead, Deal, event bus, or Sales Engine was added.
+
+Verification: the full API suite passed (135 passed, 16 skipped, 0 failed), including the CRM PostgreSQL integration case. Workspace typecheck passed. `NODE_ENV=production npm run build` passed for API, web, and worker. `migration:show` confirmed the CRM migration is applied. Rebuilt Compose API/web containers are running; API health returned 200, an unauthenticated CRM API request returned 401, and `/platform/crm` returned 200 and rendered the Persian platform sign-in gate. Authenticated CRUD and responsive browser interactions were not manually verified because this browser had no platform session. No lint command exists.
+
+## UCafe Platform CRM Phase 0: architecture discovery and documentation
+
+This entry records the architecture-discovery prerequisite before Phase 1 implementation. It inspected the current Tenant/Branch/Domain model, platform RBAC and audit, separate User and Client identities, subscription/trial/payment ownership, consultation-request intake, notification outbox, tenant Analytics boundary, and the existing /platform UI. The public consultation form already stores privacy-protected platform_order_requests and exposes a read-only permission-protected inbox; at that point UCafe had no CRM module, Sales Engine, or general domain-event bus.
+
+Created docs/crm as the proposed Platform CRM foundation. It keeps the public request as source intake, defines a separate CRM Lead lifecycle, distinguishes Organization from Tenant and Contact from User/Client, assigns source-of-truth ownership, proposes relational history and read-only integrations, and plans Phases 1–10. At the end of Phase 0 no application code, schema, migration, or UI had changed; Phase 1 was then ready. All migrations discovered in the Compose API database were marked applied at that point; no CRM migration yet existed.
+
 ## Discounts & Promotions Phase 5: promotion analytics
 
 Extended the existing tenant Analytics API and `/admin/analytics` with a promotion overview and detail route. Reports use delivered order outcomes and immutable order/item allocation snapshots, café-local shared date ranges, existing Analytics permission/entitlement, and bounded set-based SQL. The overview compares usage, unique/new/returning customers, units, gross/discount/net stage values, and attributed order value; filters/sorts/paginates promotions and shows top lists and zero-filled trends. Detail adds product/category, coupon, and snapshotted customer-condition aggregates. `/admin/orders` can filter to orders containing a given item- or order-level promotion.

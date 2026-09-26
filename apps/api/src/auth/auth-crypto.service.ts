@@ -29,6 +29,10 @@ export class AuthCryptoService {
     return this.hmac(`phone:${phone}`);
   }
 
+  hashEmail(email: string): string {
+    return this.hmac(`email:${email}`);
+  }
+
   hashFingerprint(value: string): string {
     return this.hmac(`fingerprint:${value}`);
   }
@@ -42,13 +46,21 @@ export class AuthCryptoService {
   }
 
   encryptPhone(phone: string): string {
-    const iv = randomBytes(12);
-    const cipher = createCipheriv("aes-256-gcm", this.encryptionKey, iv);
-    const encrypted = Buffer.concat([cipher.update(phone, "utf8"), cipher.final()]);
-    return ["v1", iv.toString("base64url"), cipher.getAuthTag().toString("base64url"), encrypted.toString("base64url")].join(".");
+    return this.encryptPii(phone);
   }
 
   decryptPhone(value: string): string {
+    return this.decryptPii(value);
+  }
+
+  encryptPii(value: string): string {
+    const iv = randomBytes(12);
+    const cipher = createCipheriv("aes-256-gcm", this.encryptionKey, iv);
+    const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+    return ["v1", iv.toString("base64url"), cipher.getAuthTag().toString("base64url"), encrypted.toString("base64url")].join(".");
+  }
+
+  decryptPii(value: string): string {
     const [version, ivValue, tagValue, encryptedValue] = value.split(".");
     if (version !== "v1" || !ivValue || !tagValue || !encryptedValue) throw new Error("Encrypted phone value is invalid");
     const decipher = createDecipheriv("aes-256-gcm", this.encryptionKey, Buffer.from(ivValue, "base64url"));

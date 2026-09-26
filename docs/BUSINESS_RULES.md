@@ -60,6 +60,20 @@ Critical rules are summarized here. Domain documents contain the corresponding l
 - Reservation/subscription scheduled jobs recheck current eligibility before sending.
 - Owner alerts for new orders/reservations are opt-in settings. OTP delivery is direct through the auth provider, not the notification outbox.
 
+## Platform CRM boundary
+
+- Platform CRM is an internal platform domain. It is not tenant-owned and does not manage a café's Clients or customer segments.
+- Phase 1 CRM Organizations and Contacts are distinct from Tenant, User, and Client records. Future Leads and Deals also remain distinct from Subscription, Trial, invoice/payment intent, and Payment records.
+- One CRM Organization may link to at most one non-deleted Tenant, and each Tenant may link to at most one Organization. The link is optional and read-only with respect to Tenant lifecycle.
+- Contact phone/email are encrypted at rest and omitted from list, duplicate, and audit projections; authorized single-Contact detail may reveal them.
+- Exact Organization and Contact duplicate candidates are review warnings only. CRM does not auto-merge or block an operator from continuing.
+- Archiving an Organization does not archive Contacts. CRM has no hard-delete route, and parent/child references do not cascade-delete.
+- CRM may read source-domain state and link to its owner module. It must not duplicate Tenant or Subscription lifecycle, provisioning, pricing, payment, or verification rules.
+- platform_order_requests remains public consultation intake. A future CRM Lead may reference one request; CRM status is a separate sales lifecycle and must not translate the existing CLOSED request status into Deal WON/LOST.
+- UCafe has no Sales Engine or general domain-event bus. Notification delivery records are not integration events.
+
+See [docs/crm/README.md](crm/README.md) for the implemented scope and future source-of-truth rules.
+
 ## Unresolved product rule
 
 - There is no confirmed client self-cancellation policy or endpoint for reservations.
