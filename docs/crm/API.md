@@ -1,6 +1,6 @@
 # Platform CRM API
 
-Phase 1 and Phase 2 APIs are implemented under `/api/v1/platform/crm`. Every route uses `AccessTokenGuard` and `PlatformPermissionGuard`. Resource IDs are UUID-validated, request DTOs use the global whitelist/forbid/transform validation pipe, and results use parameterized SQL.
+Phases 1–4 APIs are implemented under `/api/v1/platform/crm`. Every route uses `AccessTokenGuard` and `PlatformPermissionGuard`. Resource IDs are UUID-validated, request DTOs use the global whitelist/forbid/transform validation pipe, and results use parameterized SQL.
 
 ## Implemented routes
 
@@ -38,7 +38,35 @@ POST   /api/v1/platform/crm/leads/:leadId/archive
 POST   /api/v1/platform/crm/leads/:leadId/restore
 ~~~
 
-There is no CRM `DELETE` route. Public consultation intake still uses its existing routes; accepted submissions now create a Lead transactionally. Task, Activity, and timeline endpoints remain deferred.
+Phase 4 work routes:
+
+~~~text
+GET    /api/v1/platform/crm/activities
+POST   /api/v1/platform/crm/activities
+GET    /api/v1/platform/crm/activities/:activityId
+PATCH  /api/v1/platform/crm/activities/:activityId
+POST   /api/v1/platform/crm/activities/:activityId/archive
+POST   /api/v1/platform/crm/activities/:activityId/restore
+
+GET    /api/v1/platform/crm/tasks
+POST   /api/v1/platform/crm/tasks
+GET    /api/v1/platform/crm/tasks/:taskId
+PATCH  /api/v1/platform/crm/tasks/:taskId
+POST   /api/v1/platform/crm/tasks/:taskId/complete
+POST   /api/v1/platform/crm/tasks/:taskId/cancel
+POST   /api/v1/platform/crm/tasks/:taskId/reopen
+POST   /api/v1/platform/crm/tasks/:taskId/archive
+POST   /api/v1/platform/crm/tasks/:taskId/restore
+
+GET    /api/v1/platform/crm/notes
+POST   /api/v1/platform/crm/notes
+GET    /api/v1/platform/crm/notes/:noteId
+PATCH  /api/v1/platform/crm/notes/:noteId
+POST   /api/v1/platform/crm/notes/:noteId/archive
+POST   /api/v1/platform/crm/notes/:noteId/restore
+~~~
+
+There is no CRM `DELETE` route. Public consultation intake keeps its existing contract; accepted submissions create a Lead transactionally. There is no unified timeline endpoint.
 
 ## Organizations
 
@@ -101,6 +129,18 @@ Stage POST accepts `{ expectedStage, stage, reason? }` and rejects stale concurr
 Deal estimates are integer Toman strings at API boundaries and forecasts only. Selecting an expected Plan does not enroll a Tenant or mutate its Trial, Subscription, invoice, or Payment.
 
 Archive/restore preserve the Lead, status history, source request, and Organization/Contact links. Archived Leads remain readable and may be listed with `ARCHIVED` or `ALL`; restore is required before editing or status changes.
+
+## Activities, Tasks, and Notes
+
+All Phase 4 reads require `crm.read`; creates, edits, lifecycle changes, and archive/restore require `crm.manage`. Lists use 1-based pagination (`page` default 1, `pageSize` default 25, maximum 100) and `archiveStatus=ACTIVE|ARCHIVED|ALL` (default `ACTIVE`). Returned actor/assignee names use masked labels.
+
+Every work record must reference at least one Organization, Contact, Lead, or Deal. Multiple references are allowed only within one Organization. A Lead-only record is valid before conversion; its Organization list projection resolves through the converted Lead. CRM details that are archived cannot receive new or changed work. Database foreign keys and same-Organization composite constraints back the service validation. Audit rows are written transactionally and never contain Activity subjects/details, Task titles/descriptions, or Note bodies.
+
+- **Activities:** create/update accepts `activityType`, `subject`, optional `details`, `occurredAt`, optional `outcome`, and association IDs. Types are `CALL|MEETING|DEMO|EMAIL|SMS|WHATSAPP|OTHER`; only Calls and Meetings/Demos accept outcomes, from their type-specific sets. Future `occurredAt` values are rejected. List filters include text, type, outcome, actor, associated IDs, occurred range, archive state, sort (`occurredAt|createdAt`) and direction.
+- **Tasks:** create/update accepts `title`, optional `description`, `kind` (`GENERAL|FOLLOW_UP`), `priority` (`LOW|NORMAL|HIGH|URGENT`), `dueAt`, `assignedToUserId`, and association IDs. Assignees must be active platform Users with CRM access. List filters include text, status, priority, kind, assignee (`ME`, `UNASSIGNED`, or UUID), views (`OPEN|OVERDUE|UPCOMING|COMPLETED|CANCELED|NO_DUE_DATE`), association IDs, due range, sort, direction, and archive state. `OVERDUE` is derived from OPEN plus a due time before database now; it is never stored. `dueFrom` is inclusive and `dueTo` exclusive. Complete/cancel set status, timestamp, and actor together; reopening clears prior terminal metadata. OPEN Tasks cannot be archived.
+- **Notes:** create/update accepts a plain-text `body` and association IDs. List filters include association IDs, archive state, sort (`createdAt|updatedAt`) and direction. Notes have no hard-delete route.
+
+Completing a Task does not create an Activity. Follow-up quick actions create a regular Task with kind `FOLLOW_UP`; Phase 4 does not schedule reminder delivery or expose a unified timeline.
 
 ## Errors and archive behavior
 

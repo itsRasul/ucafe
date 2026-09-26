@@ -1,6 +1,6 @@
 # Conceptual data model
 
-Phase 1 adds `crm_organizations` and `crm_contacts` through migration `1790510000000-CreatePlatformCrmOrganizationsAndContacts`. Phase 2 adds `crm_leads` and `crm_lead_status_history` through `1790520000000-CreatePlatformCrmLeads`. Phase 3 adds `crm_deals` and `crm_deal_stage_history` through `1790530000000-CreatePlatformCrmDeals`. Activity, Task, and Note rows remain future-phase proposals.
+Phase 1 adds `crm_organizations` and `crm_contacts` through migration `1790510000000-CreatePlatformCrmOrganizationsAndContacts`. Phase 2 adds `crm_leads` and `crm_lead_status_history` through `1790520000000-CreatePlatformCrmLeads`. Phase 3 adds `crm_deals` and `crm_deal_stage_history` through `1790530000000-CreatePlatformCrmDeals`. Phase 4 adds `crm_activities`, `crm_tasks`, and `crm_notes` through `1790540000000-CreatePlatformCrmWorkRecords`.
 
 ~~~mermaid
 erDiagram
@@ -10,16 +10,16 @@ erDiagram
     CRM_ORGANIZATION ||--o{ CRM_DEAL : has
     CRM_LEAD o|--o| CRM_DEAL : may_seed_in_phase_3
     CRM_CONTACT o|--o{ CRM_DEAL : primary_contact
-    CRM_ORGANIZATION ||--o{ CRM_ACTIVITY : records
+    CRM_ORGANIZATION o|--o{ CRM_ACTIVITY : records
     CRM_CONTACT o|--o{ CRM_ACTIVITY : relates_to
     CRM_LEAD o|--o{ CRM_ACTIVITY : relates_to
     CRM_DEAL o|--o{ CRM_ACTIVITY : relates_to
-    CRM_ORGANIZATION ||--o{ CRM_TASK : schedules
+    CRM_ORGANIZATION o|--o{ CRM_TASK : schedules
     CRM_CONTACT o|--o{ CRM_TASK : relates_to
     CRM_LEAD o|--o{ CRM_TASK : relates_to
     CRM_DEAL o|--o{ CRM_TASK : relates_to
-    CRM_TASK o|--o{ CRM_ACTIVITY : relates_to
-    CRM_ORGANIZATION ||--o{ CRM_NOTE : documents
+    CRM_ORGANIZATION o|--o{ CRM_NOTE : documents
+    CRM_CONTACT o|--o{ CRM_NOTE : relates_to
     CRM_LEAD o|--o{ CRM_NOTE : relates_to
     CRM_DEAL o|--o{ CRM_NOTE : relates_to
     CRM_LEAD ||--o{ CRM_LEAD_STATUS_HISTORY : changes
@@ -39,9 +39,9 @@ All new CRM primary keys should be UUIDs. Use explicit snake_case table/column n
 | CRM Lead (`crm_leads`) | id, business name and normalized name, optional contact name, encrypted phone/email with keyed hashes, optional normalized city, website/host and Instagram, optional description, code-defined source/status/priority, nullable platform owner, optional Organization and primary Contact, optional unique source request, qualification/unqualified fields, qualified/converted timestamps, creator/updater, timestamps, `archived_at` | CRM-owned prospect snapshot retained after conversion. Conversion requires an Organization and Contact; Phase 2 does not create a Deal. |
 | CRM LeadStatusHistory (`crm_lead_status_history`) | id, lead_id, previous_status, next_status, optional reason, nullable actor, created_at | Append-only transition history. Initial creation records a null previous status; public intake has a null actor. |
 | CRM Deal (`crm_deals`) | id, unique optional `originating_lead_id`, organization/contact/owner/expected-plan references, title, integer-Toman `estimated_amount_toman`, date `expected_close_date`, code-defined pipeline/stage/status, outcome/loss details, actor/timestamps, close timestamps, archive state | CRM opportunity in one code-defined pipeline. Lead origin is unique; stage/outcome updates and their history/audit rows are transactional. |
-| CRM Activity | id, organization_id, optional contact/lead/deal/task ids, type, occurred_at, summary, actor_user_id, created_at | Historical interaction. Append-only except a narrowly audited correction/redaction path. |
-| CRM Task | id, organization_id, optional contact/lead/deal ids, type, title, due_at, assigned_to_user_id, status, completed_at/by, canceled_at/by, created/updated actor and timestamps, archived_at | Future work and retained completion/cancellation. |
-| CRM Note | id, organization_id, optional lead/deal ids, body, author_user_id, created/updated timestamps, archived_at | Internal context, access-controlled and retained; redact sensitive content deliberately instead of cascade deletion. |
+| CRM Activity (`crm_activities`) | id, optional organization_id/contact_id/lead_id/deal_id, activity_type, subject, optional details, occurred_at, optional outcome, actor/updater/archiver, timestamps, archived_at | Historical interaction. Editable while active; archive/restore retains content. Activity is not an event or Task. |
+| CRM Task (`crm_tasks`) | id, optional organization_id/contact_id/lead_id/deal_id, title, optional description, kind, status, priority, optional due_at/assignee, completion/cancellation actors and timestamps, creator/updater/archiver, timestamps, archived_at | Future work and retained completion/cancellation. `FOLLOW_UP` is a Task kind; overdue is derived from OPEN plus due time. |
+| CRM Note (`crm_notes`) | id, optional organization_id/contact_id/lead_id/deal_id, plain-text body, author/updater/archiver, timestamps, archived_at | Internal context, editable while active and archived/restored explicitly. No hard-delete/redaction operation is implemented. |
 | CRM DealStageHistory (`crm_deal_stage_history`) | id, deal_id, pipeline_key, nullable from_stage, to_stage, optional reason, actor_user_id, created_at | Append-only transition history and source for time-in-stage analytics. Initial creation records a null previous stage. |
 
 ### Phase 3 schema actually installed
@@ -50,11 +50,20 @@ All new CRM primary keys should be UUIDs. Use explicit snake_case table/column n
 - `crm_deal_stage_history` is append-only, references its Deal with `ON DELETE RESTRICT`, retains pipeline/from/to stage, optional reason, actor, and timestamp. Indexes cover Deal history order and active pipeline/stage/update order, owner, Organization, expected Plan, and expected close date. A unique partial index prevents two Deals from claiming one originating Lead.
 - Foreign keys/checks enforce same-Organization Contact and Lead links, expected Plan reference, nonnegative estimate, stage/status/loss keys, and consistent open/closed outcome timestamps. Service validation requires a qualified/converted Lead and a matching Organization. FKs are restrictive for business history; actor references become null on user deletion. No pipeline/stage lookup tables are created.
 
-Activity, Task, and Note field details remain candidates for implementation review. Do not store a second copy of Tenant status, subscription dates, plan features, invoice status, or payment state.
+### Phase 4 schema actually installed
+
+- Activities record `CALL`, `MEETING`, `DEMO`, `EMAIL`, `SMS`, `WHATSAPP`, or `OTHER`; call and meeting/demo outcomes are constrained to their type-specific sets. `occurred_at` is the interaction time, not the create time. Actor and archive metadata are nullable User references with `ON DELETE SET NULL`.
+- Tasks use `GENERAL|FOLLOW_UP`, `OPEN|COMPLETED|CANCELED`, and `LOW|NORMAL|HIGH|URGENT`. Database checks keep completion and cancellation timestamps mutually exclusive and aligned with status. Open Tasks cannot be archived through the service. Overdue is derived at read time and is not persisted.
+- Notes contain plain text only; author, updater, and archiver references are nullable and use `ON DELETE SET NULL`.
+- Each work row has explicit optional Organization, Contact, Lead, and Deal foreign keys, and at least one CRM association is required. A Lead-only work row is allowed before conversion; after conversion its Organization context is resolved through the Lead in list projections. Work can be attached to multiple records only when they share one Organization. No polymorphic entity key or Activity-to-Task foreign key exists.
+- Parent links use restrictive foreign keys and same-Organization composite keys; service validation locks and checks referenced records and rejects archived records for new/changed work. Supporting partial indexes cover active records by Organization and related record, plus Task assignee/status/due time.
+- Work changes and their PII-safe `platform_audit_events` rows commit together. Activity subjects/details, Task titles/descriptions, and Note bodies are excluded from audit summaries.
+
+Do not store a second copy of Tenant status, subscription dates, plan features, invoice status, or payment state.
 
 ## Relationships and constraints
 
-- Every Contact, Deal, Activity, Task, and Note is rooted in one Organization. A Lead may start without canonical links and can optionally link an Organization and Contact. Conversion requires a matched or newly created Organization and a Contact belonging to it. A Contact belongs to one Organization; duplicate people across Organizations remain separate commercial contexts.
+- Every Contact and Deal is rooted in one Organization. Activities, Tasks, and Notes may link to an Organization, Contact, Lead, or Deal. Contact/Deal and already-converted Lead associations must agree on Organization. Lead-only work may exist before conversion without an Organization; after conversion, reads resolve its Organization through the Lead. A Lead may start without canonical links and can optionally link an Organization and Contact. Conversion requires a matched or newly created Organization and a Contact belonging to it. A Contact belongs to one Organization; duplicate people across Organizations remain separate commercial contexts.
 - CRM Organization to coffee_shop is optional one-to-one for the initial UCafe model. Use a nullable unique Tenant FK with RESTRICT semantics; do not add a reverse owner field to coffee_shops.
 - CRM Lead to platform_order_request is optional one-to-one and unique on source_request_id. Public consultation acceptance creates one linked Lead in the same transaction; prior requests are not backfilled. Preserve the current table and endpoints.
 - Conversion locks the Lead row. Organization, Contact, status, timestamp, history, and audit changes commit in one transaction; retry returns existing links without creating duplicates. Phase 3 can add a Deal relationship without changing Lead conversion history.
@@ -69,8 +78,9 @@ Use indexes required by the active list and duplicate workflows:
 - Contacts: organization_id plus name; organization-scoped indexes for normalized phone/email hashes.
 - Leads: active status/created_at, owner/status, source/created_at, organization_id, primary_contact_id, normalized name/city, normalized city, phone/email hashes, source_request_id unique.
 - Deals: organization_id/created_at, outcome/stage, assigned owner if introduced; unique initial conversion reference.
-- Activities: organization_id/occurred_at and related record/time.
-- Tasks: assignee/status/due_at, organization_id/status/due_at.
+- Activities: partial active indexes by organization/contact/lead/deal/actor and occurred_at.
+- Tasks: partial active indexes by assignee/status/due_at, organization/status/due_at, and each related record/due_at.
+- Notes: partial active indexes by organization/contact/lead/deal and created_at.
 - Histories: parent ID plus created_at.
 
 Exact normalized matches should show duplicate candidates. Do not make organization name+city globally unique or block shared business phone/email without evidence that UCafe has one-person-per-channel semantics. Name+city, website/domain, Instagram, and phone are signals; fuzzy matching and AI deduplication are out of scope. Never use a phone hash as public output.
@@ -101,4 +111,4 @@ Use UTC timestamptz values for CRM timestamps and render Persian-local dates in 
 
 ## Archive and delete policy
 
-Archive Organizations, Contacts, Leads, and Deals; reject new work on archived records unless they are explicitly restored. Keep Activities and transition history as historical evidence. Keep Tasks after completion or cancellation. Notes remain linked and are archived/redacted by an explicit authorized action. Do not cascade-delete CRM rows when a Tenant, User, or linked request is archived or soft-deleted. Hard deletion should be limited to a future documented privacy/retention policy and explicit reference checks.
+Archive Organizations, Contacts, Leads, and Deals; reject new or changed work on archived records unless they are explicitly restored. Activities and Notes may be edited while active, then archived/restored while retaining content. Tasks remain after completion or cancellation; an OPEN Task must first be completed or canceled before archive. Work and transition history are retained and have no hard-delete route. Do not cascade-delete CRM rows when a Tenant, User, or linked request is archived or soft-deleted. A future privacy/retention operation requires an explicit policy and reference checks.

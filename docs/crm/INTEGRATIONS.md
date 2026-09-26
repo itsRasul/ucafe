@@ -10,6 +10,7 @@ Platform CRM stays inside the current UCafe modular monolith and shares PostgreS
 | Contact name, business role, contact phone/email | CRM | Own, subject to PII controls | Authoritative sales contact record; separate from platform and tenant identities. |
 | Lead source, status, qualification, assignment, Organization/Contact links, conversion timestamp | CRM | Own | Sales workflow and reporting. Conversion resolves Organization and Contact; Deal remains Phase 3. Source request remains linked intake evidence. |
 | Deal estimated value, expected close date, stage, outcome, loss reason | CRM | Own as sales estimate/judgment | Pipeline board and operational forecast only; never payment or revenue authority. |
+| Activity, Task, and Note content and lifecycle | CRM | Own | Manually recorded past interactions, future work/follow-ups, and plain-text internal context. No external channel sync or reminders. |
 | Tenant identity, branch/domain, Tenant lifecycle | Tenants / coffee_shops | No | Optional Organization link; read current status and link to existing platform administration. |
 | Plan catalog and feature values | Subscriptions / subscription_plans | No | Read current plan context only. |
 | Trial, current Subscription status, dates, grace, entitlement | Subscriptions | No | Read authoritative summary. Never copy dates or calculate effective status in CRM. |
@@ -19,7 +20,7 @@ Platform CRM stays inside the current UCafe modular monolith and shares PostgreS
 | Tenant Clients, orders, customer segments | Clients / Ordering / Promotions | No | Not CRM contacts or prospects. Cross-link only after a separately justified, privacy-reviewed workflow. |
 | Public platform form submission | PlatformOrders / platform_order_requests | No for original payload | Each accepted consultation request creates one CRM Lead in the same transaction, linked by unique source_request_id. The request remains immutable intake evidence. |
 | System/operator audit | Audit / platform_audit_events | No | Record CRM consequential mutations without PII. It does not replace CRM timeline history. |
-| SMS delivery | Notifications / notification_deliveries | No | A future reminder may enqueue a delivery, but delivery status is not CRM activity or domain event. |
+| SMS delivery | Notifications / notification_deliveries | No | Phase 4 does not send Task reminders. Delivery status is not CRM activity or domain event. |
 | Tenant business analytics | Analytics | No | CRM sales analytics remains platform-scoped and separate. |
 
 ## Current and planned module boundaries
@@ -33,7 +34,7 @@ Platform CRM stays inside the current UCafe modular monolith and shares PostgreS
 | Consultation intake | PlatformOrders | CRM | On accepted submission, create a landing-form Lead and one-way origin reference. Keep the public submission and current endpoint stable. Request status is not mapped to Lead status. | Public order-requests endpoint; protected consultation-requests list/detail; additive CRM synchronization in PlatformOrdersService. |
 | Deal expected Plan | Subscriptions / `subscription_plans` | CRM | Store an optional restrictive reference and read the current plan name; no price snapshot, selection, subscription, trial, invoice, or payment mutation. | Read-only `deal-plans` projection; existing Plan remains authoritative. |
 | Audit | Audit | CRM | CRM writes consequential operator changes to platform_audit_events with non-sensitive summaries. | Append-only platform_audit_events, protected by audit.read. |
-| Notifications | Notifications | CRM | Optional future task reminders use the existing delivery interface if appropriate. Do not write CRM domain events as notification jobs. | Encrypted, deduplicated phone-delivery outbox; API-hosted dispatcher. |
+| Notifications | Notifications | CRM | No Phase 4 Task reminder integration. Do not write CRM domain events as notification jobs. | Encrypted, deduplicated phone-delivery outbox; API-hosted dispatcher. |
 | Analytics | Analytics | CRM | No current dependency. Platform CRM reports aggregate CRM-owned history; tenant reports stay in the tenant Analytics domain. | /admin/analytics is tenant-authenticated and plan-gated. |
 
 When a source module lacks a stable read projection, add a narrow read-only application service or response projection in that owning module. Do not clone subscription effective-status logic, payment verification, or Tenant provisioning inside CRM. Avoid direct cross-module writes.

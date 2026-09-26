@@ -4,3 +4,6 @@ export { CrmLead, CrmLeadPriority, CrmLeadSource, CrmLeadStatus, CrmLeadUnqualif
 export { CrmLeadStatusHistory } from "./crm-lead-status-history.entity";
 export { CrmDeal, CrmDealLossReason, CrmDealStage, CrmDealStatus, CRM_DEFAULT_PIPELINE_KEY } from "./crm-deal.entity";
 export { CrmDealStageHistory } from "./crm-deal-stage-history.entity";
+export { CrmActivity, CrmActivityType, CrmCallOutcome, CrmMeetingOutcome } from "./crm-activity.entity";
+export { CrmTask, CrmTaskKind, CrmTaskPriority, CrmTaskStatus } from "./crm-task.entity";
+export { CrmNote } from "./crm-note.entity";

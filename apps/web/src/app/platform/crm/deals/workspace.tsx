@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { PlatformApi as Api, usePlatformSession } from "../../use-platform-session";
 import { CrmShell } from "../workspace";
+import { CrmWorkSections } from "../work";
 
 type Page<T> = { items: T[]; total: number; page: number; pageSize: number; stageTotals?: { stage: Stage; count: number; estimatedAmountToman: string }[] };
 type Stage = "DISCOVERY" | "DEMO_SCHEDULED" | "DEMO_COMPLETED" | "TRIAL_PROPOSED" | "TRIAL_ACTIVE" | "DECISION";
@@ -295,6 +296,7 @@ function DealDetail({ api, canManage, dealId }: { api: Api; canManage: boolean; 
       {editable && <StageControl api={api} deal={deal} onDone={(value) => { setDeal(value); setNotice("مرحله فرصت تغییر کرد."); }} onError={setError} />}
     </section>}
     <section className="crm-lead-panel" aria-labelledby="crm-deal-history-title"><header className="crm-section-heading"><div><h2 id="crm-deal-history-title">تاریخچه مراحل</h2><p>هر ورود و جابه‌جایی مرحله با زمان و مسئول نگهداری می‌شود.</p></div></header>{deal.stageHistory?.length ? <ol className="crm-deal-history">{[...deal.stageHistory].reverse().map((item) => <li key={item.id}><span className="crm-status">{stageNames[item.toStage]}</span><small>{formatDate(item.createdAt)} · {item.actorLabel || "ثبت سامانه"}{item.fromStage ? ` · از ${stageNames[item.fromStage]}` : " · مرحله آغازین"}</small>{item.reason && <p>{item.reason}</p>}</li>)}</ol> : <p className="empty crm-empty">تاریخچه مرحله‌ای ثبت نشده است.</p>}</section>
+    <CrmWorkSections api={api} canManage={canManage && !deal.archivedAt} context={{ organizationId: deal.organizationId, contactId: deal.primaryContactId, leadId: deal.originatingLeadId, dealId: deal.id, displayName: deal.title }} />
   </>;
 }
 

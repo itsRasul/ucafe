@@ -74,6 +74,9 @@ Critical rules are summarized here. Domain documents contain the corresponding l
 - Lead status transitions append history atomically. Qualification is explicit; unqualification requires a controlled reason. Conversion is allowed from QUALIFIED and atomically resolves an Organization and Contact; it creates no Deal. Phase 3 permits a separate explicit Deal from a converted Lead, at most one per Lead.
 - CRM Deals use the fixed `ucafe-default` pipeline; stage is distinct from OPEN/WON/LOST outcome. Stage history and PII-free audit records commit with every stage/outcome write. Closed Deals cannot be reopened through normal operations.
 - Deal estimated amount is an optional integer Toman forecast; it is never recognized revenue. Expected Plan is a read-only catalog reference. Deal create/win/loss never changes Tenant, Trial, Subscription, invoice, or Payment state.
+- Activities record past interactions, Tasks record future work, and Notes hold plain-text internal context. A work record must link to at least one CRM record; all linked records must share one Organization. A Lead-only work record may exist before conversion and appears under its Organization after conversion.
+- `FOLLOW_UP` is a Task kind. Overdue is derived from an OPEN Task's due time; completing a Task does not create an Activity. OPEN Tasks must be completed or canceled before archive.
+- CRM work mutations and their audit rows are transactional; audit summaries omit user-authored Activity, Task, and Note text. Phase 4 does not send reminders or publish domain events.
 - UCafe has no Sales Engine or general domain-event bus. Notification delivery records are not integration events.
 
 See [docs/crm/README.md](crm/README.md) for the implemented scope and future source-of-truth rules.

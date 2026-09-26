@@ -555,7 +555,7 @@ The footer location map uses the classic keyless Google Maps embed (`https://map
 
 ## D-073 — Platform CRM is an internal bounded domain
 
-- **Status:** implemented in Platform CRM Phases 1–2 on 2026-09-26
+- **Status:** implemented in Platform CRM Phases 1–4 on 2026-09-26
 - **Context:** UCafe already has separate platform operations, tenant administration, tenant Clients, and public consultation intake. No CRM or Sales Engine exists.
 - **Decision:** Platform CRM manages UCafe's commercial relationships with café businesses inside the existing modular monolith. CRM Organizations, Contacts, Leads, Deals, Activities, Tasks, and Notes are platform-scoped. Tenant CRM and Sales Engine behavior are excluded.
 - **Alternatives considered:** reuse cafe Clients or Users as CRM Contacts; make CRM a tenant-owned feature; add an external CRM service or Sales Engine dependency.
@@ -571,7 +571,7 @@ The footer location map uses the classic keyless Google Maps embed (`https://map
 
 ## D-075 — CRM history is relational; event infrastructure is deferred
 
-- **Status:** implemented for Lead history in Platform CRM Phase 2 on 2026-09-26; Deal-stage history remains planned
+- **Status:** implemented for Lead and Deal history and Phase 4 work-record audit on 2026-09-26
 - **Context:** UCafe has a selected-action platform audit log and encrypted SMS delivery outbox, but no general domain-event bus. Neither existing facility is a complete CRM timeline source.
 - **Decision:** store CRM-owned Lead status and Deal stage history as append-only relational records. Assemble the future Organization timeline as a bounded read projection over CRM history and authorized source-domain facts. Keep the initial pipeline code-defined and use the existing PostgreSQL modular monolith.
 - **Alternatives considered:** use platform audit or notification records as the timeline; introduce CQRS, event sourcing, a broker, or a separate CRM database.
@@ -591,3 +591,11 @@ The footer location map uses the classic keyless Google Maps embed (`https://map
 - **Decision:** Phase 2 conversion is available only for QUALIFIED Leads. In one transaction it links or creates an Organization and a Contact, marks the Lead CONVERTED, timestamps it, appends status history, and records a PII-free audit action. Conversion requires both canonical records, is row-locked/idempotent, and never creates a Deal. Accepted public consultation submissions create one `LANDING_FORM`/`NEW` Lead in the same transaction as the request and notification enqueue; existing requests are not backfilled.
 - **Reasoning:** this follows the user's explicit Phase 2 boundary while retaining the underlying source-record split and status-history decision. It keeps both the original Lead snapshot and the public intake row for traceability without introducing a parallel request inbox or prematurely adding Pipeline state.
 - **Consequences:** update the lifecycle contract: `CONVERTED` means canonical Organization + Contact links and a conversion timestamp, with no Deal requirement. Phase 3 adds Deal/Pipeline and may reference a converted Lead; it does not repeat Lead conversion. Duplicate candidates require an explicit link or confirmation to create separate records. Public intake rolls back if Lead creation or existing notification enqueue fails. See [docs/crm/LIFECYCLE.md](crm/LIFECYCLE.md), [docs/crm/INTEGRATIONS.md](crm/INTEGRATIONS.md), and [docs/crm/API.md](crm/API.md).
+
+## D-078 — CRM work records use explicit same-Organization links and relational lifecycles
+
+- **Status:** implemented in Platform CRM Phase 4 on 2026-09-26
+- **Context:** CRM needs historical interactions, future follow-up work, and internal notes across Organizations, Contacts, Leads, and Deals. The platform audit table is not a complete event stream, and Leads may exist without canonical Organizations before conversion.
+- **Decision:** persist Activities, Tasks, and Notes in separate relational tables with explicit optional Organization/Contact/Lead/Deal foreign keys. Require at least one association, reject mixed-Organization references, allow Lead-only work before conversion, and resolve the Organization through the Lead after conversion. `FOLLOW_UP` is a Task kind; overdue is derived from OPEN plus due time. Task completion does not create an Activity. Audit each consequential write in the same transaction without recording user-authored text.
+- **Alternatives considered:** polymorphic `entity_type/entity_id`, a generic CRM event bus or audit-derived timeline, separate FollowUp and Reminder entities, and automatic Activity creation on Task completion.
+- **Consequences:** composite foreign keys plus service relationship checks preserve same-Organization links. The Phase 4 schema/API supports source records for a later Timeline, but adds no unified timeline, reminder delivery, communication sync, or automation. See [docs/crm/DATA_MODEL.md](crm/DATA_MODEL.md), [docs/crm/ACTIVITIES.md](crm/ACTIVITIES.md), [docs/crm/TASKS.md](crm/TASKS.md), [docs/crm/API.md](crm/API.md), and [docs/crm/EVENTS.md](crm/EVENTS.md).

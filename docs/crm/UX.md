@@ -1,6 +1,6 @@
 # Platform CRM information architecture
 
-This document records the implemented Phase 1–3 placement and the deferred roadmap UX. Organization, Contact, Lead, and Deal workflows use nested App Router pages inside the existing platform application.
+This document records the implemented Phase 1–4 placement and the deferred roadmap UX. Organization, Contact, Lead, Deal, Activity, Task, and Note workflows use nested App Router pages inside the existing platform application.
 
 ## Current platform surface
 
@@ -18,21 +18,21 @@ CRM navigation:
 
 - Organizations
 - Leads
-- Contacts remain scoped to Organization detail rather than a separate top-level destination.
+- Contacts remain reachable from Organization detail and have record-specific deep links rather than a separate top-level destination.
 
-Implemented routes include `/platform/crm`, `/platform/crm/organizations/new`, `/platform/crm/organizations/:organizationId`, `/platform/crm/leads`, `/platform/crm/leads/new`, and `/platform/crm/leads/:leadId`. The organization detail page shows the business profile, paginated/searchable Contacts, inline Contact creation/editing, archive/restore, and read-only linked Tenant information. Operators with both `crm.read` and `tenants.read` can link or unlink an available Tenant. Lead pages use the same platform session, same-origin API, RTL CSS, and permission contract.
+Implemented routes include `/platform/crm`, Organization and Lead list/detail/create pages, `/platform/crm/contacts/:contactId`, `/platform/crm/deals` and `/platform/crm/pipeline`, and `/platform/crm/tasks`. Organization, Contact, Lead, and Deal detail pages show separate Activity, Task, and Note sections. The organization detail page also shows paginated/searchable Contacts and read-only linked Tenant information. Operators with both `crm.read` and `tenants.read` can link or unlink an available Tenant. All CRM pages use the same platform session, same-origin API, RTL CSS, and permission contract.
 
-The Pipeline destination is `/platform/crm/pipeline`; Tasks are Phase 4 and standalone reports Phase 10. Keep CRM Settings out because stages are code-defined. Avoid duplicating a flat list of every CRM object in the mobile bottom navigation.
+The Pipeline destination is `/platform/crm/pipeline`; the Tasks queue is `/platform/crm/tasks`. Keep CRM Settings out because stages are code-defined. Avoid duplicating a flat list of every CRM object in the mobile bottom navigation.
 
 ## Page structure
 
 ### Organizations
 
-The implemented list supports name/city/website/Instagram search, city, Tenant-link and archive filters, allowlisted sorting, and 25-row pagination. Create/edit forms use associated labels and server validation. Exact duplicate candidates are shown before save and require an explicit continue action; records are never merged automatically. The detail page summarizes the business profile and Contacts and shows linked Tenant context as read-only. The CRM shell links back to the platform home; a direct Tenant operations link is deferred to Phase 6. Deal, Task, Activity, and timeline tabs are not shown.
+The implemented list supports name/city/website/Instagram search, city, Tenant-link and archive filters, allowlisted sorting, and 25-row pagination. Create/edit forms use associated labels and server validation. Exact duplicate candidates are shown before save and require an explicit continue action; records are never merged automatically. The detail page summarizes the business profile and Contacts, shows linked Tenant context as read-only, and contains separate Activity, Task, and Note sections with quick follow-up creation. A direct Tenant operations link is deferred to Phase 6.
 
 ### Contacts
 
-Contacts are shown within an Organization. Contact search supports name/role text and exact phone/email lookup; list rows omit phone and email. Individual edit forms fetch the protected single-Contact detail projection. Exact Contact duplicates are warned within the same Organization and do not block an explicit operator choice.
+Contacts are shown within an Organization. Contact search supports name/role text and exact phone/email lookup; list rows omit phone and email. Individual edit forms fetch the protected single-Contact detail projection. Exact Contact duplicates are warned within the same Organization and do not block an explicit operator choice. The Contact detail route includes separate Activity, Task, and Note sections.
 
 ### Leads
 
@@ -40,11 +40,15 @@ The implemented queue filters by status, source, priority, assignee (including u
 
 ### Deals and Pipeline
 
-`/platform/crm/deals` is the searchable, filterable, sortable, paginated Deal list. `/platform/crm/pipeline` is a six-column board for the fixed ordered stages, with open count and estimate totals per stage. Cards expose an accessible labeled stage selector; moving between columns is supported with native drag/drop and both paths call the same permission-protected transition API. Skips/backtracks request a reason and stale stage updates are rejected. Won/Lost are separate outcomes, displayed outside open-stage meaning. Create/edit, loss details, archive/restore, organization/contact/converted-Lead links, expected Plan, owner, estimated value, expected close date, and append-only stage history have dedicated controls/details. The form states that expected Plan and forecast are non-binding and do not change subscription/payment state. Avoid duplicating a flat list of every CRM object in the mobile bottom navigation. Tasks should emphasize due/overdue work, assignee, and related Organization/Deal. Do not make hover or color the only status signal.
+`/platform/crm/deals` is the searchable, filterable, sortable, paginated Deal list. `/platform/crm/pipeline` is a six-column board for the fixed ordered stages, with open count and estimate totals per stage. Cards expose an accessible labeled stage selector; moving between columns is supported with native drag/drop and both paths call the same permission-protected transition API. Skips/backtracks request a reason and stale stage updates are rejected. Won/Lost are separate outcomes. Detail pages include dedicated Activity, Task, and Note sections, and allow creating a follow-up Task. Do not make hover or color the only status signal.
+
+### Activities, Tasks, and Notes
+
+The Tasks queue at `/platform/crm/tasks` provides Today, Overdue, Upcoming, All Open, and Completed views, text search, assignee and priority filters, pagination, and completion/cancellation/reopen actions. Due-date boundaries for Today use the browser's local day. Organization, Contact, Lead, and Deal details provide related work sections; Lead-only work remains visible after Lead conversion through the Organization projection. Follow-ups are regular Tasks with kind `FOLLOW_UP`. Activities record past interactions, Notes store plain-text context, and Task completion does not automatically create an Activity. No unified timeline, notification, or automation is included in Phase 4.
 
 ### Organization 360
 
-Use an organization-level page as the stable destination. Keep Tenant and Subscription facts in a separate labeled, read-only section with links to existing platform tools. CRM's Activity/Task/Note history and stages remain distinct from provider/payment history.
+The consolidated cross-domain Organization 360 view remains Phase 5. Keep Tenant and Subscription facts in a separate labeled, read-only section with links to existing platform tools. CRM's Activity/Task/Note records and Lead/Deal histories remain distinct from provider/payment history.
 
 ## Existing design and implementation guidance
 

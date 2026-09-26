@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { PlatformApi as Api, usePlatformSession } from "../../use-platform-session";
+import { CrmWorkSections } from "../work";
 
 type Page<T> = { items: T[]; total: number; page: number; pageSize: number };
 type Lead = {
@@ -51,8 +52,8 @@ export function CrmLeadsWorkspace({ mode, leadId }: Props) {
 
 function LeadShell({ children, canManage }: { children: React.ReactNode; canManage: boolean }) {
   return <main className="platform-app crm-app"><div className="platform-frame">
-    <aside className="platform-sidebar"><div><div className="platform-brand"><span><strong>CRM یو کافه</strong><small>مدیریت ارتباط‌های تجاری</small></span></div><p className="platform-nav-label">فضای کاری CRM</p><nav aria-label="ناوبری CRM"><Link className="platform-crm-link" href="/platform/crm">سازمان‌ها</Link><Link className="platform-crm-link" href="/platform/crm/leads">سرنخ‌ها</Link>{canManage && <Link className="platform-crm-link" href="/platform/crm/leads/new">افزودن سرنخ</Link>}</nav></div><Link className="crm-back" href="/platform">بازگشت به پلتفرم</Link></aside>
-    <section className="platform-shell"><header className="platform-topbar"><strong>مدیریت ارتباط‌های تجاری</strong><Link href="/platform">پنل پلتفرم</Link></header><div className="crm-content">{children}</div><nav className="platform-bottom-nav" aria-label="ناوبری موبایل CRM"><Link className="platform-crm-link" href="/platform/crm">سازمان‌ها</Link><Link className="platform-crm-link" href="/platform/crm/leads">سرنخ‌ها</Link>{canManage && <Link className="platform-crm-link" href="/platform/crm/leads/new">افزودن سرنخ</Link>}<Link className="platform-crm-link" href="/platform">پلتفرم</Link></nav></section>
+    <aside className="platform-sidebar"><div><div className="platform-brand"><span><strong>CRM یو کافه</strong><small>مدیریت ارتباط‌های تجاری</small></span></div><p className="platform-nav-label">فضای کاری CRM</p><nav aria-label="ناوبری CRM"><Link className="platform-crm-link" href="/platform/crm">سازمان‌ها</Link><Link className="platform-crm-link" href="/platform/crm/leads">سرنخ‌ها</Link><Link className="platform-crm-link" href="/platform/crm/tasks">وظایف</Link>{canManage && <Link className="platform-crm-link" href="/platform/crm/leads/new">افزودن سرنخ</Link>}</nav></div><Link className="crm-back" href="/platform">بازگشت به پلتفرم</Link></aside>
+    <section className="platform-shell"><header className="platform-topbar"><strong>مدیریت ارتباط‌های تجاری</strong><Link href="/platform">پنل پلتفرم</Link></header><div className="crm-content">{children}</div><nav className="platform-bottom-nav" aria-label="ناوبری موبایل CRM"><Link className="platform-crm-link" href="/platform/crm">سازمان‌ها</Link><Link className="platform-crm-link" href="/platform/crm/leads">سرنخ‌ها</Link><Link className="platform-crm-link" href="/platform/crm/tasks">وظایف</Link>{canManage && <Link className="platform-crm-link" href="/platform/crm/leads/new">افزودن سرنخ</Link>}</nav></section>
   </div></main>;
 }
 
@@ -244,6 +245,7 @@ function LeadDetail({ api, canManage, leadId }: { api: Api; canManage: boolean; 
       {converting && <ConversionForm api={api} lead={lead} onDone={(updated) => { setLead(updated); setConverting(false); setNotice("سرنخ به سازمان و ارتباط تبدیل شد."); }} onError={setError} onCancel={() => setConverting(false)} />}
     </section>}
     <section className="crm-lead-panel" aria-labelledby="crm-lead-history-title"><header className="crm-section-heading"><div><h2 id="crm-lead-history-title">سوابق وضعیت</h2><p>تغییرهای وضعیت همراه با زمان و مسئول ثبت شده‌اند.</p></div></header>{lead.statusHistory?.length ? <ol className="crm-lead-history">{[...lead.statusHistory].reverse().map((item) => <li key={item.id}><span className={`crm-status crm-status-${item.nextStatus.toLowerCase()}`}>{statuses[item.nextStatus] ?? item.nextStatus}</span><small>{formatDate(item.createdAt)}{item.actorLabel ? ` · ${item.actorLabel}` : " · ثبت سامانه"}</small>{item.reason && <p>{item.reason}</p>}</li>)}</ol> : <p className="empty crm-empty">تاریخچه‌ای ثبت نشده است.</p>}</section>
+    <CrmWorkSections api={api} canManage={canManage && !lead.archivedAt} context={{ organizationId: lead.organizationId, contactId: lead.primaryContactId, leadId: lead.id, displayName: lead.businessName }} />
   </>;
 }
 

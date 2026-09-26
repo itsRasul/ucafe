@@ -2,6 +2,14 @@
 
 Last updated: 2026-09-26
 
+## UCafe Platform CRM Phase 4: Activities, Tasks, Notes & follow-ups
+
+Implemented `crm_activities`, `crm_tasks`, and `crm_notes` in migration `1790540000000-CreatePlatformCrmWorkRecords`. Work records use explicit Organization/Contact/Lead/Deal foreign keys, require at least one related CRM record, enforce same-Organization relationships, preserve Lead-only work across conversion, and write PII-safe audit records transactionally. Activities record historical interactions; Tasks represent future work and `FOLLOW_UP` is a Task kind; Notes are editable plain text. Task overdue state is derived, and completion does not create an Activity. No notification reminders, communication sync, event publisher, or unified timeline was added.
+
+The platform CRM adds separate Activity/Task/Note sections on Organization, Contact, Lead, and Deal details, a Contact detail route, and `/platform/crm/tasks` with Today, Overdue, Upcoming, All Open, and Completed views. The production web build contains the new Contact and Tasks routes. Migration `1790540000000-CreatePlatformCrmWorkRecords` is applied to the development database.
+
+Verification: the full API suite passed (142 passed, 21 skipped); all five CRM PostgreSQL integration cases passed using a dedicated schema-only test database. After fixing the Lead-only Activity detail projection, the focused work-record integration passed again against PostgreSQL. Workspace API/web/worker typechecks and production builds passed; `migration:show` lists the Phase 4 migration as applied. The unauthenticated API task route returned 401 and `/platform/crm/tasks` rendered its expected `crm.read` gate. Authenticated UI mutation/responsive review remains unavailable because this browser has no platform session. No lint command exists.
+
 ## UCafe Platform CRM Phase 3: Deals & sales pipeline
 
 Implemented `crm_deals` and append-only `crm_deal_stage_history` on top of the CRM Organization/Contact/Lead model. CRM now has one code-defined `ucafe-default` pipeline with six ordered open stages, reasoned skip/backtrack corrections, optimistic stale-stage rejection, explicit WON/LOST outcomes, controlled loss reasons, archive/restore, and operational per-stage open counts/estimated Toman totals. Deals link to an Organization, optional same-Organization Contact, optional unique qualified/converted Lead already linked to the same Organization, CRM owner, and read-only expected Plan reference. Estimates and stage names never create or change subscription/payment state.

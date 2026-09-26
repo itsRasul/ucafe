@@ -1,12 +1,12 @@
 # UCafe Platform CRM
 
-**Status:** Phases 0–3 are implemented: Organizations & Contacts, Lead Management, Deals, and the default sales pipeline. Activity, Task, Note, unified timeline, and CRM analytics workflows remain later work.
+**Status:** Phases 0–4 are implemented: Organizations & Contacts, Lead Management, Deals and Pipeline, Activities, Tasks, Notes, and manual follow-ups. Unified Timeline / Organization 360 is Phase 5; CRM analytics remains later work.
 
 ## Purpose and boundary
 
-Platform CRM is an internal UCafe capability for platform operators and future platform sales staff to manage UCafe's relationship with prospective and existing café businesses. It currently covers organizations, contacts, leads, sales opportunities, and stage history; follow-up work remains planned.
+Platform CRM is an internal UCafe capability for platform operators and future platform sales staff to manage UCafe's relationship with prospective and existing café businesses. It covers organizations, contacts, leads, sales opportunities, historical interactions, follow-up work, internal notes, and stage/status history.
 
-It is not a CRM for a café's own customers. Tenant CRM remains a separate possible product. CRM records have platform scope and are not tenant-owned.
+It is not a CRM for a café's own customers. Tenant CRM remains a separate possible product. CRM records have platform scope and are not tenant-owned. Phase 4 records manual historical interactions, future work, and human context; it does not synchronize communication channels or automate workflows.
 
 CRM owns commercial Organization and Contact details, Lead sales workflow, and Deal pipeline judgments. A Deal may reference the code-defined pipeline, a qualified or converted Lead, an expected Plan, and an estimate, but does not own café tenant lifecycle, subscriptions or trial rules, plan pricing, payment or invoice state, administrative identity, tenant clients, or public consultation submission delivery. A CRM Organization can exist before a Tenant and may later link to one. A Contact is not a platform User or tenant Client. A Deal is not a Subscription, Invoice, or Payment.
 
@@ -24,10 +24,10 @@ CRM is a platform-only module in the existing API and web application. Phase 2 a
 - **Contact:** a person UCafe communicates with for an Organization.
 - **Lead:** a sales follow-up record for one potential purchase or engagement. Its status is separate from Deal stage and Tenant state.
 - **Deal:** a sales opportunity linked to an Organization, with its own pipeline stage and outcome.
-- **Activity:** a historical interaction that happened.
-- **Task:** work that still needs to happen.
-- **Note:** internal context, separate from an interaction and scheduled work.
-- **History:** append-only lead-status and deal-stage transitions; it supports audit and timeline views without event sourcing.
+- **Activity:** a historical interaction that happened, with `occurredAt`, type-specific outcome, and actor.
+- **Task:** future/outstanding work with due time, assignee, priority, and explicit lifecycle. Follow-up is a Task kind; overdue is derived from its open status and due time.
+- **Note:** plain-text internal context with author and edit/archive metadata.
+- **History:** append-only Lead-status and Deal-stage transitions. Activity, Task, and Note records remain separate; none is an event bus or unified timeline.
 
 Phase 1 implements Organization and Contact. Phase 2 adds Lead snapshots, exact duplicate warnings, assignment, qualification, unqualification, status history, archive/restore, and conversion to an Organization plus Contact. Conversion itself creates no Deal; Phase 3 allows an operator to explicitly create a Deal from a qualified or converted Lead already linked to an Organization. Lead phone/email are encrypted at rest with keyed exact-match hashes. Contacts do not carry a decision-maker boolean; use the person's business title/role. See [DATA_MODEL.md](DATA_MODEL.md), [LIFECYCLE.md](LIFECYCLE.md), [API.md](API.md), and [UX.md](UX.md) for the implemented contract.
 
@@ -35,18 +35,18 @@ For the initial product, one CRM Organization may link to at most one Tenant, an
 
 ## Source-of-truth rules
 
-CRM owns Organization and Contact details used for sales, Lead source/status/assignment/qualification and conversion, plus Deal stage/outcome/estimated value. Manually recorded sales Activities, Tasks, and Notes are later phases.
+CRM owns Organization and Contact details used for sales, Lead source/status/assignment/qualification and conversion, Deal stage/outcome/estimated value, and manually recorded Activities, Tasks, and Notes.
 
-Tenant, Subscription, Trial, Plan, and Payment facts remain with their existing modules. CRM may display them through read-only projections and link to their existing administration flows; it must not calculate or mutate their lifecycle. See [INTEGRATIONS.md](INTEGRATIONS.md).
+Tenant, Subscription, Trial, Plan, and Payment facts remain with their existing modules. CRM may display them through read-only projections and link to their existing administration flows; it must not calculate or mutate their lifecycle. Manual CRM work changes are audited transactionally through the existing audit table. UCafe has no CRM event publisher or general event bus. See [INTEGRATIONS.md](INTEGRATIONS.md) and [EVENTS.md](EVENTS.md).
 
 ## Recommended reading order
 
 1. [DISCOVERY.md](DISCOVERY.md) — current code and conflicts
-2. [DOMAIN_MODEL.md](DOMAIN_MODEL.md) and [DATA_MODEL.md](DATA_MODEL.md) — proposed ownership and relationships
-3. [LIFECYCLE.md](LIFECYCLE.md) and [PIPELINE.md](PIPELINE.md) — statuses, conversion, stage history
+2. [DOMAIN_MODEL.md](DOMAIN_MODEL.md) and [DATA_MODEL.md](DATA_MODEL.md) — ownership and relationships
+3. [LIFECYCLE.md](LIFECYCLE.md), [PIPELINE.md](PIPELINE.md), [ACTIVITIES.md](ACTIVITIES.md), and [TASKS.md](TASKS.md) — implemented lifecycles
 4. [INTEGRATIONS.md](INTEGRATIONS.md), [EVENTS.md](EVENTS.md), and [PERMISSIONS.md](PERMISSIONS.md) — boundaries and access
-5. [API.md](API.md), [UX.md](UX.md), [TIMELINE.md](TIMELINE.md), and [ANALYTICS.md](ANALYTICS.md) — future product contracts
-6. [TESTING.md](TESTING.md) and [PHASES.md](PHASES.md) — implementation and verification sequence
-7. [DECISIONS.md](../DECISIONS.md) — CRM architecture decisions D-073 through D-077
+5. [API.md](API.md), [UX.md](UX.md), [TIMELINE.md](TIMELINE.md), and [ANALYTICS.md](ANALYTICS.md) — API, UI, and later roadmap
+6. [TESTING.md](TESTING.md) and [PHASES.md](PHASES.md) — verification and roadmap
+7. [DECISIONS.md](../DECISIONS.md) — CRM architecture decisions D-073 through D-078
 
 Before implementing any CRM change, read this README and the relevant documents above, then inspect current code and migrations. Changes to CRM lifecycle, data ownership, APIs, integrations, or permissions must update the relevant CRM document and root decisions when the architecture changes.

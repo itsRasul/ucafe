@@ -6,7 +6,7 @@ Platform CRM is a platform-domain workspace for managing UCafe's commercial rela
 
 CRM owns sales context and workflow. It does not own Tenant identity/lifecycle, subscriptions/trials/plans, payments/invoices, platform or tenant authentication, cafe Clients, promotion segments, or Tenant Analytics.
 
-Phases 1–3 implement Organization, Contact, Lead, Deal, and their status/stage histories. Activity, Task, Note, and unified timeline contracts remain future-phase scope. Current fields and persistence choices are listed in [DATA_MODEL.md](DATA_MODEL.md).
+Phases 1–4 implement Organization, Contact, Lead, Deal, Activity, Task, Note, and their relevant relational histories. Unified Timeline / Organization 360 remains Phase 5. Current fields and persistence choices are listed in [DATA_MODEL.md](DATA_MODEL.md).
 
 ## Concepts
 
@@ -16,9 +16,9 @@ Phases 1–3 implement Organization, Contact, Lead, Deal, and their status/stage
 | Contact | A person UCafe communicates with about an Organization. CRM owns name, business role, preferred communication details, and archive state. | Belongs to one Organization initially; may be referenced by Leads, Deals, Activities, Tasks, and Notes. | Not a User, membership, or cafe Client. A matching phone/email is only a duplicate signal, not identity proof. |
 | Lead | A sales-follow-up record with a temporary prospect snapshot, source, status, priority, owner/assignee, qualification facts, and conversion timestamp. CRM owns this lifecycle. | May start without canonical links; can link to one Organization and optional primary Contact before conversion. A converted Lead links to an Organization and Contact and may retain its unique originating intake request. | Not the consultation submission itself, Tenant signup, or Deal stage. |
 | Deal | A concrete commercial opportunity with an Organization, optional expected Plan and integer-Toman forecast, current stage, explicit outcome, and close/loss details. CRM owns those sales judgments. | Belongs to an Organization; may refer to one primary Contact, one qualified or converted originating Lead already linked to that Organization, and an active platform owner; has append-only stage history in the code-defined default pipeline. | Not a Subscription, purchased plan, invoice, Payment, collected revenue, or Tenant state. |
-| Activity | A historical interaction that happened, such as a call, meeting, email, SMS, WhatsApp contact, demo, or other follow-up. CRM owns the manual interaction record and actor/time. | Anchored to an Organization; may relate to a Contact, Lead, Deal, and/or completed Task. | Not future work, provider delivery proof, an audit event, or an automatically inferred communication. |
-| Task | Work that still needs to happen, such as calling or preparing a demo. CRM owns its due date, assignee, status, and completion. | Anchored to an Organization; may relate to a Contact, Lead, or Deal. | Not an Activity until it is completed; completion does not prove a call or email happened. |
-| Note | Internal business context authored by platform staff. | Belongs to an Organization and may reference a Lead or Deal. | Not an Activity, customer-facing message, or a payment/subscription memo. |
+| Activity | A historical interaction that happened, with its own `occurredAt`, type-specific outcome, and Platform User actor. | Explicit optional Organization, Contact, Lead, and Deal FKs; at least one context is required. A Lead-only association is valid before conversion. | Not future work, provider delivery proof, an audit event, or an automatically inferred communication. |
+| Task | Future/outstanding work with due time, assignee, priority, status, and completion/cancellation actor/time. | Explicit optional Organization, Contact, Lead, and Deal FKs; at least one context is required. A Lead-only association is valid before conversion. Follow-up is a Task kind. | Not an Activity when completed; completion does not prove a call or email happened. |
+| Note | Plain-text internal business context authored by platform staff, with explicit edit/archive metadata. | Explicit optional Organization, Contact, Lead, and Deal FKs; at least one context is required. A Lead-only association is valid before conversion. | Not an Activity, customer-facing message, or a payment/subscription memo. |
 | Lead status history | Append-only record of each Lead status transition, actor, timestamp, and optional reason. | Belongs to one Lead. | Not a general event bus or replacement for the current Lead status. |
 | Deal stage history | Append-only record of each stage transition, actor, timestamp, and optional reason. | Belongs to one Deal. | Not Subscription history or a financial ledger. |
 
@@ -39,6 +39,9 @@ The Lead is never deleted as a side effect of conversion. Detailed state transit
 - Deal is not Subscription, Trial, Invoice, or Payment; CRM amount is an estimate and CRM outcome is a sales decision.
 - Lead status is not Deal stage; Deal stage is not Deal outcome.
 - Activity is something that happened. Task is something that needs to happen.
+- Follow-up is a CRM Task with kind `FOLLOW_UP`; it is not a separate domain or reminder job.
+- Work relationships use explicit foreign keys and must agree on Organization. Lead-only records remain attached to a pre-conversion Lead and are visible from its Organization after conversion through a read projection.
+- Activity, Task, and Note are not LeadStatusHistory, DealStageHistory, platform audit records, or a Phase 5 Timeline projection.
 
 In Phase 1 a Contact's role/title is free text and can describe an owner or decision maker. There is no separate decision-maker flag or primary-contact pointer because neither was approved in the Phase 0 model.
 

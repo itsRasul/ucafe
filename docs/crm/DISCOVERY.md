@@ -17,14 +17,16 @@ This report records current implementation findings. Proposed CRM behavior is ke
 | Analytics | The current Analytics module and /admin/analytics pages are tenant-facing and report cafe operations. They are not a platform sales analytics service. See [ANALYTICS.md](../ANALYTICS.md). |
 | Platform UI | /platform currently renders one client component with state-selected views for dashboard, tenants, consultation requests, invoices, users, roles, permissions, plans, and audit. Permission-aware navigation, split list/detail views, local forms/tables, status badges, feedback states, and responsive Persian RTL CSS exist. The platform imports the tenant admin CSS and reuses BrandLogo and SiteSettingsEditor; there is no shared component library or CRM route. See [platform-admin.tsx](../../apps/web/src/app/platform/platform-admin.tsx) and [platform.css](../../apps/web/src/app/platform/platform.css). |
 
-## Proposed CRM architecture
+## Established CRM architecture
 
-- Add a platform-only CRM domain in the existing NestJS/TypeORM API and Next.js app when implementation begins.
+- Platform CRM is implemented through Phase 4 as a platform-only domain in the existing NestJS/TypeORM API and Next.js app.
 - Keep CRM Organizations and Contacts distinct from existing Tenants, Users, and Clients.
-- Keep public consultation submissions in platform_order_requests as intake history. A future CRM Lead should have a unique optional source-request reference; the CRM Lead is the sales-work record.
+- Keep public consultation submissions in platform_order_requests as intake history. Each accepted request creates one linked CRM Lead; the Lead is the sales-work record.
 - Keep CRM-owned lifecycles and history in CRM. Read Tenant, Subscription, Plan, Trial, and payment context through their existing ownership boundaries.
 - Use the existing platform permission guard, DTO validation, TypeORM migration discipline, and same-origin web API proxy.
-- Build no Sales Engine, broker, CRM table, route, or application code in Phase 0.
+- Activities, Tasks, and Notes use explicit same-Organization foreign keys; Lead-only work is allowed before conversion and resolved through the Lead after conversion.
+- Follow-up is a Task kind. Task overdue state is derived. CRM work mutations write selected audit records transactionally; notification deliveries are not CRM events.
+- Build no Sales Engine or general event publisher/broker. The CRM domain does not reuse Tenant Clients, background jobs, or notification delivery rows as work records.
 
 ## Documentation map
 
@@ -55,3 +57,10 @@ There is no current `docs/PROJECT_SPEC.md` or `docs/PLAN.md`. Decision D-049 rec
 - Phase 0 `LIFECYCLE.md` had described conversion as creating a Deal, but the Phase 2 task explicitly defers Deals. D-077 updates the implemented contract: conversion requires a qualified Lead, resolves/creates Organization and Contact atomically, and records CONVERTED without a Deal. Phase 3 adds Deals against those records.
 - CRM phone/email normalization and encrypted keyed-hash storage reuse `AuthCryptoService` and the Phase 1 CRM normalization utilities. Potential duplicates are exact signals and require an explicit link or confirmation; the system never auto-merges.
 - CRM remains a modular-monolith domain. The implementation uses status history and the existing operator audit table; it introduces no domain-event framework, broker, Sales Engine, or CRM-wide timeline.
+
+## Phase 4 implementation discoveries and resolutions
+
+- Project-wide search found no existing CRM Activity, Task, Todo, Reminder, Follow-up, or Note model, no scheduled reminder mechanism suitable for sales work, and no reusable CRM work UI. The notification outbox is for SMS delivery and is not used to model CRM Tasks or publish CRM events.
+- Lead and Deal assignment patterns already validate active platform Users with CRM access. Phase 4 reuses the Lead assignee validation instead of adding CRM-specific identity or role logic.
+- Existing CRM `platform_audit_events` writes selected operator actions but are not a complete event stream. Phase 4 records transactional audit actions with content-free summaries; a durable integration event contract remains future scope.
+- The Phase 4 work model uses explicit relation columns and composite foreign keys rather than a polymorphic owner pair. This gives PostgreSQL same-Organization integrity and lets pre-conversion Lead-only work remain valid without an invented Organization.

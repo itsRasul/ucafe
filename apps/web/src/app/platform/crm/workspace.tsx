@@ -4,13 +4,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { PlatformApi as Api, usePlatformSession } from "../use-platform-session";
+import { CrmWorkSections } from "./work";
 
 type Page<T> = { items: T[]; total: number; page: number; pageSize: number };
 type Organization = { id: string; name: string; city: string | null; website: string | null; instagram: string | null; coffeeShopId: string | null; tenant: { id: string; name: string; status: string } | null; archivedAt: string | null; createdAt: string; updatedAt: string; contactCount?: number };
-type Contact = { id: string; organizationId: string; organizationName: string; name: string; role: string | null; archivedAt: string | null; createdAt: string; phone?: string | null; email?: string | null };
+type Contact = { id: string; organizationId: string; organizationName: string; name: string; role: string | null; archivedAt: string | null; createdAt: string; updatedAt: string; phone?: string | null; email?: string | null };
 type Duplicate = { id: string; name: string; city?: string | null; role?: string | null; archivedAt: string | null; matchingFields: string[] };
 type TenantOption = { id: string; name: string; status: string };
-type Props = { mode: "list" | "create" | "detail"; organizationId?: string };
+type Props = { mode: "list" | "create" | "detail" | "contact"; organizationId?: string; contactId?: string };
 const fa = new Intl.NumberFormat("fa-IR");
 const formatDate = (value?: string | null) => value ? new Intl.DateTimeFormat("fa-IR", { dateStyle: "medium" }).format(new Date(value)) : "—";
 const encode = (values: Record<string, string>) => new URLSearchParams(Object.fromEntries(Object.entries(values).filter(([, value]) => value !== ""))).toString();
@@ -27,13 +28,14 @@ export function CrmWorkspace(props: Props) {
     {props.mode === "list" && <OrganizationDirectory api={api} canManage={access.includes("crm.manage")} />}
     {props.mode === "create" && <OrganizationCreate api={api} canLinkTenant={access.includes("tenants.read")} />}
     {props.mode === "detail" && props.organizationId && <OrganizationDetail api={api} canManage={access.includes("crm.manage")} canLinkTenant={access.includes("tenants.read")} organizationId={props.organizationId} />}
+    {props.mode === "contact" && props.contactId && <ContactDetail api={api} canManage={access.includes("crm.manage")} contactId={props.contactId} />}
   </CrmShell>;
 }
 
 export function CrmShell({ children, canManage }: { children: React.ReactNode; canManage: boolean }) {
   return <main className="platform-app crm-app"><div className="platform-frame">
-    <aside className="platform-sidebar"><div><div className="platform-brand"><span><strong>CRM یو کافه</strong><small>سازمان‌ها و ارتباط‌ها</small></span></div><p className="platform-nav-label">فضای کاری CRM</p><nav aria-label="ناوبری CRM"><Link className="platform-crm-link" href="/platform/crm">سازمان‌ها</Link><Link className="platform-crm-link" href="/platform/crm/leads">سرنخ‌ها</Link><Link className="platform-crm-link" href="/platform/crm/pipeline">خط فروش</Link><Link className="platform-crm-link" href="/platform/crm/deals">فرصت‌ها</Link>{canManage && <><Link className="platform-crm-link" href="/platform/crm/organizations/new">افزودن سازمان</Link><Link className="platform-crm-link" href="/platform/crm/leads/new">افزودن سرنخ</Link><Link className="platform-crm-link" href="/platform/crm/deals/new">فرصت جدید</Link></>}</nav></div><Link className="crm-back" href="/platform">بازگشت به پلتفرم</Link></aside>
-    <section className="platform-shell"><header className="platform-topbar"><strong>مدیریت ارتباط‌های تجاری</strong><Link href="/platform">پنل پلتفرم</Link></header><div className="crm-content">{children}</div><nav className="platform-bottom-nav" aria-label="ناوبری موبایل CRM"><Link className="platform-crm-link" href="/platform/crm">سازمان‌ها</Link><Link className="platform-crm-link" href="/platform/crm/leads">سرنخ‌ها</Link><Link className="platform-crm-link" href="/platform/crm/pipeline">خط فروش</Link><Link className="platform-crm-link" href="/platform/crm/deals">فرصت‌ها</Link><Link className="platform-crm-link" href="/platform">پلتفرم</Link></nav></section>
+    <aside className="platform-sidebar"><div><div className="platform-brand"><span><strong>CRM یو کافه</strong><small>سازمان‌ها و ارتباط‌ها</small></span></div><p className="platform-nav-label">فضای کاری CRM</p><nav aria-label="ناوبری CRM"><Link className="platform-crm-link" href="/platform/crm">سازمان‌ها</Link><Link className="platform-crm-link" href="/platform/crm/leads">سرنخ‌ها</Link><Link className="platform-crm-link" href="/platform/crm/pipeline">خط فروش</Link><Link className="platform-crm-link" href="/platform/crm/deals">فرصت‌ها</Link><Link className="platform-crm-link" href="/platform/crm/tasks">وظایف</Link>{canManage && <><Link className="platform-crm-link" href="/platform/crm/organizations/new">افزودن سازمان</Link><Link className="platform-crm-link" href="/platform/crm/leads/new">افزودن سرنخ</Link><Link className="platform-crm-link" href="/platform/crm/deals/new">فرصت جدید</Link></>}</nav></div><Link className="crm-back" href="/platform">بازگشت به پلتفرم</Link></aside>
+    <section className="platform-shell"><header className="platform-topbar"><strong>مدیریت ارتباط‌های تجاری</strong><Link href="/platform">پنل پلتفرم</Link></header><div className="crm-content">{children}</div><nav className="platform-bottom-nav" aria-label="ناوبری موبایل CRM"><Link className="platform-crm-link" href="/platform/crm">سازمان‌ها</Link><Link className="platform-crm-link" href="/platform/crm/leads">سرنخ‌ها</Link><Link className="platform-crm-link" href="/platform/crm/pipeline">خط فروش</Link><Link className="platform-crm-link" href="/platform/crm/deals">فرصت‌ها</Link><Link className="platform-crm-link" href="/platform/crm/tasks">وظایف</Link></nav></section>
   </div></main>;
 }
 
@@ -165,9 +167,10 @@ function OrganizationDetail({ api, canManage, canLinkTenant, organizationId }: {
     <section className="crm-contacts" aria-labelledby="crm-contacts-title"><header className="crm-section-heading"><div><h2 id="crm-contacts-title">ارتباط‌ها</h2><p>افرادی که با این کسب‌وکار در ارتباط هستند.</p></div>{canManage && !organization.archivedAt && <button type="button" onClick={() => setContactEditor({})}>افزودن ارتباط</button>}</header>
       {contactEditor && <ContactEditor key={contactEditor.id ?? "new"} api={api} organizationId={organizationId} contactId={contactEditor.id} onCancel={() => setContactEditor(null)} onSaved={async () => { setContactEditor(null); setNotice("اطلاعات ارتباط ذخیره شد."); await load(); }} />}
       <div className="crm-contact-filters"><label>جست‌وجوی ارتباط<input value={contactQ} onChange={(event) => { setContactQ(event.target.value); setContactPage(1); }} placeholder="نام، عنوان، شماره یا ایمیل" /></label><label>نمایش<select value={contactArchive} onChange={(event) => { setContactArchive(event.target.value); setContactPage(1); }}><option value="ACTIVE">فعال</option><option value="ARCHIVED">بایگانی‌شده</option><option value="ALL">همه</option></select></label></div>
-      {loading ? <p className="empty">در حال دریافت ارتباط‌ها…</p> : contacts.items.length === 0 ? <div className="empty crm-empty"><strong>هنوز ارتباطی ثبت نشده است.</strong><p>می‌توانید مالک، مدیر یا فرد مرتبط دیگری را به این سازمان اضافه کنید.</p></div> : <div className="crm-contact-list">{contacts.items.map((contact) => <article key={contact.id} className="crm-contact-row"><div><strong>{contact.name}</strong><small>{contact.role || "عنوان شغلی ثبت نشده"}{contact.archivedAt ? " · بایگانی‌شده" : ""}</small><small>ثبت‌شده در {formatDate(contact.createdAt)}</small></div>{canManage && <div className="crm-actions">{!contact.archivedAt && !organization.archivedAt && <button type="button" onClick={() => setContactEditor({ id: contact.id })}>ویرایش</button>}{contact.archivedAt ? <button type="button" onClick={() => void archiveContact(contact, false)}>بازیابی</button> : confirmContactArchive === contact.id ? <><span>بایگانی شود؟</span><button type="button" onClick={() => void archiveContact(contact, true)}>بایگانی کن</button><button type="button" onClick={() => setConfirmContactArchive(null)}>انصراف</button></> : <button className="crm-danger" type="button" onClick={() => setConfirmContactArchive(contact.id)}>بایگانی</button>}</div>}</article>)}</div>}
+      {loading ? <p className="empty">در حال دریافت ارتباط‌ها…</p> : contacts.items.length === 0 ? <div className="empty crm-empty"><strong>هنوز ارتباطی ثبت نشده است.</strong><p>می‌توانید مالک، مدیر یا فرد مرتبط دیگری را به این سازمان اضافه کنید.</p></div> : <div className="crm-contact-list">{contacts.items.map((contact) => <article key={contact.id} className="crm-contact-row"><div><strong><Link href={`/platform/crm/contacts/${contact.id}`}>{contact.name}</Link></strong><small>{contact.role || "عنوان شغلی ثبت نشده"}{contact.archivedAt ? " · بایگانی‌شده" : ""}</small><small>ثبت‌شده در {formatDate(contact.createdAt)}</small></div>{canManage && <div className="crm-actions">{!contact.archivedAt && !organization.archivedAt && <button type="button" onClick={() => setContactEditor({ id: contact.id })}>ویرایش</button>}{contact.archivedAt ? <button type="button" onClick={() => void archiveContact(contact, false)}>بازیابی</button> : confirmContactArchive === contact.id ? <><span>بایگانی شود؟</span><button type="button" onClick={() => void archiveContact(contact, true)}>بایگانی کن</button><button type="button" onClick={() => setConfirmContactArchive(null)}>انصراف</button></> : <button className="crm-danger" type="button" onClick={() => setConfirmContactArchive(contact.id)}>بایگانی</button>}</div>}</article>)}</div>}
       <div className="crm-pagination"><span>مجموع: {fa.format(contacts.total)}</span><div><button type="button" disabled={contactPage <= 1 || loading} onClick={() => setContactPage((value) => value - 1)}>قبلی</button><span>صفحه {fa.format(contactPage)}</span><button type="button" disabled={loading || contactPage * 25 >= contacts.total} onClick={() => setContactPage((value) => value + 1)}>بعدی</button></div></div>
     </section>
+    <CrmWorkSections api={api} canManage={canManage && !organization.archivedAt} context={{ organizationId, displayName: organization.name }} />
   </>;
 }
 
@@ -203,6 +206,28 @@ function ContactEditor({ api, organizationId, contactId, onCancel, onSaved }: { 
     <div className="crm-form-actions"><button disabled={saving}>{saving ? "در حال ذخیره…" : duplicates.length && !confirmed ? "بررسی موارد مشابه" : "ذخیره ارتباط"}</button><button type="button" className="crm-secondary" onClick={onCancel}>انصراف</button></div>
     {duplicates.length > 0 && !confirmed && <section className="crm-duplicate"><h4>ارتباط مشابه پیدا شد</h4><p>شماره یا ایمیل واردشده برای همین سازمان ثبت شده است.</p><ul>{duplicates.map((item) => <li key={item.id}><span>{item.name}{item.role ? ` — ${item.role}` : ""}</span><small>تطبیق: {item.matchingFields.map(matchLabel).join("، ")}</small></li>)}</ul><button type="button" onClick={() => setConfirmed(true)}>با وجود این مورد، ادامه بده</button></section>}
   </form>;
+}
+
+function ContactDetail({ api, canManage, contactId }: { api: Api; canManage: boolean; contactId: string }) {
+  const [contact, setContact] = useState<Contact | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const load = useCallback(async () => {
+    setLoading(true); setError("");
+    try { setContact(await api<Contact>(`/platform/crm/contacts/${contactId}`)); }
+    catch (reason) { setError((reason as Error).message); }
+    finally { setLoading(false); }
+  }, [api, contactId]);
+  useEffect(() => { void load(); }, [load]);
+  if (loading && !contact) return <p className="empty" role="status">در حال دریافت ارتباط…</p>;
+  if (!contact) return <><CrmBreadcrumb title="ارتباط پیدا نشد" /><p className="message error" role="alert">{error}</p><Link href="/platform/crm">بازگشت به سازمان‌ها</Link></>;
+  return <><CrmBreadcrumb title={contact.name} />{error && <p className="message error" role="alert">{error}</p>}{notice && <p className="message success" role="status">{notice}</p>}
+    {contact.archivedAt && <p className="message warning">این ارتباط بایگانی شده است؛ سوابق حفظ شده‌اند.</p>}
+    {editing ? <ContactEditor key={`${contact.id}:${contact.updatedAt}`} api={api} organizationId={contact.organizationId} contactId={contact.id} onCancel={() => setEditing(false)} onSaved={async () => { setEditing(false); setNotice("اطلاعات ارتباط ذخیره شد."); await load(); }} /> : <section className="detail crm-org-detail"><header><div><h1>{contact.name}</h1><p>{contact.role || "عنوان شغلی ثبت نشده"} · <Link href={`/platform/crm/organizations/${contact.organizationId}`}>{contact.organizationName}</Link></p></div>{canManage && !contact.archivedAt && <button type="button" onClick={() => setEditing(true)}>ویرایش ارتباط</button>}</header><dl className="crm-facts"><div><dt>شماره موبایل</dt><dd dir="ltr">{contact.phone || "ثبت نشده"}</dd></div><div><dt>ایمیل</dt><dd dir="ltr">{contact.email || "ثبت نشده"}</dd></div><div><dt>تاریخ ثبت</dt><dd>{formatDate(contact.createdAt)}</dd></div><div><dt>آخرین تغییر</dt><dd>{formatDate(contact.updatedAt)}</dd></div></dl></section>}
+    <CrmWorkSections api={api} canManage={canManage && !contact.archivedAt} context={{ organizationId: contact.organizationId, contactId: contact.id, displayName: contact.name }} />
+  </>;
 }
 
 function CrmBreadcrumb({ title }: { title: string }) { return <header className="crm-heading"><div><p className="platform-nav-label"><Link href="/platform/crm">سازمان‌ها</Link> / CRM</p><h1>{title}</h1></div></header>; }

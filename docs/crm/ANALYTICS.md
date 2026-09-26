@@ -1,6 +1,6 @@
 # CRM analytics data requirements
 
-No standalone platform CRM analytics/reporting page is implemented. Current /admin/analytics is Tenant Analytics and has separate Tenant permissions and plan-feature gates. The Phase 3 pipeline board exposes operational per-stage open Deal counts and sums of optional estimates; these are not a historical report and must not be presented as collected revenue. Phase 2 retains Lead source, `created_at`, `qualified_at`, `converted_at`, `source_request_id`, and append-only status history as the minimum Lead funnel source data.
+No standalone platform CRM analytics/reporting page is implemented. Current /admin/analytics is Tenant Analytics and has separate Tenant permissions and plan-feature gates. The Phase 3 pipeline board exposes operational per-stage open Deal counts and sums of optional estimates; these are not a historical report and must not be presented as collected revenue. Phases 2–4 retain Lead status history, Deal stage history, Activities, and Task lifecycle timestamps to support later definitions. Phase 4 does not add analytics aggregation or UI.
 
 ## Data to preserve from the first workflow phase
 
