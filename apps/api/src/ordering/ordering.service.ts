@@ -161,6 +161,11 @@ export class OrderingService {
       .skip((query.page - 1) * query.pageSize)
       .take(query.pageSize);
     if (query.status) qb.andWhere("order.status = :status", { status: query.status });
+    if (query.promotionId) qb.andWhere(`(order.order_promotion_id_snapshot = :promotionId OR EXISTS (
+      SELECT 1 FROM order_items promotion_item
+      WHERE promotion_item.order_id = order.id AND promotion_item.coffee_shop_id = order.coffee_shop_id
+        AND promotion_item.promotion_id_snapshot = :promotionId
+    ))`, { promotionId: query.promotionId });
     if (query.fromDate) qb.andWhere("order.createdAt >= :fromDate", { fromDate: `${query.fromDate}T00:00:00.000Z` });
     if (query.toDate) qb.andWhere("order.createdAt < :toDate", { toDate: `${query.toDate}T23:59:59.999Z` });
     const [items, total] = await qb.getManyAndCount();

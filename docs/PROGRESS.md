@@ -1,6 +1,14 @@
 # Project continuation checkpoint
 
-Last updated: 2026-09-25
+Last updated: 2026-09-26
+
+## Discounts & Promotions Phase 5: promotion analytics
+
+Extended the existing tenant Analytics API and `/admin/analytics` with a promotion overview and detail route. Reports use delivered order outcomes and immutable order/item allocation snapshots, café-local shared date ranges, existing Analytics permission/entitlement, and bounded set-based SQL. The overview compares usage, unique/new/returning customers, units, gross/discount/net stage values, and attributed order value; filters/sorts/paginates promotions and shows top lists and zero-filled trends. Detail adds product/category, coupon, and snapshotted customer-condition aggregates. `/admin/orders` can filter to orders containing a given item- or order-level promotion.
+
+One use is one delivered order per promotion, regardless of repeated BOGO/Bundle allocations. A coupon use requires an applied redemption; released redemption records are excluded. Order totals are deduplicated across stacked promotions, while each promotion's snapshot discount is attributed once. Item-stage gross uses original item values; order-stage gross uses the post-item-discount subtotal before the order discount. Therefore stage gross/net values can overlap across stacked promotions. Attributed order value means full final value of matching delivered orders and does not claim the promotion caused the sale. Current and historical names/status are retained when snapshots exist; archived promotions remain listed. Application/set counts are unavailable because snapshots do not store an application boundary. No migration, backfill, or index was needed; legacy rows without promotion snapshots remain unattributed.
+
+Verification: `npm test` passed (129 passed, 16 database-only skipped); PostgreSQL Analytics and promotion reconciliation/isolation tests passed 19/19; existing coupon checkout integration passed 2/2. Workspace `npm run typecheck`, production `npm run build`, and `git diff --check` passed. The live UI route reached the OTP login gate; no authenticated café-admin session was available for visual report-state review. There is no lint command. Existing Analytics SQL test fixtures were updated to include the order and item discount snapshots now required by schema constraints; no production Analytics behavior needed correction. The `ponytail:` implementation keeps Analytics as a consumer and does not add an independent Promotion Analytics module. See [ANALYTICS.md](ANALYTICS.md), [DISCOUNTS.md](DISCOUNTS.md), and D-072.
 
 ## Discounts & Promotions Phase 3
 

@@ -5,15 +5,16 @@ import { TenantPermissions } from "../authorization/permission.constants";
 import { TenantPermissionGuard } from "../authorization/tenant-permission.guard";
 import { TENANT_CONTEXT, TenantContextRequest } from "../tenants/tenant-context";
 import { TenantContextGuard } from "../tenants/tenant-context.guard";
-import { AnalyticsQueryDto, CustomerAnalyticsQueryDto, ProductAnalyticsQueryDto } from "./analytics.dto";
+import { AnalyticsQueryDto, CustomerAnalyticsQueryDto, ProductAnalyticsQueryDto, PromotionAnalyticsQueryDto } from "./analytics.dto";
 import { AnalyticsService } from "./analytics.service";
+import { PromotionAnalyticsService } from "./promotion-analytics.service";
 import { InventoryVarianceService } from "../inventory/variance.service";
 import { InventoryVarianceIntervalDto, InventoryVarianceQueryDto } from "../inventory/variance.dto";
 
 @Controller("tenant/analytics")
 @UseGuards(AccessTokenGuard, TenantContextGuard, TenantPermissionGuard)
 export class AnalyticsController {
-  constructor(private readonly analytics: AnalyticsService, private readonly inventoryVariance: InventoryVarianceService) {}
+  constructor(private readonly analytics: AnalyticsService, private readonly inventoryVariance: InventoryVarianceService, private readonly promotionAnalytics: PromotionAnalyticsService) {}
 
   @Get("inventory/variance/counts")
   @RequireTenantPermissions(TenantPermissions.AnalyticsRead, TenantPermissions.InventoryRead)
@@ -73,6 +74,20 @@ export class AnalyticsController {
   customers(@Req() req: TenantContextRequest, @Query() query: CustomerAnalyticsQueryDto) {
     const tenant = req[TENANT_CONTEXT]!;
     return this.analytics.customers(tenant.coffeeShopId, tenant.timezone, query);
+  }
+
+  @Get("promotions")
+  @RequireTenantPermissions(TenantPermissions.AnalyticsRead)
+  promotions(@Req() req: TenantContextRequest, @Query() query: PromotionAnalyticsQueryDto) {
+    const tenant = req[TENANT_CONTEXT]!;
+    return this.promotionAnalytics.overview(tenant.coffeeShopId, tenant.timezone, query);
+  }
+
+  @Get("promotions/:promotionId")
+  @RequireTenantPermissions(TenantPermissions.AnalyticsRead)
+  promotion(@Req() req: TenantContextRequest, @Param("promotionId", ParseUUIDPipe) promotionId: string, @Query() query: AnalyticsQueryDto) {
+    const tenant = req[TENANT_CONTEXT]!;
+    return this.promotionAnalytics.detail(tenant.coffeeShopId, tenant.timezone, promotionId, query);
   }
 
   @Get("products/:productId")

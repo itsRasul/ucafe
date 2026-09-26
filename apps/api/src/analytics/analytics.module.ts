@@ -5,11 +5,12 @@ import { TenantContextGuard } from "../tenants/tenant-context.guard";
 import { SubscriptionsModule } from "../subscriptions/subscriptions.module";
 import { AnalyticsController } from "./analytics.controller";
 import { AnalyticsService } from "./analytics.service";
+import { PromotionAnalyticsService } from "./promotion-analytics.service";
 import { InventoryModule } from "../inventory/inventory.module";
 
 @Module({
   imports: [AuthModule, AuthorizationModule, SubscriptionsModule, InventoryModule],
   controllers: [AnalyticsController],
-  providers: [AnalyticsService, TenantContextGuard],
+  providers: [AnalyticsService, PromotionAnalyticsService, TenantContextGuard],
 })
 export class AnalyticsModule {}

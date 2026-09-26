@@ -2,18 +2,19 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
-import { JalaliDateInput } from "../../jalali-date-input";
 import { formatJalaliDate } from "../../jalali-date";
 import { useAdminSession } from "../admin-session";
+import { AnalyticsPeriod, AnalyticsPeriodFilter } from "./period-filter";
 import { TimeDistribution, TimeView } from "./time-view";
 import { ProductAnalytics, ProductDetail, ProductView } from "./product-view";
 import { CustomerAnalytics, CustomerView } from "./customer-view";
 import { OrderAnalytics, OrderView } from "./order-view";
 import { InventoryVarianceView } from "./variance-view";
 import { ReservationAnalytics, ReservationView } from "./reservation-view";
+import { PromotionAnalyticsView } from "./promotion-view";
 import "./analytics.css";
 
-type Period = "today" | "yesterday" | "last7Days" | "last30Days" | "currentMonth" | "previousMonth" | "currentYear" | "previousYear" | "custom";
+type Period = AnalyticsPeriod;
 type Metric = { value: string; previousValue: string; change: string; changePercent: string | null };
 type Point = { bucket: string; label: string; value: string };
 type Series = { key: string; label: string; points: Point[] };
@@ -24,7 +25,6 @@ type Overview = {
   series: { revenueToman: Series; completedOrders: Series; averageOrderValueToman: Series };
 };
 
-const periods: Array<[Period, string]> = [["today", "امروز"], ["yesterday", "دیروز"], ["last7Days", "۷ روز اخیر"], ["last30Days", "۳۰ روز اخیر"], ["currentMonth", "این ماه"], ["previousMonth", "ماه قبل"], ["currentYear", "امسال"], ["previousYear", "سال قبل"], ["custom", "بازه دلخواه"]];
 const fa = new Intl.NumberFormat("fa-IR");
 const digits = "۰۱۲۳۴۵۶۷۸۹";
 const number = (value: string) => fa.format(BigInt(value));
@@ -81,7 +81,7 @@ export default function AnalyticsPage() {
   const [productDetail, setProductDetail] = useState<ProductDetail | null>(null);
   const [selectedProductId, setSelectedProductId] = useState("");
   const [detailBusy, setDetailBusy] = useState(false);
-  const [view, setView] = useState<"overview" | "time" | "products" | "customers" | "orders" | "reservations" | "variance">("overview");
+  const [view, setView] = useState<"overview" | "time" | "products" | "customers" | "orders" | "reservations" | "promotions" | "variance">("overview");
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
   const [unavailable, setUnavailable] = useState<"analytics" | "reservations" | "">("");
@@ -91,8 +91,18 @@ export default function AnalyticsPage() {
   const reservationsAvailable = access.features?.reservations !== false;
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("view") === "promotions") setView("promotions");
+    const selected = params.get("period") as Period | null;
+    if (!selected || !["today", "yesterday", "last7Days", "last30Days", "currentMonth", "previousMonth", "currentYear", "previousYear", "custom"].includes(selected)) return;
+    const from = params.get("start") ?? "", to = params.get("end") ?? "";
+    setPeriod(selected); setStart(from); setEnd(to);
+    if (selected !== "custom" || from && to) setQuery(new URLSearchParams({ period: selected, ...(selected === "custom" ? { start: from, end: to } : {}) }).toString());
+  }, []);
+
+  useEffect(() => {
     if (!permitted) return;
-    if (view === "variance") { setBusy(false); setError(""); setUnavailable(""); return; }
+    if (view === "variance" || view === "promotions") { setBusy(false); setError(""); setUnavailable(""); return; }
     if (view === "reservations" && !reservationsAvailable) { setBusy(false); setError(""); setUnavailable("reservations"); return; }
     const controller = new AbortController();
     setBusy(true); setError(""); setUnavailable("");
@@ -136,9 +146,9 @@ export default function AnalyticsPage() {
   if (!permitted) return <section className="admin-section-state"><h1>آمار و تحلیل</h1><p>نقش شما اجازه مشاهده آمار این کافه را ندارد.</p></section>;
   return <section className="analytics-page">
     <header className="analytics-heading"><div><h1>آمار و تحلیل</h1><p>فروش، سفارش‌ها، رفتار مشتریان، رزروها و اختلاف مصرف موجودی کافه.</p></div><span>گزارش‌های عملیاتی</span></header>
-    <form className="analytics-filter" onSubmit={applyCustom}><label htmlFor="analytics-period">بازه گزارش</label><select id="analytics-period" value={period} onChange={(event) => selectPeriod(event.target.value as Period)}>{periods.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>{period === "custom" && <><label>از تاریخ<JalaliDateInput value={start} onChange={setStart} required /></label><label>تا تاریخ<JalaliDateInput value={end} onChange={setEnd} required /></label><button type="submit">نمایش گزارش</button></>}</form>
-    <nav className="analytics-tabs" aria-label="بخش‌های آمار"><button type="button" aria-current={view === "overview" ? "page" : undefined} onClick={() => setView("overview")}>نمای کلی</button><button type="button" aria-current={view === "time" ? "page" : undefined} onClick={() => setView("time")}>تحلیل زمانی</button><button type="button" aria-current={view === "products" ? "page" : undefined} onClick={() => setView("products")}>محصولات و منو</button><button type="button" aria-current={view === "customers" ? "page" : undefined} onClick={() => setView("customers")}>تحلیل مشتریان</button><button type="button" aria-current={view === "orders" ? "page" : undefined} onClick={() => setView("orders")}>سفارش‌ها و کانال‌ها</button><button type="button" aria-current={view === "reservations" ? "page" : undefined} onClick={() => setView("reservations")}>رزروها</button>{inventoryPermitted && <button type="button" aria-current={view === "variance" ? "page" : undefined} onClick={() => setView("variance")}>اختلاف مصرف موجودی</button>}</nav>
-    {view === "variance" ? <InventoryVarianceView timezone={access.tenant.timezone} /> : unavailable ? <div className="analytics-state"><h2>{unavailable === "reservations" ? "رزرو میز در اشتراک فعلی فعال نیست" : "آمار و تحلیل در اشتراک فعلی فعال نیست"}</h2><p>برای بررسی پلن‌های دارای این امکان، صفحه اشتراک را ببینید.</p><Link href="/admin/subscription">مشاهده پلن‌ها</Link></div> : error ? <div className="analytics-state" role="alert"><h2>گزارش دریافت نشد</h2><p>{error}</p><button type="button" onClick={() => setRetry((value) => value + 1)}>تلاش دوباره</button></div> : busy ? <div className="analytics-loading" role="status"><span className="admin-spinner" />در حال آماده‌سازی گزارش…</div> : view === "reservations" && reservationData ? <ReservationView data={reservationData} /> : view === "orders" && orderData ? <OrderView data={orderData} /> : view === "customers" && customerData ? <CustomerView data={customerData} /> : view === "products" && productData ? <ProductView data={productData} detail={productDetail} detailBusy={detailBusy} selectedProductId={selectedProductId} onSelectProduct={setSelectedProductId} /> : view === "time" && timeData ? <TimeView data={timeData} /> : view === "overview" && data && <div className="analytics-results" aria-busy={busy}>
+    <AnalyticsPeriodFilter period={period} start={start} end={end} onPeriodChange={selectPeriod} onStartChange={setStart} onEndChange={setEnd} onSubmit={applyCustom} />
+    <nav className="analytics-tabs" aria-label="بخش‌های آمار"><button type="button" aria-current={view === "overview" ? "page" : undefined} onClick={() => setView("overview")}>نمای کلی</button><button type="button" aria-current={view === "time" ? "page" : undefined} onClick={() => setView("time")}>تحلیل زمانی</button><button type="button" aria-current={view === "products" ? "page" : undefined} onClick={() => setView("products")}>محصولات و منو</button><button type="button" aria-current={view === "customers" ? "page" : undefined} onClick={() => setView("customers")}>تحلیل مشتریان</button><button type="button" aria-current={view === "orders" ? "page" : undefined} onClick={() => setView("orders")}>سفارش‌ها و کانال‌ها</button><button type="button" aria-current={view === "reservations" ? "page" : undefined} onClick={() => setView("reservations")}>رزروها</button><button type="button" aria-current={view === "promotions" ? "page" : undefined} onClick={() => setView("promotions")}>تخفیف‌ها</button>{inventoryPermitted && <button type="button" aria-current={view === "variance" ? "page" : undefined} onClick={() => setView("variance")}>اختلاف مصرف موجودی</button>}</nav>
+    {view === "variance" ? <InventoryVarianceView timezone={access.tenant.timezone} /> : view === "promotions" ? <PromotionAnalyticsView periodQuery={query} /> : unavailable ? <div className="analytics-state"><h2>{unavailable === "reservations" ? "رزرو میز در اشتراک فعلی فعال نیست" : "آمار و تحلیل در اشتراک فعلی فعال نیست"}</h2><p>برای بررسی پلن‌های دارای این امکان، صفحه اشتراک را ببینید.</p><Link href="/admin/subscription">مشاهده پلن‌ها</Link></div> : error ? <div className="analytics-state" role="alert"><h2>گزارش دریافت نشد</h2><p>{error}</p><button type="button" onClick={() => setRetry((value) => value + 1)}>تلاش دوباره</button></div> : busy ? <div className="analytics-loading" role="status"><span className="admin-spinner" />در حال آماده‌سازی گزارش…</div> : view === "reservations" && reservationData ? <ReservationView data={reservationData} /> : view === "orders" && orderData ? <OrderView data={orderData} /> : view === "customers" && customerData ? <CustomerView data={customerData} /> : view === "products" && productData ? <ProductView data={productData} detail={productDetail} detailBusy={detailBusy} selectedProductId={selectedProductId} onSelectProduct={setSelectedProductId} /> : view === "time" && timeData ? <TimeView data={timeData} /> : view === "overview" && data && <div className="analytics-results" aria-busy={busy}>
       <div className="analytics-kpis"><article className="analytics-kpi main"><span>فروش تحویل‌شده</span><strong>{toman(data.metrics.revenueToman.value)}</strong><div><Comparison metric={data.metrics.revenueToman} /><small>دوره قبل: {toman(data.metrics.revenueToman.previousValue)}</small></div></article><article className="analytics-kpi"><span>سفارش‌های تکمیل‌شده</span><strong>{number(data.metrics.completedOrders.value)}</strong><div><Comparison metric={data.metrics.completedOrders} /><small>دوره قبل: {number(data.metrics.completedOrders.previousValue)}</small></div></article><article className="analytics-kpi"><span>میانگین هر سفارش</span><strong>{toman(data.metrics.averageOrderValueToman.value)}</strong><div><Comparison metric={data.metrics.averageOrderValueToman} /><small>دوره قبل: {toman(data.metrics.averageOrderValueToman.previousValue)}</small></div></article><article className="analytics-kpi"><span>مشتریان یکتا</span><strong>{number(data.metrics.uniqueCustomers.value)}</strong><div><Comparison metric={data.metrics.uniqueCustomers} /><small>دوره قبل: {number(data.metrics.uniqueCustomers.previousValue)}</small></div></article></div>
       {data.metrics.completedOrders.value === "0" && <div className="analytics-empty"><strong>هنوز فروش تحویل‌شده‌ای برای این بازه ثبت نشده است.</strong><p>پس از تکمیل سفارش‌ها، روند فروش و تعداد سفارش‌ها اینجا دیده می‌شود.</p></div>}
       <Trend title="روند فروش" description="ارزش سفارش‌های تحویل‌شده در هر بازه" series={data.series.revenueToman} granularity={data.granularity} timezone={data.timezone} money />

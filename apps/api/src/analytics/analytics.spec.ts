@@ -105,7 +105,7 @@ test("SQL overview excludes pending/cancelled revenue and isolates cafes", { ski
       for (const id of [tenantA, tenantB]) await manager.query(`INSERT INTO coffee_shops(id,name,slug,status) VALUES($1,'Analytics Test',$2,'ACTIVE')`, [id, `analytics-${id}`]);
       await manager.query(`INSERT INTO clients(id,coffee_shop_id,first_name,last_name,phone) VALUES($1,$2,'Test','Client',$3),($4,$5,'Test','Client',$6)`, [clientA, tenantA, "+989100000001", clientB, tenantB, "+989100000002"]);
       const insert = (tenant: string, client: string, status: string, amount: string, changed = "2026-01-02T01:00:00Z") => manager.query(
-        `INSERT INTO orders(coffee_shop_id,client_id,status,payment_method,delivery_method,total_amount_toman,idempotency_key,status_changed_at) VALUES($1,$2,$3::order_status,'OFFLINE','PICKUP',$4,$5,$6)`,
+        `INSERT INTO orders(coffee_shop_id,client_id,status,payment_method,delivery_method,total_amount_toman,subtotal_before_discount_toman,discount_total_toman,order_discount_toman,idempotency_key,status_changed_at) VALUES($1,$2,$3::order_status,'OFFLINE','PICKUP',$4,$4,0,0,$5,$6)`,
         [tenant, client, status, amount, randomUUID(), changed],
       );
       await insert(tenantA, clientA, "DELIVERED", "50", "2026-01-01T20:29:59Z");
@@ -200,11 +200,11 @@ test("SQL product analytics uses item/category snapshots, quantities, comparison
       const latte = randomUUID(), sandwich = randomUUID(), zeroSale = randomUUID(), foreign = randomUUID();
       await manager.query(`INSERT INTO menu_items(id,coffee_shop_id,category_id,name,base_price_toman,is_available) VALUES($1,$2,$3,'لاته',100,true),($4,$2,$5,'ساندویچ',200,true),($6,$2,$5,'بدون فروش',50,true),($7,$8,$9,'محصول خارجی',999,true)`, [latte, tenantA, coffeeA, sandwich, foodA, zeroSale, foreign, tenantB, coffeeB]);
       const order = async (tenant: string, client: string, status: string, total: string, changed: string) => (await manager.query(
-        `INSERT INTO orders(coffee_shop_id,client_id,status,payment_method,delivery_method,total_amount_toman,idempotency_key,status_changed_at) VALUES($1,$2,$3::order_status,'OFFLINE','PICKUP',$4,$5,$6) RETURNING id`,
+         `INSERT INTO orders(coffee_shop_id,client_id,status,payment_method,delivery_method,total_amount_toman,subtotal_before_discount_toman,discount_total_toman,order_discount_toman,idempotency_key,status_changed_at) VALUES($1,$2,$3::order_status,'OFFLINE','PICKUP',$4,$4,0,0,$5,$6) RETURNING id`,
         [tenant, client, status, total, randomUUID(), changed],
       ))[0].id as string;
       const item = (tenant: string, orderId: string, productId: string, name: string, categoryId: string, categoryName: string, price: string, quantity: number) => manager.query(
-        `INSERT INTO order_items(coffee_shop_id,order_id,menu_item_id,item_name,category_id_snapshot,category_name_snapshot,unit_price_toman,quantity,line_total_toman) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        `INSERT INTO order_items(coffee_shop_id,order_id,menu_item_id,item_name,category_id_snapshot,category_name_snapshot,unit_price_toman,original_unit_price_toman,discount_amount_toman,quantity,line_total_toman) VALUES($1,$2,$3,$4,$5,$6,$7,$7,0,$8,$9)`,
         [tenant, orderId, productId, name, categoryId, categoryName, price, quantity, (BigInt(price) * BigInt(quantity)).toString()],
       );
       await item(tenantA, await order(tenantA, clientA, "DELIVERED", "300", "2026-01-02T01:00:00Z"), latte, "لاته", coffeeA, "قهوه", "100", 3);
@@ -263,8 +263,8 @@ test("SQL customer analytics uses tenant-local identity, first-purchase classifi
         ($1,$6,'A','Returning','+989120000001'),($2,$6,'B','New','+989120000002'),($3,$6,'C','Returning','+989120000003'),
         ($4,$6,'D','New','+989120000004'),($5,$7,'Foreign','Customer','+989120000005')`, [clientA, clientB, clientC, clientD, clientForeign, tenantA, tenantB]);
       const addOrder = (tenant: string, client: string, status: string, amount: string, at: string) => manager.query(
-        `INSERT INTO orders(coffee_shop_id,client_id,status,payment_method,delivery_method,total_amount_toman,idempotency_key,status_changed_at)
-         VALUES($1,$2,$3::order_status,'OFFLINE','PICKUP',$4,$5,$6)`, [tenant, client, status, amount, randomUUID(), at],
+        `INSERT INTO orders(coffee_shop_id,client_id,status,payment_method,delivery_method,total_amount_toman,subtotal_before_discount_toman,discount_total_toman,order_discount_toman,idempotency_key,status_changed_at)
+         VALUES($1,$2,$3::order_status,'OFFLINE','PICKUP',$4,$4,0,0,$5,$6)`, [tenant, client, status, amount, randomUUID(), at],
       );
       await addOrder(tenantA, clientA, "DELIVERED", "50", "2026-01-08T01:00:00Z");
       await addOrder(tenantA, clientA, "DELIVERED", "100", "2026-01-10T00:00:00Z");
@@ -331,14 +331,14 @@ test("SQL order analytics separates created orders, terminal outcomes, delivery 
       await manager.query(`INSERT INTO clients(id,coffee_shop_id,first_name,last_name,phone) VALUES($1,$2,'Test','A','+989130000001'),($3,$4,'Test','B','+989130000002')`, [clientA, tenantA, clientB, tenantB]);
       const addOrder = async (tenant: string, client: string, status: string, delivery: string, source: string | null, total: string, created: string, changed: string | null) => {
         const rows = await manager.query(
-          `INSERT INTO orders(coffee_shop_id,client_id,status,payment_method,delivery_method,order_source,total_amount_toman,idempotency_key,created_at,status_changed_at)
-           VALUES($1,$2,$3::order_status,'OFFLINE',$4::order_delivery_method,$5::order_source,$6,$7,$8,$9) RETURNING id`,
+          `INSERT INTO orders(coffee_shop_id,client_id,status,payment_method,delivery_method,order_source,total_amount_toman,subtotal_before_discount_toman,discount_total_toman,order_discount_toman,idempotency_key,created_at,status_changed_at)
+           VALUES($1,$2,$3::order_status,'OFFLINE',$4::order_delivery_method,$5::order_source,$6,$6,0,0,$7,$8,$9) RETURNING id`,
           [tenant, client, status, delivery, source, total, randomUUID(), created, changed],
         );
         return rows[0].id as string;
       };
       const addItem = (tenant: string, orderId: string, unit: string, quantity: number) => manager.query(
-        `INSERT INTO order_items(coffee_shop_id,order_id,item_name,unit_price_toman,quantity,line_total_toman) VALUES($1,$2,'Test item',$3,$4,$5)`,
+        `INSERT INTO order_items(coffee_shop_id,order_id,item_name,unit_price_toman,original_unit_price_toman,discount_amount_toman,quantity,line_total_toman) VALUES($1,$2,'Test item',$3,$3,0,$4,$5)`,
         [tenant, orderId, unit, quantity, (BigInt(unit) * BigInt(quantity)).toString()],
       );
       const publicSource = "PUBLIC_CLIENT";

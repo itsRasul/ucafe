@@ -6,7 +6,7 @@ import { SubscriptionFeatures } from "../subscriptions/subscription-features";
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { ReservationStatus } from "../reservations/entities";
 import { AnalyticsQueryDto, compareMetric, percentOf, ProductAnalyticsQueryDto, CustomerAnalyticsQueryDto } from "./analytics.dto";
-import { analyticsGranularity, analyticsRanges, AnalyticsGranularity, AnalyticsRanges } from "./analytics-period";
+import { analyticsGranularity, analyticsRanges, analyticsSeriesParts, AnalyticsGranularity, AnalyticsRanges } from "./analytics-period";
 
 interface AggregateRow {
   period: "current" | "previous";
@@ -1104,21 +1104,7 @@ export class AnalyticsService {
   }
 
   private seriesParts(granularity: AnalyticsGranularity, eventTime = "o.status_changed_at", timezoneParam = "$5") {
-    const slots: Record<AnalyticsGranularity, string> = {
-      hour: `SELECT generate_series(b.current_start, b.current_end - interval '1 microsecond', interval '1 hour') AS bucket FROM bounds b`,
-      day: `SELECT generate_series(b.local_start::date, b.local_end::date - 1, interval '1 day')::date AS bucket FROM bounds b`,
-      week: `SELECT generate_series(b.local_start::date, b.local_end::date - 1, interval '7 days')::date AS bucket FROM bounds b`,
-      month: `SELECT generate_series(date_trunc('month', b.local_start::timestamp), date_trunc('month', (b.local_end::date - 1)::timestamp), interval '1 month')::date AS bucket FROM bounds b`,
-      year: `SELECT generate_series(date_trunc('year', b.local_start::timestamp), date_trunc('year', (b.local_end::date - 1)::timestamp), interval '1 year')::date AS bucket FROM bounds b`,
-    };
-    const bucket: Record<AnalyticsGranularity, string> = {
-      hour: `date_bin('1 hour', ${eventTime}, b.current_start)`,
-      day: `(${eventTime} AT TIME ZONE ${timezoneParam})::date`,
-      week: `b.local_start::date + ((((${eventTime} AT TIME ZONE ${timezoneParam})::date - b.local_start::date) / 7) * 7)`,
-      month: `date_trunc('month', ${eventTime} AT TIME ZONE ${timezoneParam})::date`,
-      year: `date_trunc('year', ${eventTime} AT TIME ZONE ${timezoneParam})::date`,
-    };
-    return { slots: slots[granularity], bucket: bucket[granularity], textBucket: granularity === "hour" ? `to_char(s.bucket AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')` : `s.bucket::text` };
+    return analyticsSeriesParts(granularity, eventTime, timezoneParam);
   }
 
   private itemSeries(coffeeShopId: string, ranges: AnalyticsRanges, granularity: AnalyticsGranularity, productId: string): Promise<ItemSeriesRow[]> {
