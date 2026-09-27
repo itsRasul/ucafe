@@ -176,3 +176,7 @@ At the end of each analytics phase, update this file with implemented metrics/en
 | 12 | Advanced BI / Forecasting | Not Started |
 
 Inventory Phase 9 keeps replenishment gaps, supplier comparison, latest/previous receipt prices, and draft PO assistance inside Inventory. These are operational snapshots of current stock settings and posted Goods Receipts; they require the Inventory entitlement only. Historical purchase-spend, category spend, or long-term supplier price trends remain future Analytics work and must not be inferred from the operational comparison screen.
+
+## Platform CRM Analytics boundary
+
+`/admin/analytics` remains Tenant café commerce reporting. Platform CRM Analytics is a separate `/platform/crm/analytics` read workspace over CRM sales histories and explicitly linked Tenant Subscription facts. CRM estimated Deal value is not order revenue or collected payment. Definitions and authorization are documented in [docs/crm/ANALYTICS.md](crm/ANALYTICS.md).

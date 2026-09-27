@@ -1,6 +1,6 @@
 # Platform CRM API
 
-Phases 1–7 APIs are implemented under `/api/v1/platform/crm`. Every route uses `AccessTokenGuard` and `PlatformPermissionGuard`. Resource IDs are UUID-validated, request DTOs use the global whitelist/forbid/transform validation pipe, and results use parameterized SQL.
+Phases 1–10 APIs are implemented under `/api/v1/platform/crm`. Every route uses `AccessTokenGuard` and `PlatformPermissionGuard`. Resource IDs are UUID-validated, request DTOs use the global whitelist/forbid/transform validation pipe, and results use parameterized SQL.
 
 ## Implemented routes
 
@@ -72,6 +72,28 @@ POST   /api/v1/platform/crm/notes/:noteId/restore
 ~~~
 
 There is no CRM `DELETE` route. Public consultation intake keeps its existing contract; accepted submissions create a Lead transactionally.
+
+### Analytics (Phase 10)
+
+The following read-only routes require `crm.read`; `customers` requires both `crm.read` and `subscriptions.read`:
+
+~~~text
+GET /api/v1/platform/crm/analytics/overview
+GET /api/v1/platform/crm/analytics/funnel
+GET /api/v1/platform/crm/analytics/pipeline
+GET /api/v1/platform/crm/analytics/sources
+GET /api/v1/platform/crm/analytics/work
+GET /api/v1/platform/crm/analytics/owners
+GET /api/v1/platform/crm/analytics/scoring
+GET /api/v1/platform/crm/analytics/automation
+GET /api/v1/platform/crm/analytics/customers
+~~~
+
+All accept `period` (default `last30Days`; see shared Analytics period values), optional `ownerId` (UUID or `UNASSIGNED`), `source` (a `CrmLeadSource` value), and the applicable report-specific selectors. `start` and `end` are inclusive `YYYY-MM-DD` dates, required together only with `period=custom`; the maximum custom range is 366 days. `pipelineKey` only accepts the current fixed `ucafe-default` key. `expectedPlanId` is a UUID and filters CRM Deal reports; `subscriptionPlanId` is a UUID for the linked-customer subscription Plan projection. The DTO rejects invalid/enumeration/unknown input. Bounds are local to `Asia/Tehran` and converted to half-open timestamp ranges by the shared date helper.
+
+`ownerId` refers to the source field for that measure: Lead owner, Deal owner, Activity actor, or Task assignee. Source attribution for Deals follows `originating_lead_id`; direct Deals have the explicit `UNKNOWN_DIRECT` bucket. Owner, source, pipeline, and expected-Plan filters do not manufacture a single filterable entity dimension for every report: work uses actor/assignee and ignores source/Plan, automation is date-only, and customer lifecycle uses linked CRM Organizations plus the subscription Plan selector. Open pipeline/work and effective Subscription/Plan figures are current snapshots. No endpoint accepts Segment, Tag, custom-field, or arbitrary SQL criteria.
+
+The report definitions, event/cohort semantics, filter applicability, and known limits are authoritative in [ANALYTICS.md](ANALYTICS.md). These endpoints are separate from Tenant `/api/v1/tenant/analytics/*` and never report Tenant order revenue.
 
 ### Organization overview and Timeline (Phase 5)
 

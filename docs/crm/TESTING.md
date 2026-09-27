@@ -1,6 +1,6 @@
 # CRM testing plan
 
-Phases 1–8 add API unit, controller metadata, and PostgreSQL integration tests using the existing Node test runner, TypeScript, and node:assert. The web has typecheck/build checks but no durable component or browser E2E suite. See [TESTING.md](../TESTING.md).
+Phases 1–10 add API unit, controller metadata, and PostgreSQL integration tests using the existing Node test runner, TypeScript, and node:assert. The web has typecheck/build checks but no durable component or browser E2E suite. See [TESTING.md](../TESTING.md).
 
 Run `npm test --workspace=@ucafe/api` for the API suite. The PostgreSQL CRM integration cases require `CRM_INTEGRATION_DATABASE_URL` and use a dedicated database connection; without it, those cases are skipped. Run `npm run typecheck` and `npm run build` from the workspace root for the API and web.
 
@@ -43,9 +43,19 @@ For Phase 8, verify score and Priority are separately labeled, breakdown values 
 - Integration-test transactional outbox writes, filter-criteria match/miss (including Tags, custom fields, and Lead scores as the registry grows), one execution per `(workflow,event)`, and action order.
 - Replay the same source key and verify no second execution/Task/Tag assignment. Test Tag/owner no-ops and that Task creation, its action result, and `automation_action_execution_id` commit/roll back together.
 - Inject transient and permanent failures. Verify three automatic attempts/backoff, recovery of stale claims after restart, successful actions are not repeated, later actions stop after failure, and manual retry is bounded.
+- Test PostgreSQL `UPDATE ... RETURNING` recovery results in both shapes: zero affected rows produce no warning, returned events log the actual IDs, and stale action recovery propagates `RETRYING`/`FAILED` to its parent execution. Integration-test a stale event with no matching Workflow, a false condition, terminal recovery at max attempts, and repeated polling after terminal state.
+- Keep stale threshold checks distinct from the five-second poll: an event claimed less than five minutes ago remains owned by its processor; a claim older than five minutes is recovered once and reaches `PROCESSED` or bounded terminal `FAILED`.
 - Test self/cross-workflow chains stop at depth 5, including a no-op action. Test score threshold crossing exactly once per crossing and initial null-score behavior.
 - Freeze/inject time for Trial-ending and Task-overdue scanners; verify exact scope, stable schedule keys, one advisory-lock scanner, and duplicate suppression. Workflow scans must not mutate Trial/Subscription/Task source state.
 - Verify invalid archived Tag/field/assignee dependencies fail visibly, Workflow version snapshots survive later edits, and archived definitions stop matching.
 - Browser/manual-check list, builder, trigger config, condition builder, action ordering, enable/disable, execution history/detail, failure, retry, RTL, narrow widths, keyboard labels/focus, empty/loading/error/success states, and automation-created Task badge. A live platform session is required for authenticated interactions.
+
+## Phase 10 Analytics coverage
+
+- Controller metadata checks all eight CRM-only reports require `crm.read` and customer lifecycle additionally requires `subscriptions.read`.
+- PostgreSQL integration exercises overview, ever-reached funnel stages, explicit Deal source attribution, repeated Deal-stage visits and progression, Activity/Task aggregates, masked owner labels, score bands, Workflow retries/Task links, and Subscription trial/paid/current-Plan summaries against isolated fixtures.
+- Date-range tests cover `currentQuarter` alongside the shared Analytics presets. Run the focused CRM integration with `CRM_INTEGRATION_DATABASE_URL`; it is skipped without that database configuration.
+- Typecheck/build cover the page and API contracts. Manual checks should cover authenticated desktop/mobile RTL layout, URL-backed filter refresh, each independent section's failure/retry state, keyboard/focus behavior, current-vs-event labels, and independently denying the customer section without `subscriptions.read`.
+- No frontend component/E2E suite or lint command currently exists. Record authenticated visual verification only when an authorized platform session is available.
 
 Use the lightest focused tests while iterating, then the API suite, workspace typecheck/build, applied migration checks, and live route checks appropriate to the changed phase. No lint command exists today. Manual authenticated CRM interactions and responsive browser checks require an available platform session; record when that session is unavailable rather than claiming the flow was visually verified.

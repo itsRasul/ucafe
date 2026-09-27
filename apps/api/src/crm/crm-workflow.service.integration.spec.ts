@@ -19,11 +19,56 @@ import { CrmCustomFieldEntityType } from "./entities/crm-custom-field.entity";
 
 const integrationUrl = process.env.CRM_INTEGRATION_DATABASE_URL;
 
+function recoveryHarness(eventResult: [Array<Record<string, unknown>>, number], actionResult: [Array<Record<string, unknown>>, number]) {
+  const calls: Array<{ query: string; parameters?: unknown[] }> = [];
+  const warnings: string[] = [];
+  type ManagerStub = { query: (query: string, parameters?: unknown[]) => Promise<unknown> };
+  const manager: ManagerStub = {
+    query: async (query: string, parameters?: unknown[]) => {
+      calls.push({ query, parameters });
+      if (query.includes("UPDATE crm_workflow_events")) return eventResult;
+      if (query.includes("UPDATE crm_workflow_action_executions")) return actionResult;
+      return [];
+    },
+  };
+  const dataSource = {
+    transaction: async <T>(run: (manager: ManagerStub) => Promise<T>) => run(manager),
+  } as unknown as DataSource;
+  const runtime = new CrmWorkflowRuntimeService(dataSource, {} as CrmWorkflowService, {} as CrmWorkflowEventService,
+    {} as CrmLeadService, {} as CrmDealService, {} as CrmTaskService, {} as CrmMetadataService);
+  Object.defineProperty(runtime, "logger", { configurable: true, value: { warn: (message: string) => warnings.push(message) } });
+  return { runtime, calls, warnings };
+}
+
+test("workflow stale recovery reads TypeORM UPDATE RETURNING rows, not its [rows, rowCount] wrapper", async () => {
+  const empty = recoveryHarness([[], 0], [[], 0]);
+  await (empty.runtime as unknown as { recoverStaleWork(): Promise<void> }).recoverStaleWork();
+  assert.deepEqual(empty.warnings, [], "zero recovered rows must not produce a warning");
+
+  const recovered = recoveryHarness([[{ id: "event-1", eventType: "LEAD_CREATED", attempt: 1, status: "PENDING" }], 1], [[], 0]);
+  await (recovered.runtime as unknown as { recoverStaleWork(): Promise<void> }).recoverStaleWork();
+  assert.equal(recovered.warnings.length, 1);
+  assert.match(recovered.warnings[0]!, /event-1\/LEAD_CREATED attempt=1 status=PENDING/);
+});
+
+test("stale action recovery reconciles failed and retrying WorkflowExecution states", async () => {
+  const recovered = recoveryHarness([[], 0], [[
+    { workflow_execution_id: "execution-retry", status: "RETRYING" },
+    { workflow_execution_id: "execution-failed", status: "FAILED" },
+  ], 2]);
+  await (recovered.runtime as unknown as { recoverStaleWork(): Promise<void> }).recoverStaleWork();
+  const executionUpdates = recovered.calls.filter(({ query }) => query.includes("UPDATE crm_workflow_executions"));
+  assert.deepEqual(executionUpdates.map(({ parameters }) => parameters), [["execution-failed"], ["execution-retry"]]);
+  assert.match(executionUpdates[0]!.query, /status='FAILED'/);
+  assert.match(executionUpdates[1]!.query, /status='RETRYING'/);
+});
+
 test("workflow replay and manual retry do not duplicate executions or completed CRM actions", { skip: !integrationUrl && "Set CRM_INTEGRATION_DATABASE_URL to run against PostgreSQL" }, async () => {
   const dataSource = new DataSource({ type: "postgres", url: integrationUrl!, synchronize: false, migrationsRun: false });
   const workflowEvents = new CrmWorkflowEventService();
   let actorId = "";
   let workflowId = "";
+  let conditionFalseWorkflowId = "";
   let leadId = "";
   let tagId = "";
   try {
@@ -111,6 +156,51 @@ test("workflow replay and manual retry do not duplicate executions or completed 
       SELECT count(*)::int AS total FROM crm_tasks t JOIN crm_workflow_action_executions a ON a.id=t.automation_action_execution_id
       JOIN crm_workflow_executions e ON e.id=a.workflow_execution_id WHERE e.workflow_id=$1 AND t.lead_id=$2`, [workflowId, leadId]);
     assert.equal(tasksAfterRetry[0]?.total, 1, "retrying a failed earlier action does not repeat the completed Task");
+
+    const falseWorkflow = await workflows.create({
+      name: `Workflow condition miss ${randomUUID()}`, triggerType: "LEAD_CREATED", conditionEntityType: "LEAD",
+      conditions: { version: 1, logic: "AND", conditions: [{ field: "status", operator: "is", value: "CONVERTED" }] }, enabled: true,
+      actions: [{ type: "ADD_TAG", config: { recordType: "LEAD", tagId } }],
+    }, actorId);
+    conditionFalseWorkflowId = falseWorkflow.id;
+    const conditionMiss = (await dataSource.query<Array<{ id: string }>>(`
+      INSERT INTO crm_workflow_events(source_key,event_type,subject_type,subject_id,record_context,target_workflow_id,correlation_id)
+      VALUES($1,'LEAD_CREATED','LEAD',$2::uuid,jsonb_build_object('leadId',$2::text),$3,$4) RETURNING id
+    `, [`condition-miss:${randomUUID()}`, leadId, conditionFalseWorkflowId, randomUUID()]))[0]!;
+    const runtimeReplica = new CrmWorkflowRuntimeService(dataSource, workflows, workflowEvents, leads, deals, tasksService, metadata);
+    await Promise.all([runtime.process(), runtimeReplica.process()]);
+    const conditionMissState = (await dataSource.query<Array<{ status: string; attempts: number; executions: number }>>(`
+      SELECT e.status,e.attempt AS attempts,(SELECT count(*)::int FROM crm_workflow_executions x WHERE x.event_id=e.id) AS executions
+      FROM crm_workflow_events e WHERE e.id=$1`, [conditionMiss.id]))[0]!;
+    assert.deepEqual(conditionMissState, { status: "PROCESSED", attempts: 1, executions: 0 });
+
+    const healthySlow = (await dataSource.query<Array<{ id: string }>>(`
+      INSERT INTO crm_workflow_events(source_key,event_type,subject_type,subject_id,record_context,target_workflow_id,correlation_id,status,attempt,claimed_at)
+      VALUES($1,'TRIAL_ENDING','LEAD',$2::uuid,jsonb_build_object('leadId',$2::text),$3,$4,'PROCESSING',1,now()-interval '4 minutes') RETURNING id
+    `, [`healthy-slow:${randomUUID()}`, leadId, workflowId, randomUUID()]))[0]!;
+    await runtime.process();
+    const healthySlowState = (await dataSource.query<Array<{ status: string; attempt: number }>>("SELECT status,attempt FROM crm_workflow_events WHERE id=$1", [healthySlow.id]))[0]!;
+    assert.deepEqual(healthySlowState, { status: "PROCESSING", attempt: 1 }, "a claim younger than the five-minute stale threshold remains owned");
+
+    const staleNoMatch = (await dataSource.query<Array<{ id: string }>>(`
+      INSERT INTO crm_workflow_events(source_key,event_type,subject_type,subject_id,record_context,target_workflow_id,correlation_id,status,attempt,claimed_at)
+      VALUES($1,'TRIAL_ENDING','LEAD',$2::uuid,jsonb_build_object('leadId',$2::text),$3,$4,'PROCESSING',1,now()-interval '6 minutes') RETURNING id
+    `, [`stale-no-match:${randomUUID()}`, leadId, workflowId, randomUUID()]))[0]!;
+    const exhausted = (await dataSource.query<Array<{ id: string }>>(`
+      INSERT INTO crm_workflow_events(source_key,event_type,subject_type,subject_id,record_context,target_workflow_id,correlation_id,status,attempt,claimed_at)
+      VALUES($1,'TRIAL_ENDING','LEAD',$2::uuid,jsonb_build_object('leadId',$2::text),$3,$4,'PROCESSING',3,now()-interval '6 minutes') RETURNING id
+    `, [`stale-exhausted:${randomUUID()}`, leadId, workflowId, randomUUID()]))[0]!;
+    await runtime.process();
+    const staleStates = await dataSource.query<Array<{ id: string; status: string; attempt: number; error_code: string | null; claim_released: boolean }>>(`
+      SELECT id,status,attempt,error_code,claimed_at IS NULL AS claim_released FROM crm_workflow_events WHERE id=ANY($1::uuid[])
+    `, [[staleNoMatch.id, exhausted.id]]);
+    assert.deepEqual(staleStates.sort((a, b) => a.id.localeCompare(b.id)), [
+      { id: staleNoMatch.id, status: "PROCESSED", attempt: 2, error_code: null, claim_released: true },
+      { id: exhausted.id, status: "FAILED", attempt: 3, error_code: "EVENT_RETRIES_EXHAUSTED", claim_released: true },
+    ].sort((a, b) => a.id.localeCompare(b.id)));
+    await runtime.process();
+    const stillTerminal = await dataSource.query<Array<{ status: string; attempt: number }>>("SELECT status,attempt FROM crm_workflow_events WHERE id=$1", [exhausted.id]);
+    assert.deepEqual(stillTerminal[0], { status: "FAILED", attempt: 3 }, "terminal stale events are not recovered again");
   } finally {
     if (dataSource.isInitialized) {
       if (workflowId) {
@@ -121,6 +211,7 @@ test("workflow replay and manual retry do not duplicate executions or completed 
       await dataSource.query("DELETE FROM platform_audit_events WHERE target_id=ANY($1::text[])", [[workflowId, tagId]]);
       await dataSource.query("DELETE FROM crm_workflows WHERE id=$1", [workflowId]);
     }
+    if (conditionFalseWorkflowId && dataSource.isInitialized) await dataSource.query("DELETE FROM crm_workflows WHERE id=$1", [conditionFalseWorkflowId]);
     if (tagId && dataSource.isInitialized) {
       await dataSource.query("DELETE FROM crm_entity_tags WHERE tag_id=$1", [tagId]);
       await dataSource.query("DELETE FROM platform_audit_events WHERE target_id=$1", [tagId]);

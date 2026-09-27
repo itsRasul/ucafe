@@ -108,13 +108,13 @@ export class CrmWorkflowRuntimeService implements OnModuleInit, OnModuleDestroy 
 
   private async recoverStaleWork() {
     await this.dataSource.transaction(async (manager) => {
-      const events = await manager.query<Row[]>(`WITH stale AS (
-        SELECT id,attempt FROM crm_workflow_events WHERE status='PROCESSING' AND claimed_at<now()-interval '5 minutes' FOR UPDATE SKIP LOCKED LIMIT 100
+      const [events] = await manager.query<[Row[], number]>(`WITH stale AS (
+        SELECT id,event_type AS "eventType",attempt FROM crm_workflow_events WHERE status='PROCESSING' AND claimed_at<now()-interval '5 minutes' FOR UPDATE SKIP LOCKED LIMIT 100
       ) UPDATE crm_workflow_events e SET status=CASE WHEN stale.attempt>=${CRM_WORKFLOW_MAX_ATTEMPTS} THEN 'FAILED' ELSE 'PENDING' END,
         next_attempt_at=now(),claimed_at=NULL,error_code=CASE WHEN stale.attempt>=${CRM_WORKFLOW_MAX_ATTEMPTS} THEN 'EVENT_RETRIES_EXHAUSTED' ELSE NULL END
-        FROM stale WHERE e.id=stale.id RETURNING e.id`);
-      if (events.length) this.logger.warn(`Recovered ${events.length} stale CRM workflow events`);
-      const actions = await manager.query<Row[]>(`WITH stale AS (
+        FROM stale WHERE e.id=stale.id RETURNING e.id,stale."eventType",stale.attempt,e.status`);
+      if (events.length) this.logger.warn(`Recovered ${events.length} stale CRM workflow events: ${events.slice(0, 10).map(({ id, eventType, attempt, status }) => `${id}/${eventType} attempt=${attempt} status=${status}`).join(", ")}${events.length > 10 ? `, +${events.length - 10} more` : ""}`);
+      const [actions] = await manager.query<[Row[], number]>(`WITH stale AS (
         SELECT id,workflow_execution_id,attempt FROM crm_workflow_action_executions
         WHERE status='RUNNING' AND started_at<now()-interval '5 minutes' FOR UPDATE SKIP LOCKED LIMIT 100
       ) UPDATE crm_workflow_action_executions a SET status=CASE WHEN stale.attempt>=${CRM_WORKFLOW_MAX_ATTEMPTS} THEN 'FAILED' ELSE 'RETRYING' END,

@@ -88,3 +88,5 @@ Docker images use Node 22 `bookworm-slim` with development, builder, and product
 ## Scaling limits
 
 Web/API are structurally stateless around shared stores, but notification polling/scheduling is not designed for efficient horizontal API replication. Conditional claims prevent duplicate delivery while replicas still duplicate scans and scheduled sweeps. Synchronous image transformation and public-access subscription reconciliation also remain API-hosted. Move those to coordinated background work only when production load/topology requires it.
+
+Phase 10 CRM Analytics is a read-only Platform CRM capability over existing Lead, Deal, work, Workflow, and linked Subscription sources. It uses bounded parameterized PostgreSQL aggregates; it adds no reporting persistence. Customer lifecycle projections use Subscription lifecycle rules and require `subscriptions.read`. See [docs/crm/ANALYTICS.md](crm/ANALYTICS.md) and [ADR-009](crm/ADR-009-crm-analytics-read-model.md).

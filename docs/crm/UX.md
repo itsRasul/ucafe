@@ -1,6 +1,6 @@
 # Platform CRM information architecture
 
-This document records the implemented Phase 1–8 placement and the deferred roadmap UX. Organization, Contact, Lead, Deal, Activity, Task, Note, metadata, saved-view, Segment, and Lead scoring workflows use nested App Router pages inside the existing platform application.
+This document records the implemented CRM placement and deferred roadmap UX. Organization, Contact, Lead, Deal, Activity, Task, Note, metadata, saved-view, Segment, Lead scoring, Workflow, and analytics workflows use nested App Router pages inside the existing platform application.
 
 ## Current platform surface
 
@@ -23,6 +23,8 @@ CRM navigation:
 Implemented routes also include `/platform/crm/segments` and `/platform/crm/settings`. Organization, Contact, Lead, and Deal details show record custom fields and Tags alongside their Activity, Task, and Note sections. The organization detail page shows paginated/searchable Contacts and read-only linked Tenant information. Operators with both `crm.read` and `tenants.read` can link or unlink an available Tenant. All CRM pages use the same platform session, same-origin API, RTL CSS, and permission contract.
 
 The Pipeline destination is `/platform/crm/pipeline`; the Tasks queue is `/platform/crm/tasks`; saved dynamic groups live at `/platform/crm/segments`; metadata administration lives at `/platform/crm/settings`; score rules live at `/platform/crm/settings/scoring`. Settings configures typed fields, Tags, and scoring rules; Pipeline stages remain code-defined. Avoid duplicating a flat list of every CRM object in the mobile bottom navigation.
+
+Phase 10 adds `/platform/crm/analytics`, linked in the CRM desktop navigation and mobile bar. It presents Overview, Funnel, Pipeline, Sources, Activity/Tasks, Sales Owners, Scoring, Automation, and a `subscriptions.read`-gated Customer Lifecycle section. Date, owner, Lead source, and expected Deal Plan selections are reflected in URL query state; custom dates use native date inputs and validate before fetching. Independent reports have section-level error/retry states. The page uses responsive CSS tables/bars and existing platform CSS, not an added charting dependency. Filter dimensions intentionally differ by measure, and the page explains Deal-source and Task-date limits; see [ANALYTICS.md](ANALYTICS.md).
 
 ## Page structure
 

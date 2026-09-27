@@ -16,9 +16,9 @@
 - Inventory Phase 1 adds tenant-scoped item/category/location management, transactional opening balances and adjustments, stock/count/history views, and the configurable feature gate. See [INVENTORY.md](INVENTORY.md) and [PROGRESS.md](PROGRESS.md).
 - PostgreSQL/Redis/MinIO readiness, security headers, request IDs, backup/restore scripts, Docker development/production targets.
 
-## Platform CRM Phases 2–9
+## Platform CRM Phases 2–10
 
-- Phases 0–9 are complete. CRM includes Organizations, Contacts, Leads, Deals/Pipeline, Activities, Tasks/follow-ups, Notes, status/stage history, assignment, audit, a query-time Unified Timeline, Organization 360, explicit Tenant linking, read-only Tenant/Trial/Subscription context, typed custom fields, CRM-wide Tags, saved views, dynamic Segments, Lead scoring, and Workflow automation; see [docs/crm/README.md](crm/README.md), [AUTOMATION.md](crm/AUTOMATION.md), [API.md](crm/API.md), and [PROGRESS.md](PROGRESS.md).
+- Phases 0–10 are complete. CRM includes Organizations, Contacts, Leads, Deals/Pipeline, Activities, Tasks/follow-ups, Notes, status/stage history, assignment, audit, a query-time Unified Timeline, Organization 360, explicit Tenant linking, read-only Tenant/Trial/Subscription context, typed custom fields, CRM-wide Tags, saved views, dynamic Segments, Lead scoring, Workflow automation, and read-time operational analytics; see [docs/crm/README.md](crm/README.md), [AUTOMATION.md](crm/AUTOMATION.md), [ANALYTICS.md](crm/ANALYTICS.md), [API.md](crm/API.md), and [PROGRESS.md](PROGRESS.md).
 - A CRM Organization may link to one existing Tenant, and each Tenant to at most one Organization. This does not backfill existing Tenants or change their lifecycle.
 - Accepted public consultation requests create a linked `LANDING_FORM` Lead in the same transaction; existing requests are not backfilled and the public/request inbox contracts are unchanged.
 - Lead conversion itself creates no Deal. Phase 4 Activities, Tasks, and Notes use explicit CRM associations and transactional audit writes. Phases 5–6 compose CRM records and selected durable customer facts at read time. Phase 7 stores typed values and query definitions, not static Segment membership. Phase 9 adds a separate CRM Workflow outbox/runtime; no Timeline table, Sales Engine, campaigns, general domain-event bus, billing actions, or fabricated Tenant/Subscription lifecycle transitions were added.
@@ -45,7 +45,7 @@
 
 - Organization detail now composes a bounded overview with derived active Contact, linked Lead, active Deal, open Deal, and open Task counts; last Activity; next Task; and recent Lead/Deal/Task/Activity/Note previews. The existing Contact directory remains paginated and authoritative.
 - The Organization Timeline is a filtered, paginated query-time `UNION ALL` across Lead/Deal creation and history, Deal outcomes, Activities, Tasks, selected Task lifecycle audit actions, and Notes. It preserves pre-conversion Lead history, deduplicates multi-linked source records, and includes archived historical sources. No Timeline table or migration was added.
-- New read routes are `GET /api/v1/platform/crm/organizations/:organizationId/overview`, `/timeline`, and `/customer-context`. Context and Timeline require `crm.read` plus `subscriptions.read`; explicit Tenant link/unlink requires `crm.manage` plus `tenants.read`. Timeline uses only Tenant creation/link facts, Trial start, and successful paid Subscription operations. CRM analytics remains deferred.
+- New read routes are `GET /api/v1/platform/crm/organizations/:organizationId/overview`, `/timeline`, and `/customer-context`. Context and Timeline require `crm.read` plus `subscriptions.read`; explicit Tenant link/unlink requires `crm.manage` plus `tenants.read`. Timeline uses only Tenant creation/link facts, Trial start, and successful paid Subscription operations. Phase 10 adds CRM Analytics routes; customer aggregates also require `subscriptions.read` and do not mutate lifecycle state.
 
 ## Production blockers
 
@@ -73,3 +73,5 @@ The software is not production-ready until [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIS
 1. Complete provider and hosting acceptance without adding unrelated product scope.
 2. Define any further Tenant status or Subscription lifecycle history in the owning modules before adding corresponding CRM Timeline facts.
 3. Move the dispatcher to a coordinated worker before horizontal API scaling.
+
+- Phase 10 adds the Persian RTL `/platform/crm/analytics` workspace with bounded reports for Overview, funnel, sources, pipeline, work, owners, scoring, Workflow execution, and linked-customer lifecycle. CRM estimates remain separate from revenue and payment operations. No analytics schema migration or persistence was added. Metric definitions and limits are in [ANALYTICS.md](crm/ANALYTICS.md); current completion and verification are recorded in the Phase 10 section of [PROGRESS.md](PROGRESS.md).

@@ -1,7 +1,7 @@
 import { BadRequestException } from "@nestjs/common";
 import { isValidIsoDate, localDateTimeParts } from "../reservations/reservation-time.util";
 
-export const ANALYTICS_PERIODS = ["today", "yesterday", "last7Days", "last30Days", "currentMonth", "previousMonth", "currentYear", "previousYear", "custom"] as const;
+export const ANALYTICS_PERIODS = ["today", "yesterday", "last7Days", "last30Days", "currentMonth", "previousMonth", "currentQuarter", "currentYear", "previousYear", "custom"] as const;
 export type AnalyticsPeriod = (typeof ANALYTICS_PERIODS)[number];
 export type AnalyticsGranularity = "hour" | "day" | "week" | "month" | "year";
 export const ANALYTICS_GRANULARITIES: AnalyticsGranularity[] = ["hour", "day", "week", "month", "year"];
@@ -63,6 +63,12 @@ export function analyticsRanges(period: AnalyticsPeriod, timezone: string, start
       const delta = period === "currentMonth" ? 0 : -1;
       current = { start: monthStart(today, delta), endExclusive: monthStart(today, delta + 1) };
       previous = { start: monthStart(today, delta - 1), endExclusive: current.start };
+      break;
+    }
+    case "currentQuarter": {
+      const quarterStart = monthStart(today, Math.floor((Number(today.slice(5, 7)) - 1) / 3) * 3);
+      current = { start: quarterStart, endExclusive: monthStart(quarterStart, 3) };
+      previous = { start: monthStart(quarterStart, -3), endExclusive: quarterStart };
       break;
     }
     case "currentYear": case "previousYear": {

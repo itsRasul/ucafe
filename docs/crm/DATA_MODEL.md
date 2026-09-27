@@ -70,6 +70,10 @@ All new CRM primary keys should be UUIDs. Use explicit snake_case table/column n
 
 Do not store a second copy of Tenant status, subscription dates, plan features, invoice status, or payment state.
 
+### Phase 10 derived analytics
+
+CRM Analytics adds no table, view, materialized view, analytics index, or migration. It aggregates Lead/LeadStatusHistory, Deal/DealStageHistory, Activity, Task and transactional Task-completion audit events, Lead score projections, Workflow execution/action history, and linked Tenant Subscription/payment facts at read time. CRM stays the owner of sales state; the Subscription module remains the owner of customer/billing lifecycle state. Definitions, timestamps, filters, and historical limits are in [ANALYTICS.md](ANALYTICS.md).
+
 ### Phase 7 metadata schema
 
 - `custom_fields` is a NOT NULL JSONB object with a database type check on each supported record table. The API writes only active keys and validates text/URL length, finite numeric range, boolean/date format, and select option ownership. The JSON object holds stable option UUIDs, not mutable labels.
@@ -145,4 +149,4 @@ Organization 360 queries existing tables and returns bounded summaries/previews.
 
 ## Phase 9 Workflow persistence
 
-Migration `1790580000000-CrmWorkflowAutomation` adds `crm_workflows` (validated, versioned definitions), `crm_workflow_events` (transactional outbox and unique `source_key`), `crm_workflow_executions` (unique `(workflow_id,event_id)` plus version/config snapshot), and `crm_workflow_action_executions` (ordered config/result records with unique `(workflow_execution_id,action_index)`). `crm_tasks.automation_action_execution_id` links a generated Task to its action result and has a partial unique index. Ready-work, enabled-trigger, execution-history, correlation, overdue-Task, and trial-ending indexes support bounded polling. Events and execution history are retained; no automated purge policy is implemented. See [AUTOMATION.md](AUTOMATION.md).
+Migration `1790580000000-CrmWorkflowAutomation` adds `crm_workflows` (validated, versioned definitions), `crm_workflow_events` (transactional outbox and unique `source_key`), `crm_workflow_executions` (unique `(workflow_id,event_id)` plus version/config snapshot), and `crm_workflow_action_executions` (ordered config/result records with unique `(workflow_execution_id,action_index)`). `crm_workflow_events.claimed_at` and `crm_workflow_action_executions.started_at` anchor five-minute stale checks; their existing `attempt` fields cap automatic recovery at three attempts. Exhausted events/actions and their parent execution are marked failed. `crm_tasks.automation_action_execution_id` links a generated Task to its action result and has a partial unique index. Ready-work, enabled-trigger, execution-history, correlation, overdue-Task, and trial-ending indexes support bounded polling. Events and execution history are retained; no automated purge policy is implemented. No schema change was needed for the recovery fix. See [AUTOMATION.md](AUTOMATION.md).

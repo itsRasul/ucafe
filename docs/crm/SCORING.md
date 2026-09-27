@@ -57,4 +57,4 @@ When a stored Fit, Engagement, or Overall score changes, the same source transac
 
 ## Not included
 
-No organization/contact/deal score, AI/ML or conversion likelihood, default UCafe weights, customer health, analytics dashboard, campaigns, or outreach are implemented. Workflow-created Tasks are supported in Phase 9; CRM Analytics remains Phase 10.
+No organization/contact/deal score, AI/ML or conversion likelihood, default UCafe weights, customer health, campaigns, or outreach are implemented. Workflow-created Tasks are supported in Phase 9. Phase 10 reports descriptive Lead score bands; see [ANALYTICS.md](ANALYTICS.md). A band is not conversion probability.

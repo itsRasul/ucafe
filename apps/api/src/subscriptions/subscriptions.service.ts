@@ -101,6 +101,82 @@ export class SubscriptionsService {
     };
   }
 
+  async getCrmAnalytics(coffeeShopIds: string[], range: { start: string; endExclusive: string }, timezone: string, planId?: string) {
+    if (!coffeeShopIds.length) return { activeTrials: 0, activePaidCustomers: 0, trialsStarted: 0, completedTrials: 0, trialToPaid: 0, trialToPaidRate: null, averageTrialToPaidDays: null, plans: [] };
+    const now = new Date();
+    const rows = await this.dataSource.query<Array<Record<string, any>>>(`
+      WITH bounds AS (
+        SELECT $2::date::timestamp AT TIME ZONE $4 AS range_start,
+               $3::date::timestamp AT TIME ZONE $4 AS range_end
+      )
+      SELECT s.coffee_shop_id AS "coffeeShopId",s.status,s.trial_started_at AS "trialStartedAt",s.trial_ends_at AS "trialEndsAt",
+        s.current_period_ends_at AS "currentPeriodEndsAt",s.paid_through_at AS "paidThroughAt",s.grace_ends_at AS "graceEndsAt",
+        s.pending_plan_effective_at AS "pendingPlanEffectiveAt",p.grace_days AS "planGraceDays",p.id AS "planId",p.name AS "planName",
+        pp.grace_days AS "pendingGraceDays",pp.id AS "pendingPlanId",pp.name AS "pendingPlanName",
+        paid.first_paid_at AS "firstPaidAt",paid.trial_to_paid_at AS "trialToPaidAt",
+        (s.trial_started_at >= b.range_start AND s.trial_started_at < b.range_end) AS "trialStartedInRange",
+        (paid.trial_to_paid_at >= b.range_start AND paid.trial_to_paid_at < b.range_end) AS "trialToPaidInRange"
+      FROM subscriptions s JOIN subscription_plans p ON p.id=s.plan_id
+      LEFT JOIN subscription_plans pp ON pp.id=s.pending_plan_id
+      LEFT JOIN LATERAL (
+        SELECT min(sp.paid_at) FILTER (WHERE sp.status='PAID' AND sp.operation IN ('PURCHASE','TRIAL_TO_PAID','RENEWAL','REACTIVATION','UPGRADE')) AS first_paid_at,
+               min(sp.paid_at) FILTER (WHERE sp.status='PAID' AND sp.operation='TRIAL_TO_PAID') AS trial_to_paid_at
+        FROM subscription_payments sp WHERE sp.subscription_id=s.id
+      ) paid ON TRUE
+      CROSS JOIN bounds b
+      WHERE s.coffee_shop_id=ANY($1::uuid[])
+        AND ($5::uuid IS NULL OR CASE WHEN s.pending_plan_id IS NOT NULL AND s.pending_plan_effective_at <= $6
+          THEN s.pending_plan_id ELSE s.plan_id END=$5)
+    `, [coffeeShopIds, range.start, range.endExclusive, timezone, planId ?? null, now]);
+
+    const plans = new Map<string, { planId: string; planName: string; customers: number }>();
+    let activeTrials = 0;
+    let activePaidCustomers = 0;
+    let trialsStarted = 0;
+    let completedTrials = 0;
+    let trialToPaid = 0;
+    let paidDurationDays = 0;
+    let paidDurationCount = 0;
+    for (const row of rows) {
+      const planIsPending = row.pendingPlanId && row.pendingPlanEffectiveAt && new Date(row.pendingPlanEffectiveAt) <= now;
+      const effectivePlanId = planIsPending ? row.pendingPlanId as string : row.planId as string;
+      const effectivePlanName = planIsPending ? row.pendingPlanName as string : row.planName as string;
+      const effectiveStatus = effectiveSubscriptionStatus({
+        status: row.status as SubscriptionStatus,
+        trialEndsAt: row.trialEndsAt ? new Date(row.trialEndsAt) : null,
+        currentPeriodEndsAt: row.currentPeriodEndsAt ? new Date(row.currentPeriodEndsAt) : null,
+        paidThroughAt: row.paidThroughAt ? new Date(row.paidThroughAt) : null,
+        graceEndsAt: row.graceEndsAt ? new Date(row.graceEndsAt) : null,
+      }, now, Number(planIsPending ? row.pendingGraceDays : row.planGraceDays));
+      if (effectiveStatus.status === SubscriptionStatus.Trialing) activeTrials++;
+      if (effectiveStatus.status === SubscriptionStatus.Active && row.firstPaidAt) {
+        activePaidCustomers++;
+        const current = plans.get(effectivePlanId) ?? { planId: effectivePlanId, planName: effectivePlanName, customers: 0 };
+        current.customers++;
+        plans.set(effectivePlanId, current);
+      }
+      if (row.trialStartedInRange) {
+        trialsStarted++;
+        if (row.trialToPaidAt || (row.trialEndsAt && new Date(row.trialEndsAt) <= now)) completedTrials++;
+        if (row.trialToPaidAt) trialToPaid++;
+      }
+      if (row.trialToPaidInRange && row.trialStartedAt) {
+        paidDurationDays += Math.max(0, (new Date(row.trialToPaidAt).getTime() - new Date(row.trialStartedAt).getTime()) / 86_400_000);
+        paidDurationCount++;
+      }
+    }
+    return {
+      activeTrials,
+      activePaidCustomers,
+      trialsStarted,
+      completedTrials,
+      trialToPaid,
+      trialToPaidRate: completedTrials ? Math.round(trialToPaid / completedTrials * 1000) / 10 : null,
+      averageTrialToPaidDays: paidDurationCount ? Math.round(paidDurationDays / paidDurationCount * 10) / 10 : null,
+      plans: [...plans.values()].sort((left, right) => right.customers - left.customers || left.planName.localeCompare(right.planName)),
+    };
+  }
+
   async getTenantSummary(coffeeShopId: string, now = new Date()) {
     await this.reconcileIfNeeded(coffeeShopId, now);
     const subscription = await this.getForTenant(coffeeShopId);

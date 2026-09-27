@@ -18,6 +18,7 @@ test("periods use cafe dates and adjacent comparison ranges", () => {
     ["last30Days", "2025-12-04", "2026-01-03", "2025-11-04"],
     ["currentMonth", "2026-01-01", "2026-02-01", "2025-12-01"],
     ["previousMonth", "2025-12-01", "2026-01-01", "2025-11-01"],
+    ["currentQuarter", "2026-01-01", "2026-04-01", "2025-10-01"],
     ["currentYear", "2026-01-01", "2027-01-01", "2025-01-01"],
     ["previousYear", "2025-01-01", "2026-01-01", "2024-01-01"],
   ] as const;

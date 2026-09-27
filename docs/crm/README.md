@@ -1,6 +1,6 @@
 # UCafe Platform CRM
 
-**Status:** Phases 0–9 are implemented: Organizations & Contacts, Leads, Deals and Pipeline, Activities, Tasks, Notes, Unified Timeline, Organization 360, read-only Tenant/Trial/Subscription context, custom fields, Tags, saved views, dynamic Segments, explainable Lead scoring, and bounded Workflow automation. CRM analytics remains Phase 10.
+**Status:** Phases 0–10 are implemented: Organizations & Contacts, Leads, Deals and Pipeline, Activities, Tasks, Notes, Unified Timeline, Organization 360, read-only Tenant/Trial/Subscription context, custom fields, Tags, saved views, dynamic Segments, explainable Lead scoring, bounded Workflow automation, and derived operational analytics.
 
 ## Purpose and boundary
 
@@ -44,7 +44,7 @@ For the initial product, one CRM Organization may link to at most one Tenant, an
 
 CRM owns Organization and Contact details used for sales, Lead source/status/assignment/qualification and conversion, Deal stage/outcome/estimated value, and manually recorded Activities, Tasks, and Notes. Organization 360 is a composed read view. Unified Timeline queries durable CRM histories and work records at read time; it has no persistence table or separate source of truth.
 
-Tenant, Subscription, Trial, Plan, and Payment facts remain with their existing modules. CRM reads current context through owner-module projections and includes only durable Tenant creation, CRM link changes, Trial start, and successful paid Subscription operations in its query-time Timeline. It does not copy or mutate their lifecycle. Tenant link/unlink is explicit and transactionally audited. Phase 9 adds a CRM-specific trigger outbox, not a general event bus. See [INTEGRATIONS.md](INTEGRATIONS.md), [EVENTS.md](EVENTS.md), and [AUTOMATION.md](AUTOMATION.md).
+Tenant, Subscription, Trial, Plan, and Payment facts remain with their existing modules. CRM reads current context through owner-module projections and includes only durable Tenant creation, CRM link changes, Trial start, and successful paid Subscription operations in its query-time Timeline. It does not copy or mutate their lifecycle. Tenant link/unlink is explicit and transactionally audited. Phase 9 adds a CRM-specific trigger outbox, not a general event bus. Phase 10 adds read-time PostgreSQL aggregation over CRM and Subscription sources without duplicating their state. See [INTEGRATIONS.md](INTEGRATIONS.md), [EVENTS.md](EVENTS.md), [AUTOMATION.md](AUTOMATION.md), and [ANALYTICS.md](ANALYTICS.md).
 
 ## Recommended reading order
 
@@ -55,6 +55,6 @@ Tenant, Subscription, Trial, Plan, and Payment facts remain with their existing 
 5. [API.md](API.md), [CUSTOM_FIELDS.md](CUSTOM_FIELDS.md), [FILTERING.md](FILTERING.md), [SEGMENTATION.md](SEGMENTATION.md), [SCORING.md](SCORING.md), and [UX.md](UX.md) — metadata, filters, scores, and screens
 6. [AUTOMATION.md](AUTOMATION.md) — Phase 9 Workflow contract and reliability
 7. [TIMELINE.md](TIMELINE.md), [ANALYTICS.md](ANALYTICS.md), [TESTING.md](TESTING.md), and [PHASES.md](PHASES.md) — read views, verification, and roadmap
-8. [ADR-007](ADR-007-custom-field-storage.md), [ADR-008](ADR-008-lead-scoring-persistence.md), and [DECISIONS.md](../DECISIONS.md) — CRM architecture decisions D-073 through D-083
+8. [ADR-007](ADR-007-custom-field-storage.md), [ADR-008](ADR-008-lead-scoring-persistence.md), [ADR-009](ADR-009-crm-analytics-read-model.md), and [DECISIONS.md](../DECISIONS.md) — CRM architecture decisions D-073 through D-084
 
 Before implementing any CRM change, read this README and the relevant documents above, then inspect current code and migrations. Changes to CRM lifecycle, data ownership, APIs, integrations, or permissions must update the relevant CRM document and root decisions when the architecture changes.
