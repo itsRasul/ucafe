@@ -76,8 +76,9 @@ Critical rules are summarized here. Domain documents contain the corresponding l
 - Deal estimated amount is an optional integer Toman forecast; it is never recognized revenue. Expected Plan is a read-only catalog reference. Deal create/win/loss never changes Tenant, Trial, Subscription, invoice, or Payment state.
 - Activities record past interactions, Tasks record future work, and Notes hold plain-text internal context. A work record must link to at least one CRM record; all linked records must share one Organization. A Lead-only work record may exist before conversion and appears under its Organization after conversion.
 - `FOLLOW_UP` is a Task kind. Overdue is derived from an OPEN Task's due time; completing a Task does not create an Activity. OPEN Tasks must be completed or canceled before archive.
-- CRM work mutations and their audit rows are transactional; audit summaries omit user-authored Activity, Task, and Note text. Phase 4 does not send reminders or publish domain events.
-- UCafe has no Sales Engine or general domain-event bus. Notification delivery records are not integration events.
+- CRM work mutations and their audit rows are transactional; audit summaries omit user-authored Activity, Task, and Note text. Workflow actions may create CRM Tasks/Tag/owner changes only through validated transactional CRM operations; no communication reminder is sent.
+- Phase 9 writes selected CRM triggers to its own transactional outbox. UCafe still has no Sales Engine or general domain-event bus. Notification delivery records are not integration events.
+- Workflow conditions reuse the bounded Phase 7 filter AST; actions are allowlisted, retries are bounded, and correlation/depth stop automation loops. Workflows cannot mutate Tenant, Trial, Subscription, Plan, or Payment state.
 
 See [docs/crm/README.md](crm/README.md) for the implemented scope and future source-of-truth rules.
 

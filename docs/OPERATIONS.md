@@ -54,6 +54,7 @@ Revoke exposed provider/data/object credentials, rotate auth secrets if implicat
 - PostgreSQL/Redis/object-store health and capacity
 - HTTP 5xx/error rate and p95 latency
 - notification pending age, retry exhaustion, provider failures
+- CRM Workflow outbox age/backlog, terminal execution failures, and loop-depth blocks through database monitoring; inspect counts and timestamps only, never event payloads
 - payment verification failures/stale `VERIFYING` intents
 - backup/restore verification age and certificate expiry
 

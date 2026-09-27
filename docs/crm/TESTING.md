@@ -37,4 +37,15 @@ Manually verify desktop and small mobile widths, Persian RTL direction, keyboard
 
 For Phase 8, verify score and Priority are separately labeled, breakdown values are deterministic and readable, missing rules show unconfigured state, invalid rules explain why they no longer contribute, disabled/archive actions are explicit, the rule builder excludes score fields, and the rule/Lead screens remain usable at narrow widths with keyboard and screen-reader support.
 
+## Phase 9 Workflow coverage
+
+- Verify Workflow DTO allowlists, trigger/action config validation, enable-capacity locks, route guard metadata, and `crm.read` versus `crm.manage` behavior.
+- Integration-test transactional outbox writes, filter-criteria match/miss (including Tags, custom fields, and Lead scores as the registry grows), one execution per `(workflow,event)`, and action order.
+- Replay the same source key and verify no second execution/Task/Tag assignment. Test Tag/owner no-ops and that Task creation, its action result, and `automation_action_execution_id` commit/roll back together.
+- Inject transient and permanent failures. Verify three automatic attempts/backoff, recovery of stale claims after restart, successful actions are not repeated, later actions stop after failure, and manual retry is bounded.
+- Test self/cross-workflow chains stop at depth 5, including a no-op action. Test score threshold crossing exactly once per crossing and initial null-score behavior.
+- Freeze/inject time for Trial-ending and Task-overdue scanners; verify exact scope, stable schedule keys, one advisory-lock scanner, and duplicate suppression. Workflow scans must not mutate Trial/Subscription/Task source state.
+- Verify invalid archived Tag/field/assignee dependencies fail visibly, Workflow version snapshots survive later edits, and archived definitions stop matching.
+- Browser/manual-check list, builder, trigger config, condition builder, action ordering, enable/disable, execution history/detail, failure, retry, RTL, narrow widths, keyboard labels/focus, empty/loading/error/success states, and automation-created Task badge. A live platform session is required for authenticated interactions.
+
 Use the lightest focused tests while iterating, then the API suite, workspace typecheck/build, applied migration checks, and live route checks appropriate to the changed phase. No lint command exists today. Manual authenticated CRM interactions and responsive browser checks require an available platform session; record when that session is unavailable rather than claiming the flow was visually verified.

@@ -221,3 +221,22 @@ Rule bodies contain a name, optional description, `FIT|ENGAGEMENT` category, the
 ## Errors and archive behavior
 
 Use standard Nest status behavior: 400 invalid input, 401 missing/invalid authentication, 403 missing permission, 404 a missing CRM or Tenant record, and 409 a uniqueness/stale-stage conflict or update attempted on an archived record. Archive/restore are idempotent, preserve related records, and are audited with PII-free summaries. Archived rows stay readable for restore; list filters default to active rows. Archiving an Organization does not archive its Contacts, and no parent delete cascades.
+
+## Phase 9 Workflow routes
+
+All endpoints below are under `/api/v1/platform/crm` and require platform guards.
+
+~~~text
+GET    /workflows
+POST   /workflows                         crm.manage
+GET    /workflows/:workflowId
+PATCH  /workflows/:workflowId             crm.manage
+POST   /workflows/:workflowId/archive     crm.manage
+GET    /workflows/:workflowId/executions  crm.read
+GET    /workflow-executions/:executionId
+POST   /workflow-executions/:executionId/retry   crm.manage
+~~~
+
+Create/update bodies contain `name`, optional `description`, a supported `triggerType` and typed `triggerConfig`, `conditionEntityType` (`ORGANIZATION|LEAD|DEAL`), the shared Phase 7 `conditions` AST, ordered `actions`, and optional `enabled`. An action is `{type,config}`; server validation allowlists every property and validates current Tag/user references. The enabled count is capped at 100, with 1–10 actions per Workflow. Execution list query accepts optional status plus `page`/`pageSize` (maximum 100). Retry is allowed only for FAILED executions and is bounded per action.
+
+The execution response contains Workflow/event/record identity, version snapshot, allowlisted trigger context, sanitized failure summary, correlation/depth, and ordered action results. It does not return Task description/title or any PII beyond ordinary CRM entity access. Conditions that do not match create no execution row. See [AUTOMATION.md](AUTOMATION.md) for the complete trigger/action schema and status semantics.

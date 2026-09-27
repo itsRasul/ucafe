@@ -219,6 +219,25 @@ export class CrmMetadataService {
     });
   }
 
+  async applyWorkflowTag(manager: EntityManager, entityType: CrmCustomFieldEntityType, recordId: string, tagId: string, add: boolean) {
+    const target = targets[entityType];
+    const rows = await manager.query<Row[]>(`SELECT id,archived_at${entityType === "LEAD" ? ",status" : entityType === "DEAL" ? ",status AS deal_status" : ""} FROM ${target.table} WHERE id=$1 FOR UPDATE`, [recordId]);
+    const record = rows[0];
+    if (!record || record.archived_at || (entityType === "LEAD" && record.status === "CONVERTED") || (entityType === "DEAL" && record.deal_status !== "OPEN")) throw new ConflictException("This CRM record cannot be changed");
+    const assignment = await manager.query<Row[]>(`SELECT id FROM crm_entity_tags WHERE ${target.column}=$1 AND tag_id=$2 FOR UPDATE`, [recordId, tagId]);
+    const existing = assignment[0];
+    if (add && existing) return { changed: false };
+    if (!add && !existing) return { changed: false };
+    if (add) {
+      const tags = await manager.query<Row[]>("SELECT id FROM crm_tags WHERE id=$1 AND active=TRUE AND archived_at IS NULL", [tagId]);
+      if (!tags[0]) throw new BadRequestException("Workflow references a missing or archived Tag");
+    }
+    if (add) await manager.query(`INSERT INTO crm_entity_tags(tag_id,${target.column},assigned_by_user_id) VALUES($1,$2,NULL) ON CONFLICT DO NOTHING`, [tagId, recordId]);
+    else await manager.query("DELETE FROM crm_entity_tags WHERE id=$1", [existing!.id]);
+    if (entityType === "LEAD") await this.scoring?.recalculateLead(recordId, "TAG_CHANGED", manager);
+    return { changed: true };
+  }
+
   private async getTag(id: string, manager: Db = this.dataSource) {
     const rows = await manager.query<Row[]>("SELECT id,name,description,color,active,archived_at AS \"archivedAt\" FROM crm_tags WHERE id=$1", [id]);
     if (!rows[0]) throw new NotFoundException("CRM tag not found");

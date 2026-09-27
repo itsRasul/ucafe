@@ -67,3 +67,7 @@ The Organization, Lead, and Deal directories provide a server-backed filter buil
 - Keep responsive controls labeled and keyboard usable, use text/icon as well as color for state, and test mobile widths and reduced motion. There is no shared table or form primitive to assume.
 
 The CRM uses Persian-first RTL copy, the existing Vazir typography and platform colors, visible focus, responsive row cards, and labeled controls. CRM adds one navigation destination; Leads and Organizations remain inside the CRM workspace. `crm.manage` controls mutation affordances; the API still enforces permissions on every operation.
+
+## Phase 9 Workflow builder
+
+`/platform/crm/workflows` lists enabled/disabled Workflows and exposes a structured Persian RTL editor to `crm.manage` users. It uses typed trigger controls, the existing Phase 7 filter builder, and a sequential action list with labeled move-up/down and remove buttons. It deliberately has no free-form canvas, branching, loops, templates, JavaScript, or arbitrary HTTP action. Read-only CRM users can view execution lists/details; failed action details show safe result/error metadata, and managers can request bounded retries. Workflow-created Tasks carry a visible “ساخته‌شده خودکار” badge. See [AUTOMATION.md](AUTOMATION.md).

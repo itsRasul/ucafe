@@ -2,7 +2,7 @@
 
 ## What exists today
 
-UCafe has no general internal domain-event bus, message broker, or CRM event publisher.
+UCafe has no general internal domain-event bus or message broker. Phase 9 adds a narrow CRM Workflow outbox publisher; it is not a general cross-module event framework.
 
 - notification_deliveries is a durable, encrypted SMS delivery outbox. REQUEST_COUNSELING is an existing notification kind. It represents a delivery request, not an event contract for other modules.
 - platform_audit_events stores selected operator-attributed audit actions. It is not complete lifecycle history or an integration event stream.
@@ -11,7 +11,7 @@ UCafe has no general internal domain-event bus, message broker, or CRM event pub
 
 ## Phase 2–8 records and read projections, not published events
 
-Phase 2 adds no event bus, publisher, outbox, or inter-module event contract. The actual Lead workflow persists history and operator audit records:
+Through Phase 8, the actual Lead/Deal/work record paths persisted history and operator audit records without a general event contract. Phase 9 adds only the Workflow trigger envelopes listed below; the relational histories and audit rows remain separate:
 
 | Record | When it is written |
 |---|---|
@@ -21,7 +21,7 @@ Phase 2 adds no event bus, publisher, outbox, or inter-module event contract. Th
 | `platform_audit_events` | Authenticated Deal create/update, stage change, win/loss, archive, and restore. Summaries contain stage/outcome/reason keys only; no contact PII. |
 | `platform_audit_events` | Activity create/update/archive/restore; Task create/update/complete/cancel/reopen/archive/restore; Note create/update/archive/restore. Each work mutation and audit row share one transaction. Summaries omit Activity subject/details, Task title/description, and Note body. |
 
-Each Lead/Deal state change and its history/audit write commit in the same transaction. A consultation submission and its linked Lead are committed together with the existing notification enqueue. Phase 4 audit action strings use `crm.activity.*`, `crm.task.*`, and `crm.note.*`; these are records for audit review, not messages that other modules consume. The work objects are not published to notification deliveries or another outbox.
+Each Lead/Deal state change and its history/audit write commit in the same transaction. A consultation submission and its linked Lead are committed together with the existing notification enqueue. Phase 4 audit action strings use `crm.activity.*`, `crm.task.*`, and `crm.note.*`; they remain audit records, not messages. Workflow trigger envelopes are inserted into `crm_workflow_events`, never into notification deliveries.
 
 Phase 4 action names stored in `platform_audit_events.action` are:
 
@@ -29,13 +29,28 @@ Phase 4 action names stored in `platform_audit_events.action` are:
 - Task: `crm.task.created`, `crm.task.updated`, `crm.task.completed`, `crm.task.canceled`, `crm.task.reopened`, `crm.task.archived`, `crm.task.restored`.
 - Note: `crm.note.created`, `crm.note.updated`, `crm.note.archived`, `crm.note.restored`.
 
-These audit actions remain audit records, not published events. Phase 5 reads only `crm.task.completed`, `crm.task.canceled`, and `crm.task.reopened` to preserve Task lifecycle occurrence times and actors after the mutable Task row clears terminal timestamps. Deal `crm.deal.won`/`crm.deal.lost` audit rows provide only the actor; outcome type/time are read from the Deal's status and won/lost timestamp. Other audit actions are not Timeline entries. Lead and Deal relational history, Activity, Task, and Note rows are queried directly into a paginated Organization Timeline; no event subscription, publisher, or projection table was added.
+These audit actions remain audit records, not published events. Phase 5 reads only `crm.task.completed`, `crm.task.canceled`, and `crm.task.reopened` to preserve Task lifecycle occurrence times and actors after the mutable Task row clears terminal timestamps. Deal `crm.deal.won`/`crm.deal.lost` audit rows provide only the actor; outcome type/time are read from the Deal's status and won/lost timestamp. Other audit actions are not Timeline entries. Lead and Deal relational history, Activity, Task, and Note rows are queried directly into a paginated Organization Timeline; no event subscription, publisher, or projection table was added through Phase 8.
 
 Phase 6 adds transactional `crm.organization.tenant_linked` and `crm.organization.tenant_unlinked` audit rows with only the Tenant UUID in the summary. They document explicit CRM association changes; they are not Tenant lifecycle events. The Timeline reads them with Tenant `created_at`, Subscription `trial_started_at`, and successful non-legacy `subscription_payments` rows. Payment Timeline items contain operation and paid-period end only. They omit amount, payment provider, authority, provider reference, and invoice intent details. The customer-context panel reads an owner-module projection and does not write or reconcile Subscription state.
 
-Phase 7 metadata and Tag/view/Segment writes add selective PII-safe operator audit rows. Field-value updates record the changed field count without keys or values; Tag assignment audit records only added/removed counts. Definitions and query criteria are configuration, not CRM domain events. These rows are not added to the Organization Timeline, and no event publisher, automation, campaign, or delivery path is introduced.
+Phase 7 metadata and Tag/view/Segment writes add selective PII-safe operator audit rows. Field-value updates record the changed field count without keys or values; Tag assignment audit records only added/removed counts. Definitions and query criteria are configuration, not CRM domain events. These rows are not added to the Organization Timeline.
 
-Phase 8 adds `crm.scoring_rule.created`, `crm.scoring_rule.updated`, and `crm.scoring_rule.archived` audit actions with an empty summary; rule criteria and descriptions are not copied into audit records. `crm_lead_score_history` stores score-state snapshots when the score, rule-set version, configured state, or explanation changes. Its reason is `LEAD_CREATED`, `LEAD_UPDATED`, `ACTIVITY_CHANGED`, `CUSTOM_FIELD_CHANGED`, `TAG_CHANGED`, `RULE_CHANGED`, `MANUAL_RECALCULATION`, or `SCHEDULED_REFRESH` depending on the recalculation path. These rows and audit actions are not published events or Timeline entries. Scoring creates no outbox, subscriber, workflow trigger, outreach action, or lifecycle mutation.
+Phase 8 adds `crm.scoring_rule.created`, `crm.scoring_rule.updated`, and `crm.scoring_rule.archived` audit actions with an empty summary; rule criteria and descriptions are not copied into audit records. `crm_lead_score_history` stores score-state snapshots when the score, rule-set version, configured state, or explanation changes. Its reason is `LEAD_CREATED`, `LEAD_UPDATED`, `ACTIVITY_CHANGED`, `CUSTOM_FIELD_CHANGED`, `TAG_CHANGED`, `RULE_CHANGED`, `MANUAL_RECALCULATION`, or `SCHEDULED_REFRESH` depending on the recalculation path. These rows and audit actions are not Workflow events or Timeline entries.
+
+## Phase 9 Workflow trigger outbox
+
+`crm_workflow_events` is a narrowly scoped transactional outbox, separate from history, audit, and notification delivery. Source hooks write the event in the same transaction as the Lead/Deal/Activity/Task/scoring mutation. The current CRM event keys are:
+
+- `LEAD_CREATED`, `LEAD_STATUS_CHANGED`, `LEAD_QUALIFIED`, and `LEAD_CONVERTED`.
+- `DEAL_CREATED`, `DEAL_STAGE_CHANGED`, `DEAL_WON`, and `DEAL_LOST`.
+- `ACTIVITY_CREATED` and `TASK_COMPLETED`.
+- `LEAD_SCORE_CHANGED`, with previous/current Overall, Fit, and Engagement values; the threshold trigger is matched from this context.
+- `TASK_OVERDUE` from the bounded overdue scanner.
+- `TRIAL_ENDING` from a bounded read of current `TRIALING` Subscription rows linked to active CRM Organizations.
+
+The envelope stores a unique `source_key`, subject IDs, only allowlisted transition/activity/score/schedule context, related Organization/Lead/Deal IDs, correlation ID, causation execution ID, automation depth, attempt, and state. Transactional source keys are unique event IDs; scheduled keys are stable per source row/date. Replaying the same event ID cannot create another Workflow execution because `(workflow_id,event_id)` is unique. A second genuine source transaction is a distinct event even if its values happen to match.
+
+Workflow actions propagate transaction-local correlation and causation into any downstream CRM score event. Each downstream event increases automation depth; depth 5 is marked `LOOP_BLOCKED`. No Tag-added event exists; Tag/owner no-ops avoid repeat writes. Workflow events are not Timeline entries, campaign deliveries, subscription mutations, or a public integration API. Subscription/Tenant source writes still do not emit public events; Trial-ending is a read-only CRM scheduled event. See [AUTOMATION.md](AUTOMATION.md).
 
 The Organization Timeline is an API read model, not an event catalog or delivery contract. It normalizes source rows for display and never publishes or stores a second copy. See [TIMELINE.md](TIMELINE.md).
 

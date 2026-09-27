@@ -7,13 +7,14 @@ import { CreateCrmDealDto, ChangeCrmDealStageDto, CrmDealListQueryDto, LoseCrmDe
 import { CRM_DEFAULT_PIPELINE_KEY, CrmDealLossReason, CrmDealStage, CrmDealStatus } from "./entities/crm-deal.entity";
 import { CrmFilterService } from "./crm-filter.service";
 import { CrmCustomFieldEntityType } from "./entities/crm-custom-field.entity";
+import { CrmWorkflowEventService } from "./crm-workflow-event.service";
 
 type Row = Record<string, any>;
 type ArchiveStatus = "ACTIVE" | "ARCHIVED" | "ALL";
 
 @Injectable()
 export class CrmDealService {
-  constructor(private readonly dataSource: DataSource, private readonly leads: CrmLeadService, @Optional() private readonly filters?: CrmFilterService) {}
+  constructor(private readonly dataSource: DataSource, private readonly leads: CrmLeadService, @Optional() private readonly filters?: CrmFilterService, @Optional() private readonly workflowEvents?: CrmWorkflowEventService) {}
 
   pipeline() { return CRM_DEFAULT_PIPELINE; }
 
@@ -113,6 +114,7 @@ export class CrmDealService {
         const id = rows[0]!.id as string;
         await manager.query(`INSERT INTO crm_deal_stage_history (deal_id,pipeline_key,from_stage,to_stage,changed_by_user_id) VALUES ($1,$2,NULL,$3,$4)`, [id, CRM_DEFAULT_PIPELINE_KEY, stage, actorId]);
         await this.audit(manager, actorId, "crm.deal.created", id, { stage });
+        await this.workflowEvents?.record(manager, { eventType: "DEAL_CREATED", subjectType: "DEAL", subjectId: id, eventContext: { stage } });
         return this.detail(manager, id);
       });
     } catch (error) { this.rethrowDatabaseError(error); }
@@ -156,6 +158,7 @@ export class CrmDealService {
       await manager.query("UPDATE crm_deals SET stage=$2,updated_by_user_id=$3,updated_at=now() WHERE id=$1", [id, input.stage, actorId]);
       await manager.query(`INSERT INTO crm_deal_stage_history (deal_id,pipeline_key,from_stage,to_stage,reason,changed_by_user_id) VALUES ($1,$2,$3,$4,$5,$6)`, [id, deal.pipeline_key, current, input.stage, reason, actorId]);
       await this.audit(manager, actorId, "crm.deal.stage_changed", id, { from: current, to: input.stage });
+      await this.workflowEvents?.record(manager, { eventType: "DEAL_STAGE_CHANGED", subjectType: "DEAL", subjectId: id, eventContext: { fromStage: current, toStage: input.stage } });
       return this.detail(manager, id);
     });
   }
@@ -167,6 +170,7 @@ export class CrmDealService {
       this.assertOpen(deal);
       await manager.query("UPDATE crm_deals SET status='WON',closed_at=now(),won_at=now(),updated_by_user_id=$2,updated_at=now() WHERE id=$1", [id, actorId]);
       await this.audit(manager, actorId, "crm.deal.won", id, { stage: deal.stage });
+      await this.workflowEvents?.record(manager, { eventType: "DEAL_WON", subjectType: "DEAL", subjectId: id, eventContext: { stage: deal.stage } });
       return this.detail(manager, id);
     });
   }
@@ -179,12 +183,24 @@ export class CrmDealService {
       const detail = input.reason === CrmDealLossReason.Other ? this.optionalText(input.detail) : null;
       await manager.query(`UPDATE crm_deals SET status='LOST',closed_at=now(),lost_at=now(),loss_reason=$2,loss_reason_detail=$3,updated_by_user_id=$4,updated_at=now() WHERE id=$1`, [id, input.reason, detail, actorId]);
       await this.audit(manager, actorId, "crm.deal.lost", id, { reason: input.reason, stage: deal.stage });
+      await this.workflowEvents?.record(manager, { eventType: "DEAL_LOST", subjectType: "DEAL", subjectId: id, eventContext: { stage: deal.stage } });
       return this.detail(manager, id);
     });
   }
 
   async archive(id: string, actorId: string) { return this.setArchived(id, actorId, true); }
   async restore(id: string, actorId: string) { return this.setArchived(id, actorId, false); }
+
+  async assignOwnerIn(manager: EntityManager, id: string, userId: string) {
+    const rows = await manager.query<Row[]>("SELECT owner_id,status,archived_at FROM crm_deals WHERE id=$1 FOR UPDATE", [id]);
+    const deal = rows[0];
+    if (!deal || deal.archived_at) throw new NotFoundException("CRM Deal not found");
+    this.assertOpen(deal);
+    await this.leads.assertCrmAssignee(manager, userId);
+    if (deal.owner_id === userId) return false;
+    await manager.query("UPDATE crm_deals SET owner_id=$2,updated_by_user_id=NULL,updated_at=now() WHERE id=$1", [id, userId]);
+    return true;
+  }
 
   private async setArchived(id: string, actorId: string, archive: boolean) {
     return this.dataSource.transaction(async (manager) => {

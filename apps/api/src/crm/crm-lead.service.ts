@@ -17,6 +17,7 @@ import { CrmLeadPriority, CrmLeadSource, CrmLeadStatus, CrmLeadUnqualifiedReason
 import { CrmFilterService } from "./crm-filter.service";
 import { CrmCustomFieldEntityType } from "./entities/crm-custom-field.entity";
 import { CrmScoringService } from "./crm-scoring.service";
+import { CrmWorkflowEventService } from "./crm-workflow-event.service";
 
 type DbRow = Record<string, any>;
 type LeadInput = Pick<CreateCrmLeadDto, "businessName" | "contactName" | "phone" | "email" | "city" | "website" | "instagram" | "description">;
@@ -28,7 +29,7 @@ type LeadValues = {
 
 @Injectable()
 export class CrmLeadService {
-  constructor(private readonly dataSource: DataSource, private readonly crypto: AuthCryptoService, @Optional() private readonly filters?: CrmFilterService, @Optional() private readonly scoring?: CrmScoringService) {}
+  constructor(private readonly dataSource: DataSource, private readonly crypto: AuthCryptoService, @Optional() private readonly filters?: CrmFilterService, @Optional() private readonly scoring?: CrmScoringService, @Optional() private readonly workflowEvents?: CrmWorkflowEventService) {}
 
   async list(query: CrmLeadListQueryDto) {
     const where: string[] = [];
@@ -219,6 +220,7 @@ export class CrmLeadService {
       await manager.query(`UPDATE crm_leads SET status=$2, qualification_notes=$3, qualified_at=COALESCE(qualified_at,now()), updated_by_user_id=$4, updated_at=now() WHERE id=$1`, [id, CrmLeadStatus.Qualified, notes, actorId]);
       await this.appendHistory(manager, id, current, CrmLeadStatus.Qualified, null, actorId);
       await this.audit(manager, actorId, "crm.lead.qualified", id);
+      await this.workflowEvents?.record(manager, { eventType: "LEAD_QUALIFIED", subjectType: "LEAD", subjectId: id, eventContext: { fromStatus: current, toStatus: CrmLeadStatus.Qualified } });
       await this.scoring?.recalculateLead(id, "LEAD_UPDATED", manager);
       return this.projection((await this.findLead(manager, id, true))!, true);
     });
@@ -277,6 +279,7 @@ export class CrmLeadService {
       await manager.query(`UPDATE crm_leads SET status=$2, organization_id=$3, primary_contact_id=$4, converted_at=$5, updated_by_user_id=$6, updated_at=$5 WHERE id=$1`, [id, CrmLeadStatus.Converted, organizationId, contactId, now, actorId]);
       await this.appendHistory(manager, id, CrmLeadStatus.Qualified, CrmLeadStatus.Converted, null, actorId);
       await this.audit(manager, actorId, "crm.lead.converted", id, { organizationId, contactId });
+      await this.workflowEvents?.record(manager, { eventType: "LEAD_CONVERTED", subjectType: "LEAD", subjectId: id, eventContext: { fromStatus: CrmLeadStatus.Qualified, toStatus: CrmLeadStatus.Converted } });
       return this.projection((await this.findLead(manager, id, true))!, true);
     });
   }
@@ -425,6 +428,16 @@ export class CrmLeadService {
     if (!rows[0]) throw new BadRequestException("Choose an active platform user with CRM access");
   }
 
+  async assignOwnerIn(manager: EntityManager, id: string, userId: string) {
+    const lead = await this.requireLockedLead(manager, id);
+    this.assertEditable(lead);
+    if (lead.status === CrmLeadStatus.Converted) throw new ConflictException("Converted Leads cannot be reassigned");
+    await this.assertCrmAssignee(manager, userId);
+    if (lead.owner_id === userId) return false;
+    await manager.query("UPDATE crm_leads SET owner_id=$2,updated_by_user_id=NULL,updated_at=now() WHERE id=$1", [id, userId]);
+    return true;
+  }
+
   private async requireActiveOrganization(manager: EntityManager, id: string) {
     const rows = await manager.query<DbRow[]>("SELECT id, archived_at FROM crm_organizations WHERE id=$1", [id]);
     if (!rows[0]) throw new NotFoundException("CRM organization not found");
@@ -543,6 +556,7 @@ export class CrmLeadService {
 
   private async appendHistory(manager: EntityManager, leadId: string, previous: CrmLeadStatus | null, next: CrmLeadStatus, reason: string | null, actorId: string | null) {
     await manager.query(`INSERT INTO crm_lead_status_history (lead_id,previous_status,next_status,reason,changed_by_user_id) VALUES ($1,$2,$3,$4,$5)`, [leadId, previous, next, reason, actorId]);
+    await this.workflowEvents?.record(manager, { eventType: previous === null ? "LEAD_CREATED" : "LEAD_STATUS_CHANGED", subjectType: "LEAD", subjectId: leadId, eventContext: { fromStatus: previous, toStatus: next } });
   }
 
   private async audit(manager: EntityManager, actorId: string, action: string, id: string, summary: Record<string, string | boolean | null> = {}) {

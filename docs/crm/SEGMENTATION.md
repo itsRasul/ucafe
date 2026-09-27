@@ -24,3 +24,5 @@ Criteria are revalidated when loaded. If an active custom field or Tag used by c
 Lead Segments may filter by persisted Fit, Engagement, and Overall scores and the supported Activity aggregates. Lead score fields can also be used in Saved Views. Score rules cannot depend on scores, preventing circular evaluation; Segments and Saved Views are still ordinary dynamic queries and do not change score calculation.
 
 The current filter registry supports Organization Tenant linkage (`tenantLinked`) but not projected current Plan, effective Subscription status, or Trial state. Those facts remain authoritative in the Subscriptions module and CRM has no query projection that can reuse its effective-status lifecycle calculation safely. Nested Boolean groups, custom-field sorts, and static membership remain unsupported.
+
+Workflows do not depend on Segment membership. They evaluate the existing filter AST against an event's current Organization, Lead, or Deal record. Segment entry is not an event because Segments are live queries with no persisted membership transition; supporting it would require a separately designed and bounded membership-change contract.

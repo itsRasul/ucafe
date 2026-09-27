@@ -37,3 +37,9 @@ Saved Views combine the AST with an allowlisted ordinary query definition and su
 ## Performance boundaries
 
 Tag assignment indexes cover each explicit entity FK and Tag ID. The migration adds no index per custom field; filters remain bounded and use server pagination, while dynamic Segment counts use database `COUNT`. JSONB values are not duplicated into CRM columns or materialized Segment membership. Review representative `EXPLAIN` plans against production-scale CRM volumes before adding a fixed GIN/expression index strategy or raising the condition cap.
+
+## Workflow conditions
+
+Workflow conditions call the same `CrmFilterService.compile` path as Phase 7 list views, Saved Views, Segments, and scoring. They use one flat version-1 AND/OR AST with a 20-condition cap, current core fields, active Tags/custom fields, and Lead score/Activity fields. The condition record is explicitly Organization, Lead, or Deal and is evaluated against its current source row with the related Organization join. That related record ID must be present in the event's bounded record context.
+
+Transition values (such as previous/new Deal stage or previous/current score) stay in typed trigger configuration/context; the Workflow does not accept them as arbitrary filter columns. Segment membership, Contacts, nested groups, and raw SQL are not supported. Stale field/Tag/user dependencies are rejected on save or fail with sanitized configuration errors during execution.

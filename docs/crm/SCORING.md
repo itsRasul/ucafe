@@ -31,7 +31,7 @@ Activity signals include records directly linked to the Lead and Organization-le
 
 `crm_lead_scores` stores the current three bounded values, a `configured` flag, global scoring configuration version, contribution breakdown, and calculation timestamp. The breakdown records raw category total, clamped category value, and matched rule ID/name/category/points. No Lead PII or free-text Note/Activity content is copied into the score snapshot.
 
-`crm_scoring_state` is a singleton version row. Each successful rule create/update/archive increments the version. `crm_lead_score_history` stores a snapshot when a value, configured state, version, or explanation actually changes; a repeated no-op recalculation does not add history. The endpoint returns the latest 10 snapshots. Rule changes are also recorded as PII-free `platform_audit_events` actions. There is no scoring event publisher or Timeline item.
+`crm_scoring_state` is a singleton version row. Each successful rule create/update/archive increments the version. `crm_lead_score_history` stores a snapshot when a value, configured state, version, or explanation actually changes; a repeated no-op recalculation does not add history. The endpoint returns the latest 10 snapshots. Rule changes are also recorded as PII-free `platform_audit_events` actions. Score changes are emitted only to the Phase 9 transactional Workflow outbox; they are not Timeline items.
 
 Persisted scores keep Lead list sorting/filtering inexpensive and allow Saved Views and Segments to use the ordinary server-side Phase 7 compiler. The tradeoff is source-change invalidation and score freshness, handled below. [ADR-008](ADR-008-lead-scoring-persistence.md) records the persistence choice.
 
@@ -51,6 +51,10 @@ The existing Lead list can filter on `fitScore`, `engagementScore`, `overallScor
 
 Scoring routes are listed in [API.md](API.md). `crm.read` grants rule listing, match preview, score/history read, and score filtering. `crm.manage` grants rule mutation and explicit recalculation. Criteria/value validation comes from the same Phase 7 compiler; the score-column prohibition is a separate recursion guard. Manual Priority, status, qualification, Deal, and customer state remain independently managed.
 
+## Phase 9 Workflow events
+
+When a stored Fit, Engagement, or Overall score changes, the same source transaction writes `LEAD_SCORE_CHANGED` to the CRM Workflow outbox with previous/current score values. `LEAD_SCORE_CROSSED_THRESHOLD` matches only a real transition across the configured integer threshold; a first score with no previous value is not a crossing. Scoring does not depend on Workflow execution, and score no-ops do not publish an event. See [AUTOMATION.md](AUTOMATION.md).
+
 ## Not included
 
-No organization/contact/deal score, AI/ML or conversion likelihood, default UCafe weights, customer health, analytics dashboard, campaigns, outreach, automated tasks, workflow actions, lifecycle transitions, or subscription actions are implemented. Workflow Automation remains Phase 9; CRM Analytics remains Phase 10.
+No organization/contact/deal score, AI/ML or conversion likelihood, default UCafe weights, customer health, analytics dashboard, campaigns, or outreach are implemented. Workflow-created Tasks are supported in Phase 9; CRM Analytics remains Phase 10.

@@ -52,4 +52,13 @@ In Phase 1 a Contact's role/title is free text and can describe an owner or deci
 
 ## Deferred concepts
 
-Pipelines and stages are a single code-defined UCafe default in the initial version. Custom pipeline configuration, contact-to-multiple-organization relationships, record-level sharing, workflow automation, and analytics remain deferred until real operating needs justify them. Lead scoring currently evaluates Lead fields, Lead custom fields/Tags, and bounded Activity aggregates; Contacts, Tasks, Deals, Organization attributes, and Tenant/Subscription context are not score sources.
+Pipelines and stages are a single code-defined UCafe default in the initial version. Custom pipeline configuration, contact-to-multiple-organization relationships, record-level sharing, and analytics remain deferred until real operating needs justify them. Lead scoring currently evaluates Lead fields, Lead custom fields/Tags, and bounded Activity aggregates; Contacts, Tasks, Deals, Organization attributes, and Tenant/Subscription context are not score sources.
+
+## Phase 9 automation concepts
+
+- **Workflow:** platform-owned configuration that selects a supported trigger, evaluates the Phase 7 criteria against one current CRM record, and runs an ordered action list. It is not a CRM lifecycle entity or domain event.
+- **Workflow event:** a compact transactional outbox row describing a source change or scheduled condition. It is not a Workflow or an execution.
+- **Workflow execution:** one matched Workflow and event, with a snapshot of the Workflow version and outcome.
+- **Action execution:** one ordered action attempt and its result. Successful prior actions remain complete when a later action fails.
+
+See [AUTOMATION.md](AUTOMATION.md) for trigger/action limits, retry, deduplication, and loop semantics.

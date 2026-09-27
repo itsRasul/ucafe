@@ -1,9 +1,10 @@
-import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit, Optional } from "@nestjs/common";
 import { DataSource, EntityManager } from "typeorm";
 import { CrmCustomFieldEntityType } from "./entities/crm-custom-field.entity";
 import { CrmFilterService } from "./crm-filter.service";
 import { CreateCrmScoringRuleDto, UpdateCrmScoringRuleDto } from "./dto/crm-scoring.dto";
 import { calculateLeadScores, CrmScoringCategory, scoreBand, ScoringContribution, usesLeadScoreField } from "./crm-scoring.util";
+import { CrmWorkflowEventService } from "./crm-workflow-event.service";
 
 type Row = Record<string, any>;
 type Db = DataSource | EntityManager;
@@ -20,7 +21,7 @@ export class CrmScoringService implements OnModuleInit, OnModuleDestroy {
   private timer?: NodeJS.Timeout;
   private startupRefresh?: NodeJS.Timeout;
 
-  constructor(private readonly dataSource: DataSource, private readonly filters: CrmFilterService) {}
+  constructor(private readonly dataSource: DataSource, private readonly filters: CrmFilterService, @Optional() private readonly workflowEvents?: CrmWorkflowEventService) {}
 
   onModuleInit() {
     this.timer = setInterval(() => void this.refreshTimeDependentScores(), 86_400_000);
@@ -205,6 +206,16 @@ export class CrmScoringService implements OnModuleInit, OnModuleDestroy {
         return `($${start},$${start + 1},$${start + 2},$${start + 3},$${start + 4},$${start + 5},$${start + 6},$${start + 7}::jsonb,$${start + 8})`;
       });
       await manager.query(`INSERT INTO crm_lead_score_history(lead_id,fit_score,engagement_score,overall_score,previous_overall_score,scoring_version,reason,breakdown,calculated_at) VALUES ${historyRows.join(",")}`, historyValues);
+    }
+    for (const result of changed) {
+      const previous = currentById.get(result.id);
+      if (!previous || Number(previous.fit_score) !== result.fitScore || Number(previous.engagement_score) !== result.engagementScore || Number(previous.overall_score) !== result.overallScore) {
+        await this.workflowEvents?.record(manager, { eventType: "LEAD_SCORE_CHANGED", subjectType: "LEAD", subjectId: result.id, eventContext: {
+          previousOverallScore: previous?.overall_score ?? null, overallScore: result.overallScore,
+          previousFitScore: previous?.fit_score ?? null, fitScore: result.fitScore,
+          previousEngagementScore: previous?.engagement_score ?? null, engagementScore: result.engagementScore,
+        } });
+      }
     }
   }
 

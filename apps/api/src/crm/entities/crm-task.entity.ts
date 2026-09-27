@@ -29,6 +29,7 @@ export class CrmTask {
   @Column({ name: "canceled_by_user_id", type: "uuid", nullable: true }) canceledByUserId!: string | null;
   @Column({ name: "created_by_user_id", type: "uuid", nullable: true }) createdByUserId!: string | null;
   @Column({ name: "updated_by_user_id", type: "uuid", nullable: true }) updatedByUserId!: string | null;
+  @Column({ name: "automation_action_execution_id", type: "uuid", nullable: true }) automationActionExecutionId!: string | null;
   @Column({ name: "archived_at", type: "timestamptz", nullable: true }) archivedAt!: Date | null;
   @Column({ name: "archived_by_user_id", type: "uuid", nullable: true }) archivedByUserId!: string | null;
   @CreateDateColumn({ name: "created_at", type: "timestamptz" }) createdAt!: Date;

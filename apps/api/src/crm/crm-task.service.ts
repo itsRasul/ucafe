@@ -1,16 +1,17 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import { DataSource, EntityManager } from "typeorm";
 import { CrmLeadService } from "./crm-lead.service";
 import { escapeLike } from "./crm-normalization.util";
 import { CrmTaskKind, CrmTaskPriority, CrmTaskStatus } from "./entities/crm-task.entity";
 import { CrmTaskListQueryDto, CreateCrmTaskDto, UpdateCrmTaskDto } from "./dto/crm-work.dto";
 import { resolveCrmWorkLinks } from "./crm-work-relations.util";
+import { CrmWorkflowEventService } from "./crm-workflow-event.service";
 
 type Row = Record<string, any>;
 
 @Injectable()
 export class CrmTaskService {
-  constructor(private readonly dataSource: DataSource, private readonly leads: CrmLeadService) {}
+  constructor(private readonly dataSource: DataSource, private readonly leads: CrmLeadService, @Optional() private readonly workflowEvents?: CrmWorkflowEventService) {}
 
   async list(query: CrmTaskListQueryDto, actorId: string) {
     this.assertRange(query.dueFrom, query.dueTo);
@@ -36,22 +37,24 @@ export class CrmTaskService {
   async get(id: string) { return this.detail(this.dataSource, id); }
 
   async create(input: CreateCrmTaskDto, actorId: string) {
+    return this.dataSource.transaction((manager) => this.createIn(manager, input, actorId));
+  }
+
+  async createIn(manager: EntityManager, input: CreateCrmTaskDto, actorId: string | null, automationActionExecutionId?: string) {
     const title = this.requireText(input.title);
     const dueAt = this.validDueAt(input.dueAt);
     const assigneeId = input.assignedToUserId ?? null;
-    return this.dataSource.transaction(async (manager) => {
-      const links = await resolveCrmWorkLinks(manager, input);
-      await this.leads.assertCrmAssignee(manager, assigneeId);
-      const rows = await manager.query<Row[]>(`INSERT INTO crm_tasks
-        (organization_id,contact_id,lead_id,deal_id,title,description,kind,status,priority,due_at,assigned_to_user_id,created_by_user_id,updated_by_user_id)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,'OPEN',$8,$9,$10,$11,$11) RETURNING id`, [
-        links.organizationId, links.contactId, links.leadId, links.dealId, title, this.optionalText(input.description),
-        input.kind ?? CrmTaskKind.General, input.priority ?? CrmTaskPriority.Normal, dueAt, assigneeId, actorId,
-      ]);
-      const id = rows[0]!.id as string;
-      await this.audit(manager, actorId, "crm.task.created", id, { status: CrmTaskStatus.Open, kind: input.kind ?? CrmTaskKind.General, priority: input.priority ?? CrmTaskPriority.Normal });
-      return this.detail(manager, id);
-    });
+    const links = await resolveCrmWorkLinks(manager, input);
+    await this.leads.assertCrmAssignee(manager, assigneeId);
+    const rows = await manager.query<Row[]>(`INSERT INTO crm_tasks
+      (organization_id,contact_id,lead_id,deal_id,title,description,kind,status,priority,due_at,assigned_to_user_id,created_by_user_id,updated_by_user_id,automation_action_execution_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,'OPEN',$8,$9,$10,$11,$11,$12) RETURNING id`, [
+      links.organizationId, links.contactId, links.leadId, links.dealId, title, this.optionalText(input.description),
+      input.kind ?? CrmTaskKind.General, input.priority ?? CrmTaskPriority.Normal, dueAt, assigneeId, actorId, automationActionExecutionId ?? null,
+    ]);
+    const id = rows[0]!.id as string;
+    if (actorId) await this.audit(manager, actorId, "crm.task.created", id, { status: CrmTaskStatus.Open, kind: input.kind ?? CrmTaskKind.General, priority: input.priority ?? CrmTaskPriority.Normal });
+    return this.detail(manager, id);
   }
 
   async update(id: string, input: UpdateCrmTaskDto, actorId: string) {
@@ -106,6 +109,7 @@ export class CrmTaskService {
       }
       const action = target === CrmTaskStatus.Open ? "crm.task.reopened" : target === CrmTaskStatus.Completed ? "crm.task.completed" : "crm.task.canceled";
       await this.audit(manager, actorId, action, id, { previousStatus: current, status: target });
+      if (target === CrmTaskStatus.Completed) await this.workflowEvents?.record(manager, { eventType: "TASK_COMPLETED", subjectType: "TASK", subjectId: id, eventContext: { previousStatus: current, status: target } });
       return this.detail(manager, id);
     });
   }
@@ -153,7 +157,7 @@ export class CrmTaskService {
       t.assigned_to_user_id AS "assignedToUserId",${this.actorLabelSql("u")} AS "assigneeLabel",t.completed_at AS "completedAt",
       t.completed_by_user_id AS "completedByUserId",t.canceled_at AS "canceledAt",t.canceled_by_user_id AS "canceledByUserId",
       t.created_by_user_id AS "createdByUserId",t.updated_by_user_id AS "updatedByUserId",t.archived_at AS "archivedAt",
-      t.created_at AS "createdAt",t.updated_at AS "updatedAt",(t.status='OPEN' AND t.due_at < now()) AS overdue`;
+      t.automation_action_execution_id IS NOT NULL AS "createdByAutomation",t.created_at AS "createdAt",t.updated_at AS "updatedAt",(t.status='OPEN' AND t.due_at < now()) AS overdue`;
   }
 
   private project(row: Row) {
@@ -169,6 +173,7 @@ export class CrmTaskService {
       completedAt: row.completed_at ?? row.completedAt ?? null, completedByUserId: row.completed_by_user_id ?? row.completedByUserId ?? null,
       canceledAt: row.canceled_at ?? row.canceledAt ?? null, canceledByUserId: row.canceled_by_user_id ?? row.canceledByUserId ?? null,
       createdByUserId: row.created_by_user_id ?? row.createdByUserId ?? null, updatedByUserId: row.updated_by_user_id ?? row.updatedByUserId ?? null,
+      createdByAutomation: Boolean(row.created_by_automation ?? row.createdByAutomation ?? row.automation_action_execution_id),
       archivedAt: row.archived_at ?? row.archivedAt ?? null, createdAt: row.created_at ?? row.createdAt, updatedAt: row.updated_at ?? row.updatedAt,
       overdue: row.overdue ?? (row.status === CrmTaskStatus.Open && row.due_at !== null && new Date(row.due_at).getTime() < Date.now()),
     };

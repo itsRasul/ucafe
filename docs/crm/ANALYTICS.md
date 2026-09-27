@@ -20,4 +20,10 @@ Phase 3 retains stage history from the first Deal release. The current stage alo
 
 Phase 7 Segments are operational saved criteria, not analytics or campaign audiences. Their counts are current matches only; they do not provide historical membership, funnel attribution, or outcome measures. Phase 8 adds deterministic Lead Fit/Engagement/Overall score snapshots and change history. These are rule-based point totals, not conversion probabilities or historical analytics reports. Score history can support a later before-conversion analysis when combined with conversion timestamps, but Phase 8 defines no attribution or outcome metric.
 
+Phase 9 retains Workflow event/execution/action history that can support later counts, success/failure rates, retries, and automation-created Tasks. A future conversion analysis may join executions to Lead conversion time only after defining its attribution window; correlation is not proof of causal impact. Phase 9 ships no dashboard or materialized analytics metrics.
+
 Analytics remains Phase 10 work after enough CRM data exists. Use bounded SQL aggregates over indexed histories, return business measures rather than UI colors, and define periods/timezone before reporting. Do not add a CRM Analytics plan feature or couple to tenant Analytics without a product decision.
+
+## Phase 9 automation measures for Phase 10
+
+Workflow event, execution, and action history can support execution volume, success/failure rate, retry count, and Tasks created by automation. Future conversion analysis can join stable Workflow execution record IDs with Lead conversion timestamps; it must define its attribution window and avoid claiming causal impact from simple correlation. Phase 9 does not ship an analytics dashboard or materialized metric.

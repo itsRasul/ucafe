@@ -6,12 +6,13 @@ import { CrmActivityListQueryDto, CreateCrmActivityDto, UpdateCrmActivityDto } f
 import { resolveCrmWorkLinks } from "./crm-work-relations.util";
 import { isValidCrmActivityOutcome } from "./crm-work-lifecycle.util";
 import { CrmScoringService } from "./crm-scoring.service";
+import { CrmWorkflowEventService } from "./crm-workflow-event.service";
 
 type Row = Record<string, any>;
 
 @Injectable()
 export class CrmActivityService {
-  constructor(private readonly dataSource: DataSource, @Optional() private readonly scoring?: CrmScoringService) {}
+  constructor(private readonly dataSource: DataSource, @Optional() private readonly scoring?: CrmScoringService, @Optional() private readonly workflowEvents?: CrmWorkflowEventService) {}
 
   async list(query: CrmActivityListQueryDto) {
     this.assertRange(query.occurredFrom, query.occurredTo);
@@ -43,6 +44,7 @@ export class CrmActivityService {
       const id = rows[0]!.id as string;
       await this.audit(manager, actorId, "crm.activity.created", id, { type: input.activityType, outcome: input.outcome ?? null });
       await this.recalculateActivityLinks(manager, [{ leadId: links.leadId, organizationId: links.organizationId }]);
+      await this.workflowEvents?.record(manager, { eventType: "ACTIVITY_CREATED", subjectType: "ACTIVITY", subjectId: id, eventContext: { activityType: input.activityType, outcome: input.outcome ?? null } });
       return this.detail(manager, id);
     });
   }

@@ -65,7 +65,7 @@ The product is aimed at independent cafes that need a professional storefront, e
 
 ## Platform capability: Platform CRM
 
-Platform CRM manages UCafe's commercial relationships with café businesses as internal platform staff functionality, not a Tenant CRM. Phases 1–7 provide Organizations, Contacts, Leads, exact duplicate review, assignment, qualification, status history, safe conversion to Organization + Contact, a single code-defined Deal pipeline, Activities, Tasks/follow-ups, Notes, audit, a derived Timeline, Organization 360, explicit optional Tenant linking, read-only Tenant/Trial/Subscription context, typed custom fields, Tags, saved views, and dynamic Segments. Accepted public consultation submissions create a linked Lead in the same transaction while preserving the existing request, response, notification, and inbox contracts. CRM analytics, prioritization, and workflow automation remain later work. See [docs/crm/README.md](crm/README.md).
+Platform CRM manages UCafe's commercial relationships with café businesses as internal platform staff functionality, not a Tenant CRM. Phases 1–9 provide Organizations, Contacts, Leads, exact duplicate review, assignment, qualification, status history, safe conversion to Organization + Contact, a single code-defined Deal pipeline, Activities, Tasks/follow-ups, Notes, audit, a derived Timeline, Organization 360, explicit optional Tenant linking, read-only Tenant/Trial/Subscription context, typed custom fields, Tags, saved views, dynamic Segments, explainable Lead scoring, and controlled Workflow automation. Accepted public consultation submissions create a linked Lead in the same transaction while preserving the existing request, response, notification, and inbox contracts. CRM Analytics remains Phase 10. See [docs/crm/README.md](crm/README.md).
 
 ## Product constraints
 
@@ -79,7 +79,7 @@ Platform CRM manages UCafe's commercial relationships with café businesses as i
 ## Not currently supported
 
 - recurring or automatic subscription billing, refunds UI, and customer online order payment
-- Platform CRM standalone sales analytics, lead prioritization, and workflow automation; Organizations, Contacts, Leads, Deals/Pipeline, Activities, Tasks, Notes, derived Timeline, Organization 360, Tenant context, custom fields, Tags, saved views, and Segments are available in Phases 1–7.
+- Platform CRM standalone sales analytics; Organizations, Contacts, Leads, Deals/Pipeline, Activities, Tasks, Notes, derived Timeline, Organization 360, Tenant context, custom fields, Tags, saved views, Segments, Lead scoring, and controlled Workflow automation are available in Phases 1–9.
 - customer self-service reservation cancellation
 - physical table/floor assignment and overnight opening-hour ranges
 - an operational custom-domain onboarding/verification workflow
