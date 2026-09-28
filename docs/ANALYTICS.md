@@ -180,3 +180,8 @@ Inventory Phase 9 keeps replenishment gaps, supplier comparison, latest/previous
 ## Platform CRM Analytics boundary
 
 `/admin/analytics` remains Tenant café commerce reporting. Platform CRM Analytics is a separate `/platform/crm/analytics` read workspace over CRM sales histories and explicitly linked Tenant Subscription facts. CRM estimated Deal value is not order revenue or collected payment. Definitions and authorization are documented in [docs/crm/ANALYTICS.md](crm/ANALYTICS.md).
+
+
+## Planned Tenant CRM analytics
+
+Future Tenant CRM customer measures read authoritative tenant-scoped Orders, Reservations, Discounts, and later CRM-owned data. Tenant Analytics already reports delivered-order customer behavior and rankings. Reuse its source semantics and bounded PostgreSQL approach where appropriate; do not duplicate its calculations or claim total customer spend when offline/POS transactions may be missing. Use Known UCafe Spend or Tracked Order Spend for partial totals. See [docs/tenant-crm/ANALYTICS.md](tenant-crm/ANALYTICS.md).

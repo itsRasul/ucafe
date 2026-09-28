@@ -86,3 +86,12 @@ See [docs/crm/README.md](crm/README.md) for the implemented scope and future sou
 
 - There is no confirmed client self-cancellation policy or endpoint for reservations.
 
+## Tenant CRM boundary
+
+- Tenant CRM is operated by tenant Users and manages that café's Clients. User is never a customer identity, and a phone match at another café creates no shared customer record or CRM history.
+- Tenant CRM requests derive the café from trusted tenant context; caller-provided tenant IDs cannot authorize access. Every resource lookup and relationship must be tenant-scoped, with database enforcement for cross-tenant links.
+- Tenant CRM is separate from Platform CRM and does not expose Client-level data to platform CRM. Clients remains the customer identity; Orders, Reservations, Discounts, and Analytics remain owned by their current modules.
+- Tenant CRM routes require the effective tenant_crm plan feature and tenant permission checks on the server. Golden defaults to the feature, but plan keys never determine access. Existing Promotions customer search and manual segments keep their current access rules.
+
+See [docs/tenant-crm/README.md](tenant-crm/README.md). Phase 1 provides read-only list/search/detail; customer creation and edits remain in their existing source flows.
+

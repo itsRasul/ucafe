@@ -67,6 +67,8 @@ The product is aimed at independent cafes that need a professional storefront, e
 
 Platform CRM manages UCafe's commercial relationships with café businesses as internal platform staff functionality, not a Tenant CRM. Phases 1–10 provide Organizations, Contacts, Leads, exact duplicate review, assignment, qualification, status history, safe conversion to Organization + Contact, a single code-defined Deal pipeline, Activities, Tasks/follow-ups, Notes, audit, a derived Timeline, Organization 360, explicit optional Tenant linking, read-only Tenant/Trial/Subscription context, typed custom fields, Tags, saved views, dynamic Segments, explainable Lead scoring, controlled Workflow automation, and derived operational analytics. Accepted public consultation submissions create a linked Lead in the same transaction while preserving the existing request, response, notification, and inbox contracts. Analytics is scoped to Platform CRM and does not merge with café Tenant reports. See [docs/crm/README.md](crm/README.md).
 
+Tenant CRM is a separate Tenant Admin capability for a café to view and search its own Clients. Phase 1 implements a read-only directory at `/admin/crm`, backed by tenant-scoped API routes and the configurable `tenant_crm` subscription feature plus `tenant_crm.read` permission. Client remains the identity; Promotions customer search and manual customer segments retain their current access and ownership. Future Customer 360 and CRM-managed data remain planned. See [docs/tenant-crm/README.md](tenant-crm/README.md).
+
 ## Product constraints
 
 - One shared database and codebase; tenant isolation is mandatory.
@@ -79,7 +81,7 @@ Platform CRM manages UCafe's commercial relationships with café businesses as i
 ## Not currently supported
 
 - recurring or automatic subscription billing, refunds UI, and customer online order payment
-- Platform CRM standalone sales analytics; Organizations, Contacts, Leads, Deals/Pipeline, Activities, Tasks, Notes, derived Timeline, Organization 360, Tenant context, custom fields, Tags, saved views, Segments, Lead scoring, and controlled Workflow automation are available in Phases 1–9.
+- Platform CRM predictive forecasting and a generic BI builder; Organizations, Contacts, Leads, Deals/Pipeline, Activities, Tasks, Notes, derived Timeline, Organization 360, Tenant context, custom fields, Tags, saved views, Segments, Lead scoring, controlled Workflow automation, and operational analytics are available in Phases 1–10.
 - customer self-service reservation cancellation
 - physical table/floor assignment and overnight opening-hour ranges
 - an operational custom-domain onboarding/verification workflow

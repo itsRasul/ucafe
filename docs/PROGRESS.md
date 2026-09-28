@@ -1,6 +1,20 @@
 # Project continuation checkpoint
 
-Last updated: 2026-09-27
+Last updated: 2026-09-28
+
+## UCafe Tenant CRM Phase 1: Client Directory & Identity Resolution
+
+Implemented a read-only Persian RTL directory at `/admin/crm` and scoped list/detail APIs at `/tenant/crm/clients`. Search normalizes Iranian mobile variants for exact tenant phone lookup and otherwise searches names; list rows mask phones. Status filtering, allowlisted sorting, and pagination run in tenant-filtered SQL. Detail lookups scope by Client and café IDs and return 404 for foreign IDs. No CRM or Client table was added, and Client creation/edit/archive/merge remain in their source workflows.
+
+Registered the configurable `tenant_crm` plan feature and Platform Admin editor control, with Golden default-on and other plans default-off when their value was missing. Added `tenant_crm.read` to tenant owner role and exposed effective entitlement in tenant access. Promotions search remains independent. Migration `1790590000000-TenantCrmDirectory` is applied to the development database.
+
+Verification: workspace typecheck passed. `npm test` passed (193 tests: 166 passed, 27 skipped, 0 failed), including CRM PostgreSQL tenant-isolation and plan-feature integration cases against the Compose database. `npm run build` passed for API, web, and worker. The CRM migration is applied to the development database. After restarting the API/web dev services, the API mapped both CRM routes; unauthenticated API access returned 401, and both web routes returned 200 with the directory correctly showing sign-in without a tenant session. Final diff and documentation links reviewed; `git diff --check` passed. No repository lint command exists.
+
+## Tenant CRM Phase 0: architecture and documentation foundation
+
+Completed repository discovery and documented a separate future Tenant CRM bounded context. Client remains the tenant customer identity; User remains the admin/staff actor. Orders, Reservations, Discounts, Analytics, and Platform CRM retain their current ownership. The Phase 1 contract uses the configurable tenant_crm feature, Golden default-on, other plans default-off, and existing Promotions customer search unchanged. Added docs/tenant-crm and updated agent guidance and global product, architecture, subscription, tenant-isolation, business-rule, analytics, and decision references. No application code, routes, permissions, features, schema, or migrations were changed.
+
+Verification: reviewed source, migrations, relevant domain and Platform CRM documentation, Git status, and running Compose services; reviewed links and the full documentation diff. No application tests, typecheck, build, or browser test applies to this documentation-only phase. The repository has no lint command.
 
 ## UCafe Platform CRM Phase 9: Workflow Automation Engine
 

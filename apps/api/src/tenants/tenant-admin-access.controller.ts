@@ -23,6 +23,7 @@ export class TenantAdminAccessController {
       features: {
         inventory: (await this.subscriptions.featureState(tenant.coffeeShopId, SubscriptionFeatures.Inventory)).enabled,
         reservations: (await this.subscriptions.featureState(tenant.coffeeShopId, SubscriptionFeatures.Reservations)).enabled,
+        tenant_crm: (await this.subscriptions.featureState(tenant.coffeeShopId, SubscriptionFeatures.TenantCrm)).enabled,
       },
     };
   }

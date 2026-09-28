@@ -13,6 +13,7 @@ test("plan module updates preserve existing non-module features", () => {
     [SubscriptionFeatures.OnlineOrdering]: false,
     [SubscriptionFeatures.Analytics]: false,
     [SubscriptionFeatures.Inventory]: false,
+    [SubscriptionFeatures.TenantCrm]: false,
   });
 });
 
@@ -23,6 +24,7 @@ test("plan module updates keep existing values when a module is omitted", () => 
     [SubscriptionFeatures.OnlineOrdering]: true,
     [SubscriptionFeatures.Analytics]: false,
     [SubscriptionFeatures.Inventory]: false,
+    [SubscriptionFeatures.TenantCrm]: false,
   });
 });
 
@@ -34,6 +36,7 @@ test("plan edits preserve unknown legacy feature keys", () => {
     onlineOrdering: false,
     analytics: false,
     inventory: false,
+    tenant_crm: false,
   });
 });
 
@@ -42,6 +45,19 @@ test("analytics is edited as a plan feature without replacing other settings", (
   assert.equal(enabled.analytics, true);
   assert.equal(enabled.onlineOrdering, true);
   assert.equal(mergePlanFeatures(enabled, { analytics: false }).analytics, false);
+});
+
+test("tenant CRM defaults off, can be assigned to any plan, and follows the feature value", async () => {
+  assert.equal(mergePlanFeatures({ key: "silver" }).tenant_crm, false);
+  const enabled = mergePlanFeatures({ menu: true }, { tenant_crm: true });
+  assert.equal(enabled.tenant_crm, true);
+  const now = new Date("2026-09-23T00:00:00Z");
+  const plan = { key: "silver", name: "Silver", features: enabled, graceDays: 7 };
+  const subscription = { status: SubscriptionStatus.Active, plan, trialEndsAt: null, currentPeriodEndsAt: new Date("2026-10-01T00:00:00Z"), paidThroughAt: new Date("2026-10-01T00:00:00Z"), graceEndsAt: null };
+  const service = new SubscriptionsService({ getRepository: () => ({ findOne: async () => subscription }) } as never, {} as never);
+  assert.equal((await service.featureState("tenant-a", SubscriptionFeatures.TenantCrm, now)).enabled, true);
+  plan.features.tenant_crm = false;
+  assert.equal((await service.featureState("tenant-a", SubscriptionFeatures.TenantCrm, now)).enabled, false);
 });
 
 test("inventory can be enabled or removed on any plan and does not depend on plan key", async () => {

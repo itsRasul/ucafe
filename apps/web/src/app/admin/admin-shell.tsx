@@ -6,11 +6,12 @@ import { useEffect, useState } from "react";
 import { BrandLogo } from "../brand-logo";
 import { hasAnyPermission, TenantPermission, useAdminSession } from "./admin-session";
 
-const items: Array<{ href: string; label: string; short: string; icon: string; permissions: TenantPermission[]; feature?: "inventory" }> = [
+const items: Array<{ href: string; label: string; short: string; icon: string; permissions: TenantPermission[]; feature?: "inventory" | "tenant_crm" }> = [
   { href: "/admin", label: "نمای کلی", short: "خانه", icon: "dashboard", permissions: ["site.manage", "menu.read", "reservations.read", "subscription.read"] },
   { href: "/admin/site", label: "وب‌سایت", short: "سایت", icon: "site", permissions: ["site.manage"] },
   { href: "/admin/menu", label: "منو", short: "منو", icon: "menu", permissions: ["menu.read", "menu.manage"] },
   { href: "/admin/promotions", label: "تخفیف‌ها", short: "تخفیف", icon: "menu", permissions: ["menu.read", "menu.manage"] },
+  { href: "/admin/crm", label: "CRM مشتریان", short: "مشتری", icon: "crm", permissions: ["tenant_crm.read"], feature: "tenant_crm" },
   { href: "/admin/reservations", label: "رزروها", short: "رزرو", icon: "reservations", permissions: ["reservations.read", "reservations.manage"] },
   { href: "/admin/orders", label: "سفارش‌ها", short: "سفارش", icon: "orders", permissions: ["orders.read", "orders.manage"] },
   { href: "/admin/analytics", label: "آمار و تحلیل", short: "آمار", icon: "analytics", permissions: ["analytics.read"] },
@@ -26,7 +27,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     if (!access.permissions.includes("subscription.read")) return;
     api<{ isRenewalWarning: boolean; status: string; daysUntilPeriodEnd: number | null; plan: { name: string }; pendingChange: { plan: { name: string } } | null }>("/tenant/subscription").then(setSubscription).catch(() => undefined);
   }, [access.permissions, api]);
-  const visible = items.filter((item) => hasAnyPermission(access.permissions, item.permissions) && (!item.feature || access.features?.[item.feature] !== false));
+  const visible = items.filter((item) => hasAnyPermission(access.permissions, item.permissions) && (!item.feature || access.features?.[item.feature] === true));
   const current = visible.find((item) => item.href === "/admin" ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`)) ?? visible[0];
   const isActive = (href: string) => href === "/admin" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
   const warningDot = (href: string) => Boolean(subscription && (subscription.isRenewalWarning || subscription.status === "GRACE" || subscription.status === "SUSPENDED") && href === "/admin/subscription");

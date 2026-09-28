@@ -4,6 +4,7 @@ export const SubscriptionFeatures = {
   OnlineOrdering: "onlineOrdering",
   Analytics: "analytics",
   Inventory: "inventory",
+  TenantCrm: "tenant_crm",
 } as const;
 
 export type SubscriptionFeatureKey = (typeof SubscriptionFeatures)[keyof typeof SubscriptionFeatures];
@@ -16,13 +17,14 @@ export const subscriptionFeatureCatalog = [
   { key: SubscriptionFeatures.OnlineOrdering, label: "سفارش آنلاین", type: "BOOLEAN", order: 30, enforcement: "BOOLEAN_TRUE" },
   { key: SubscriptionFeatures.Analytics, label: "آمار و گزارش‌های مالی", type: "BOOLEAN", order: 40, enforcement: "BOOLEAN_TRUE" },
   { key: SubscriptionFeatures.Inventory, label: "مدیریت موجودی", type: "BOOLEAN", order: 50, enforcement: "BOOLEAN_TRUE" },
+  { key: SubscriptionFeatures.TenantCrm, label: "مدیریت مشتریان", type: "BOOLEAN", order: 60, enforcement: "BOOLEAN_TRUE" },
 ] as const;
 
 export function projectPlanFeatures(features: Record<string, PlanFeatureValue>) {
   return subscriptionFeatureCatalog.map((definition) => ({ ...definition, value: features[definition.key] ?? false }));
 }
 
-export const planModuleFeatures = [SubscriptionFeatures.Menu, SubscriptionFeatures.Reservations, SubscriptionFeatures.OnlineOrdering, SubscriptionFeatures.Analytics, SubscriptionFeatures.Inventory] as const;
+export const planModuleFeatures = [SubscriptionFeatures.Menu, SubscriptionFeatures.Reservations, SubscriptionFeatures.OnlineOrdering, SubscriptionFeatures.Analytics, SubscriptionFeatures.Inventory, SubscriptionFeatures.TenantCrm] as const;
 
 export function mergePlanFeatures(current: Record<string, PlanFeatureValue> | null | undefined, input?: Partial<Record<(typeof planModuleFeatures)[number], boolean>>) {
   return {
@@ -32,5 +34,6 @@ export function mergePlanFeatures(current: Record<string, PlanFeatureValue> | nu
     [SubscriptionFeatures.OnlineOrdering]: input?.onlineOrdering ?? current?.[SubscriptionFeatures.OnlineOrdering] ?? false,
     [SubscriptionFeatures.Analytics]: input?.analytics ?? current?.[SubscriptionFeatures.Analytics] ?? false,
     [SubscriptionFeatures.Inventory]: input?.inventory ?? current?.[SubscriptionFeatures.Inventory] ?? false,
+    [SubscriptionFeatures.TenantCrm]: input?.tenant_crm ?? current?.[SubscriptionFeatures.TenantCrm] ?? false,
   };
 }

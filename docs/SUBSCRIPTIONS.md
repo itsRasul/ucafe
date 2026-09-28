@@ -12,7 +12,7 @@ Migration defaults are Silver 1,900,000 toman and Golden 2,900,000 toman, both w
 
 ## Feature gates
 
-Known plan features are `menu`, `reservations`, `onlineOrdering`, and `analytics`. Their Persian labels, types, order, and enforcement semantics live in one registry. Golden has Analytics on by default, but administrators can edit the flag on any plan. Platform edits preserve unknown legacy JSON keys. A module is enabled only when:
+Current registered plan features are menu, reservations, onlineOrdering, analytics, and inventory. Their Persian labels, types, order, and enforcement semantics live in one registry. Feature values are administrator-editable; defaults do not create plan-name access rules. Platform edits preserve unknown legacy JSON keys. A module is enabled only when:
 
 1. the subscription effective status is `TRIALING`, `ACTIVE`, or `GRACE`; and
 2. the current plan feature value is `true`.
@@ -54,4 +54,8 @@ Lifecycle mutations use one per-cafe PostgreSQL advisory transaction lock. Subsc
 ## Notifications
 
 Owners receive deduplicated reminders three, two, and one day before paid-through, on the last day, at expiration, and three days after expiration, plus successful-payment and failed-verification events. Scheduled delivery rechecks paid-through before sending.
+
+## Tenant CRM entitlement
+
+Phase 1 registers tenant_crm as a boolean feature in the existing catalog and plan-update input; Platform Admin can toggle it for every plan. Tenant Admin access exposes its effective state. CRM APIs enforce it through SubscriptionsService.requireFeature and tenant authorization. Golden defaults enabled; other plans default disabled. Access never depends on plan name. Existing Promotions customer search and manual segments do not require tenant_crm.
 

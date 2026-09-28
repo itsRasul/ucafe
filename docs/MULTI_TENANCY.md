@@ -54,3 +54,5 @@ Metadata is tenant-scoped. Object keys are generated as `tenants/<coffeeShopId>/
 - Test a valid tenant, wrong tenant, missing tenant, and arbitrary resource ID.
 - Keep public errors neutral and avoid leaking whether a resource exists in another tenant.
 
+Tenant CRM uses this existing host-derived tenant context and includes resolved coffeeShopId in each directory query. Its detailed contract is in [docs/tenant-crm/MULTI_TENANCY.md](tenant-crm/MULTI_TENANCY.md); Phase 1 added the read-only directory without Client or CRM tables.
+

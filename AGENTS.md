@@ -22,10 +22,13 @@ Read only the documents relevant to the current change; do not load the entire s
 | Current blockers/debt | `docs/CURRENT_STATE.md` |
 | Historical reasoning | `docs/DECISIONS.md` |
 | Platform CRM foundation | `docs/crm/README.md` and its linked topic documents |
+| Tenant CRM foundation | `docs/tenant-crm/README.md` and its linked topic documents |
 
 For feature work, read `PRD.md`, `BUSINESS_RULES.md`, and the relevant domain/technical document. Inspect the actual implementation, migrations, tests, Git status, and current Docker state before editing. If documentation and code disagree, investigate; code/config/migrations describe implementation while the PRD describes current product intent.
 
-Before changing Platform CRM, read `docs/crm/README.md`, `docs/crm/DOMAIN_MODEL.md`, `docs/crm/LIFECYCLE.md`, `docs/crm/INTEGRATIONS.md`, and `docs/crm/EVENTS.md`, then the CRM topic and existing domain documents relevant to the change. Keep CRM documentation updated in the same change whenever behavior, lifecycle, API contracts, permissions, integrations, or architecture changes. Phase 0 was documentation only; Phase 1 implements Organizations and Contacts. Later CRM phases remain planned work.
+Before changing Platform CRM, read `docs/crm/README.md`, `docs/crm/DOMAIN_MODEL.md`, `docs/crm/LIFECYCLE.md`, `docs/crm/INTEGRATIONS.md`, and `docs/crm/EVENTS.md`, then the CRM topic and existing domain documents relevant to the change. Platform CRM Phases 0–10 are implemented; keep its documentation updated whenever behavior, lifecycle, API contracts, permissions, integrations, or architecture changes.
+
+Before changing Tenant CRM, read docs/tenant-crm/README.md, docs/tenant-crm/DOMAIN_MODEL.md, docs/tenant-crm/MULTI_TENANCY.md, docs/tenant-crm/IDENTITY.md, docs/tenant-crm/INTEGRATIONS.md, and the feature-specific Tenant CRM document. Inspect existing source-of-truth modules before changing cross-domain behavior. Tenant CRM architecture, lifecycle, identity, integration, permission, and tenant-isolation changes must update the relevant Tenant CRM documentation in the same change. Phase 1 implements a read-only Client directory; later phases remain planned.
 
 ## Repository
 

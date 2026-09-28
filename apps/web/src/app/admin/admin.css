@@ -193,6 +193,9 @@
     background: currentColor
 }
 
+.nav-icon-crm::before { width: .42rem; height: .42rem; inset: .08rem .37rem auto auto; border: 1.8px solid currentColor; border-radius: 50%; }
+.nav-icon-crm::after { inset: .62rem .1rem .08rem; border: 1.8px solid currentColor; border-radius: .7rem .7rem .28rem .28rem; }
+
 .nav-icon-reservations::before {
     inset: .13rem;
     border: 1.8px solid currentColor;
@@ -3358,6 +3361,46 @@
 .customer-segment-empty { margin: .5rem 0; }
 .customer-segment-pages { justify-content: center; }
 .customer-segment-form { margin-bottom: 1rem; }
+.tenant-crm { width: min(100%, 68rem); margin-inline: auto; color: #1f2937; }
+.tenant-crm-heading { display: flex; align-items: start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; padding: 1rem 1.1rem; border: 1px solid #e5e7eb; border-radius: .85rem; background: #fff; }
+.tenant-crm-heading h1, .tenant-crm-state h1 { margin: 0; color: #111827; font-size: 1.25rem; }
+.tenant-crm-heading p:not(.eyebrow) { margin: .3rem 0 0; color: #64748b; font-size: .82rem; }
+.tenant-crm-count { padding: .35rem .65rem; border-radius: 99rem; background: #f1f5f9; color: #475569; font-size: .78rem; white-space: nowrap; }
+.tenant-crm-tools { display: grid; grid-template-columns: minmax(12rem, 1fr) repeat(2, minmax(9rem, .45fr)); gap: .7rem; margin-bottom: .8rem; }
+.tenant-crm-tools label { display: grid; gap: .3rem; color: #475569; font-size: .77rem; font-weight: 700; }
+.tenant-crm-tools input, .tenant-crm-tools select { width: 100%; min-width: 0; min-height: 2.7rem; padding: .5rem .65rem; border: 1px solid #d1d5db; border-radius: .6rem; background: #fff; color: #111827; font: inherit; }
+.tenant-crm-list { display: grid; gap: .55rem; margin: 0; padding: 0; list-style: none; }
+.tenant-crm-list li { min-width: 0; }
+.tenant-crm-client { display: grid; grid-template-columns: minmax(0, 1fr) auto auto 1rem; align-items: center; gap: .8rem; padding: .8rem .9rem; border: 1px solid #e5e7eb; border-radius: .7rem; background: #fff; color: inherit; text-decoration: none; transition: border-color .15s ease, background-color .15s ease; }
+.tenant-crm-client:hover { border-color: #94a3b8; background: #f8fafc; }
+.tenant-crm-client-main { display: grid; gap: .22rem; min-width: 0; }
+.tenant-crm-client-main strong { overflow: hidden; color: #111827; text-overflow: ellipsis; white-space: nowrap; }
+.tenant-crm-client-main span { color: #64748b; font-size: .78rem; }
+.tenant-crm-client time { color: #64748b; font-size: .74rem; white-space: nowrap; }
+.tenant-crm-status { display: inline-flex; align-items: center; justify-content: center; padding: .23rem .5rem; border-radius: 99rem; font-size: .7rem; font-weight: 800; white-space: nowrap; }
+.tenant-crm-status.is-active { background: #ecfdf5; color: #047857; }
+.tenant-crm-status.is-blocked { background: #fff1f2; color: #be123c; }
+.tenant-crm-open { color: #64748b; font-size: 1.3rem; }
+.tenant-crm-pagination, .tenant-crm-pagination>div { display: flex; align-items: center; justify-content: space-between; gap: .65rem; }
+.tenant-crm-pagination { margin-top: .8rem; padding: .7rem .85rem; border: 1px solid #e5e7eb; border-radius: .7rem; background: #fff; color: #64748b; font-size: .76rem; }
+.tenant-crm-pagination>div { justify-content: end; }
+.tenant-crm button { min-height: 2.35rem; padding: .4rem .75rem; border: 1px solid #cbd5e1; border-radius: .55rem; background: #fff; color: #334155; font: inherit; cursor: pointer; }
+.tenant-crm button:disabled { opacity: .45; cursor: not-allowed; }
+.tenant-crm a:focus-visible, .tenant-crm button:focus-visible, .tenant-crm input:focus-visible, .tenant-crm select:focus-visible { outline: 3px solid #0284c7; outline-offset: 2px; }
+.tenant-crm-empty, .tenant-crm-message, .tenant-crm-state { padding: 1.5rem; border: 1px solid #e5e7eb; border-radius: .8rem; background: #fff; color: #64748b; text-align: center; }
+.tenant-crm-empty h2 { margin: .5rem 0 .25rem; color: #334155; font-size: 1rem; }
+.tenant-crm-empty p, .tenant-crm-message p, .tenant-crm-state p { margin: .3rem 0; font-size: .82rem; line-height: 1.8; }
+.tenant-crm-empty>span { color: #94a3b8; font-size: 1.8rem; }
+.tenant-crm-state { width: min(100%, 44rem); margin: auto; text-align: right; }
+.tenant-crm-state a, .tenant-crm-back { display: inline-flex; margin-top: .7rem; color: #0369a1; font-size: .82rem; font-weight: 700; text-decoration: none; }
+.tenant-crm-back { margin: 0 0 .8rem; }
+.tenant-crm-loading { margin: .35rem .2rem; color: #64748b; font-size: .75rem; }
+.tenant-crm-detail { padding: 1.1rem; border: 1px solid #e5e7eb; border-radius: .85rem; background: #fff; }
+.tenant-crm-detail>header { padding: 0 0 .9rem; border: 0; border-bottom: 1px solid #e5e7eb; border-radius: 0; }
+.tenant-crm-detail dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; margin: 1rem 0 0; }
+.tenant-crm-detail dl>div { display: grid; gap: .3rem; padding: .7rem; border-radius: .6rem; background: #f8fafc; }
+.tenant-crm-detail dt { color: #64748b; font-size: .74rem; }
+.tenant-crm-detail dd { margin: 0; color: #1f2937; font-size: .85rem; }
 @media (max-width: 48rem) {
   .promotion-list { grid-template-columns: 1fr; }
 }
@@ -3371,6 +3414,14 @@
   .promotion-card .promotion-target-summary { grid-column: auto; }
   .promotion-card-heading { flex-direction: column; }
   .customer-segment-layout { grid-template-columns: 1fr; }
+  .tenant-crm-tools { grid-template-columns: 1fr 1fr; }
+  .tenant-crm-tools label:first-child { grid-column: 1 / -1; }
+  .tenant-crm-client { grid-template-columns: minmax(0, 1fr) auto; gap: .45rem .65rem; }
+  .tenant-crm-client time { grid-column: 1; }
+  .tenant-crm-open { display: none; }
+  .tenant-crm-pagination { align-items: stretch; flex-direction: column; }
+  .tenant-crm-pagination>div { justify-content: space-between; }
+  .tenant-crm-detail dl { grid-template-columns: 1fr; }
   .customer-segment-search { align-items: stretch; flex-direction: column; }
   .customer-segment-members li { align-items: flex-start; flex-direction: column; }
 }
