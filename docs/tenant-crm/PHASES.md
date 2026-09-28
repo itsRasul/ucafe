@@ -7,7 +7,7 @@ Phase numbers sequence work; they do not authorize work beyond the agreed phase.
 | 0 | Architecture, discovery, domain boundaries, and documentation foundation | Complete |
 | 1 | Client directory and identity resolution | Implemented |
 | 2 | Customer 360 and unified customer timeline | Implemented; authenticated visual review pending |
-| 3 | Preferences, notes, tags, custom fields, and reminders | Planned |
+| 3 | Preferences, notes, tags, custom fields, and reminders | Implemented; authenticated visual acceptance pending |
 | 4 | Segmentation and smart groups | Planned |
 | 5 | Loyalty and rewards | Planned |
 | 6 | Feedback and service recovery | Planned |
@@ -29,5 +29,9 @@ Extend the existing Client detail with a read-only Customer 360 projection and o
 The Timeline is reconstructed activity, not a durable lifecycle log: show source creation and at most the current status's latest `status_changed_at`; do not invent earlier transitions. Event keys are globally unique across event kinds, and keyset ordering/predicate use the same strict descending `(occurredAt,eventKey)` tuple. Queries are bounded/aggregated in PostgreSQL. Run EXPLAIN on actual queries before considering indexes. Phase 2 adds no CRM tables, migration, or index.
 
 ## Scope guard
+
+**Phase 3 contract.**
+
+Phase 3 provides explicit CRM preferences, internal notes, manually configured tenant tags, typed custom fields, and manual reminders integrated into Customer 360 and the Timeline projection. It adds owner-granted `tenant_crm.manage`; all reads and writes also retain effective feature gating and tenant scoping. Two forward migrations create CRM-owned tables with tenant-composite foreign keys. Phase 4 Segmentation, automation, client-facing CRM data, reminder delivery, and CRM analytics remain planned. Automated service checks, the PostgreSQL isolation fixture, migration verification, and workspace typecheck pass; the local browser has no tenant-admin session for authenticated visual acceptance.
 
 No loyalty, campaign, consent, automation, custom fields, dynamic segments, customer 360, analytics implementation, search service, broker, separate database, or microservice is part of Phase 0.

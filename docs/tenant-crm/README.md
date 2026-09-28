@@ -1,6 +1,6 @@
 # Tenant CRM
 
-**Status:** Phases 0–2 implemented; authenticated visual acceptance for Phase 2 remains pending because no tenant-admin session is available. Phase 2 composes Customer 360 and a paginated activity view from existing Client, Order, and Reservation rows; it adds no CRM-owned tables.
+**Status:** Phases 0–3 implemented. Phase 3 API, PostgreSQL isolation, and workspace typechecks pass; authenticated browser acceptance remains pending because no tenant-admin session is available.
 
 ## Purpose and boundary
 
@@ -29,6 +29,14 @@ This domain is separate from Platform CRM, which manages UCafe's commercial rela
 - Tenant + Client scope is included in every source branch/query. Timeline uses globally unique event keys and strict descending `(occurredAt,eventKey)` keyset pagination.
 - No new table, migration, or index was justified by `EXPLAIN (ANALYZE, BUFFERS)` on the exact queries at current development fixture volume; revisit with representative production volume.
 
+## Implemented in Phase 3
+
+- Add café-entered preferences, internal Notes, tenant-owned Tags, typed Custom Fields, and manual Reminders around the existing Client identity.
+- Integrate all five into Customer 360. Tags and Custom Fields are managed in `/admin/crm/fields`; reminder views are at `/admin/crm/reminders`.
+- Require `tenant_crm.read`, `tenant_crm.manage` for mutation, and effective `tenant_crm` entitlement. Tenant-composite foreign keys protect Clients, staff actors/assignees, Tags, definitions, and values.
+- Keep Notes internal, store birthdays as month/day, derive overdue state, and project only note/reminder lifecycle facts without note bodies into the query-time Timeline.
+- Store typed custom field values as validated JSONB against relational definitions/options; see ADR-005. No Client columns or Order/Reservation-derived CRM facts were added.
+
 ## Reading order
 
 1. DOMAIN_MODEL.md
@@ -47,16 +55,16 @@ This domain is separate from Platform CRM, which manages UCafe's commercial rela
 | MULTI_TENANCY.md | Tenant resolution, query and relationship isolation |
 | IDENTITY.md | User, Client, normalization, duplicate resolution |
 | INTEGRATIONS.md | Ownership and source-of-truth matrix |
-| PERMISSIONS.md | Future tenant RBAC and entitlement contract |
-| API.md | Implemented directory routes and API contract rules |
-| UX.md | Tenant Admin placement and directory transition |
+| PERMISSIONS.md | Implemented tenant permissions and entitlement contract |
+| API.md | Implemented directory, Customer 360, and Phase 3 routes |
+| UX.md | Tenant Admin CRM screens and interaction rules |
 | EVENTS.md | Existing durable mechanisms and future event candidates |
 | PRIVACY.md | Current facts and future privacy decisions |
 | ANALYTICS.md | Existing reports and future customer measures |
 | TESTING.md | Required isolation and integration coverage |
 | PHASES.md | Incremental roadmap and implemented phase contracts |
-| ADR-001..004 | Accepted Phase 0 architecture decisions |
+| ADR-001..005 | Accepted domain, identity, isolation, entitlement, and custom-field decisions |
 
 ## Current versus proposed
 
-Statements about current behavior reflect code and migrations; later roadmap phases remain planned and are not implied by Phases 0–2.
+Statements about current behavior reflect code and migrations; later roadmap phases remain planned and are not implied by Phases 0–3.

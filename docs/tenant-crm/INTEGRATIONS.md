@@ -38,4 +38,8 @@ OTP sends directly through the configured SMS provider. Transactional notificati
 
 ## Subscription feature contract
 
-Phase 1 registers tenant_crm as a boolean feature in the existing catalog and plan-update input so the current Platform Admin plan editor can change it on any plan. Tenant Admin access exposes its effective state for navigation. Golden defaults on; other plans default off. Both CRM routes use the existing effective subscription resolver. Feature access and tenant RBAC are separate checks. Later subfeatures are not split into flags until packaging needs justify it.
+Phase 1 registers tenant_crm as a boolean feature in the existing catalog and plan-update input so the current Platform Admin plan editor can change it on any plan. Tenant Admin access exposes its effective state for navigation. Golden defaults on; other plans default off. All CRM APIs use the existing effective subscription resolver. Feature access and tenant RBAC are separate checks. Later subfeatures are not split into flags until packaging needs justify it.
+
+**Phase 3 CRM-owned records.**
+
+Phase 3 persists only staff-entered preferences and CRM records. Customer 360's Orders, Reservations, spend, counts, and activity remain query-time projections of their source domains. Notes and CRM fields do not enter client self-service APIs. Reminders are manual records only: there is no scheduler, notification integration, or automated action.

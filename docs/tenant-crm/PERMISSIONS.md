@@ -9,7 +9,7 @@ Tenant authorization is database-backed and resolved from User membership in the
 The forward migration grants `tenant_crm.read` to the existing tenant owner role. Permission keys are globally unique in the current schema, and Platform CRM owns `crm.read` and `crm.manage` at platform scope; those keys are not reused. Custom roles follow current role-permission assignment rules; no role bypass was added.
 
 - tenant_crm.read permits the read-only Client directory, search, and customer detail. Directory list rows mask phone; authorized detail may show the full phone for tenant operations and identity resolution.
-- Phase 1 adds no CRM-managed Client mutation. Existing OTP/client self-service and staff reservation creation remain the update/create paths. Add a tenant CRM mutation permission only when a later phase introduces an actual write workflow.
+- Client identity creation, editing, and authentication remain with their existing source workflows. Phase 3 adds `tenant_crm.manage` only for CRM-owned relationship data; it does not mutate Client identity.
 - CRM APIs require tenant_crm.read and effective tenant_crm entitlement on the server.
 - Promotions customer search retains its existing orders.read requirement; manual customer segment CRUD retains current menu permissions. Neither requires tenant_crm.read nor the tenant_crm feature.
 - Client self-service remains on client-authenticated routes and cannot read internal CRM data.
@@ -21,5 +21,9 @@ The forward migration grants `tenant_crm.read` to the existing tenant owner role
 Directory list rows mask phone; a tenant_crm.read-authorized customer detail shows the full phone, matching the identity-resolution and operational need. Do not assume access to Orders or Reservations implies access to future CRM-only notes, or that CRM read grants source-module access.
 
 ## Future capabilities
+
+**Phase 3 access.**
+
+`tenant_crm.read` plus the effective `tenant_crm` feature gates all Phase 3 reads, including metadata administration and reminder views. `tenant_crm.manage` is additionally required for preference, note, tag, custom-field, assignment, and reminder mutations. The migration grants manage to the tenant owner role; other roles require explicit permission assignment. No CRM metadata is exposed to Clients.
 
 Separate permissions for notes, campaigns, loyalty, and analytics are not introduced in Phase 0. Consider them only when a feature has distinct staff duties and product packaging. Entitlement does not replace authorization, and authorization does not imply that a plan includes CRM.

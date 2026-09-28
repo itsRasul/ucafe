@@ -23,6 +23,10 @@ First/last Order and Reservation summary dates use their source `created_at`; la
 
 ## Future measures
 
+**Phase 3 dimensions.**
+
+Tags, explicit preferences, custom-field values, and reminder status/due time are stored as CRM-owned records and may support a later Segmentation phase. No filtering, segmentation, scoring, cross-client aggregate, or analytics behavior is implemented by Phase 3. Order and Reservation measures continue to come from their source tables.
+
 Possible CRM measures include customer count, repeat behavior, Known UCafe Spend or Tracked Order Spend, completed Orders, completed/no-show Reservations, loyalty, retention, RFM, and campaign performance. Each requires a written definition and authoritative timestamp/source before implementation.
 
 Use Orders for order facts and amounts, Reservations for booking facts, Discounts/redemptions for offer use, and CRM-owned records only for CRM facts. Do not duplicate Analytics calculations or claim total customer spend where coverage is incomplete. Do not expose cross-café benchmarks or aggregate one café's customers into another tenant's view.

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { BrandLogo } from "../brand-logo";
 import { OtpCodeFields } from "../otp-code-fields";
 
-export type TenantPermission = "site.manage" | "menu.read" | "menu.manage" | "reservations.read" | "reservations.manage" | "orders.read" | "orders.manage" | "analytics.read" | "inventory.read" | "inventory.manage" | "tenant_crm.read" | "staff.manage" | "subscription.read" | "subscription.checkout";
+export type TenantPermission = "site.manage" | "menu.read" | "menu.manage" | "reservations.read" | "reservations.manage" | "orders.read" | "orders.manage" | "analytics.read" | "inventory.read" | "inventory.manage" | "tenant_crm.read" | "tenant_crm.manage" | "staff.manage" | "subscription.read" | "subscription.checkout";
 type Access = { tenant: { slug: string; status: string; locale: string; timezone: string }; permissions: TenantPermission[]; features?: { inventory?: boolean; reservations?: boolean; tenant_crm?: boolean } };
 type ApiError = { message?: string | string[]; code?: string; feature?: string };
 type SessionContext = { access: Access; api: <T>(path: string, init?: RequestInit) => Promise<T>; signOut: () => Promise<void> };

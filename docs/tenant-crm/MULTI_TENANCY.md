@@ -30,4 +30,8 @@ Future bulk actions, imports, and exports use the same resolved tenant context a
 
 ## Security test invariant
 
+**Phase 3 integrity.**
+
+Notes, profiles, Client-Tag assignments, Custom Field values, and Reminders carry the tenant key and use composite foreign keys to the matching Client. Tags, field definitions/options, and actor/assignee memberships are tenant-local. Active tag names are unique per tenant, while the same name may exist in multiple tenants. Every service query also scopes reads and writes by the current tenant. Database tests verify same-name tags across tenants and reject cross-tenant Client, Tag, field, and membership references.
+
 For every route or asynchronous operation, fixtures for Tenant A and Tenant B must prove that A cannot list, read, mutate, attach a nested record to, search, aggregate, import, export, or receive B's CRM data. Include random foreign IDs and deliberately mismatched database relationship writes.

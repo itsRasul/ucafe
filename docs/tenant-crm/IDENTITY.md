@@ -20,4 +20,8 @@ No Client merge is included in Phase 1. A later merge needs an explicit operator
 
 ## Actor attribution
 
+**Phase 3 actor and subject.**
+
+Users remain the café operators and Clients remain the CRM subjects. Notes retain creator and last editor; preferences, field values, tags and reminders retain actor references where required by the data model. An optional reminder assignee must be an active User with an active membership in the same café. Customer-facing Client APIs do not expose these records.
+
 For future CRM-owned notes or edits, clientId is the subject and createdByUserId/updatedByUserId is the administrative actor where appropriate. Never use Client as creator or attribute a staff action to the customer's identity.

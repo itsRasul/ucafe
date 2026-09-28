@@ -30,6 +30,7 @@ export const TenantPermissions = {
   InventoryRead: "inventory.read",
   InventoryManage: "inventory.manage",
   TenantCrmRead: "tenant_crm.read",
+  TenantCrmManage: "tenant_crm.manage",
   StaffManage: "staff.manage",
   SubscriptionRead: "subscription.read",
   SubscriptionCheckout: "subscription.checkout",

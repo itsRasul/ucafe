@@ -28,4 +28,16 @@ Customer 360 is query-derived from the tenant-scoped Client, Orders, and Reserva
 
 ## Table naming and ownership
 
+**Phase 3 tables.**
+
+- `tenant_crm_client_notes`: internal body, Client, creator/editor Users and archive timestamps; active Client history is indexed by tenant and creation time.
+- `tenant_crm_client_profiles`: explicit preferred seating, favorite drink, dietary/allergy notes, birthday month/day, and last editor. Birthday stores no year.
+- `tenant_crm_tags` and `tenant_crm_client_tags`: tenant-owned definitions with active tenant-local case-insensitive name uniqueness, soft archive, and idempotent unique assignment.
+- `tenant_crm_custom_field_definitions`, `tenant_crm_custom_field_options`, and `tenant_crm_client_custom_field_values`: stable tenant key/type, stable option UUIDs, and JSONB scalar/array values validated against the definition in the service. Types cannot be changed after creation; definitions/options are deactivated rather than deleted.
+- `tenant_crm_reminders`: Client, title/description, due time, OPEN/COMPLETED/CANCELED status, creator/editor, optional same-tenant assignee, and completion timestamp. Overdue is derived from status and due time.
+
+Composite tenant-plus-ID foreign keys constrain every Client, User membership, Tag, definition, option, and value relationship. Client deletion cascades its CRM profile, notes, assignments, values, and reminders with the existing Client lifecycle. Tenant deletion cascades tenant-owned CRM records. These migrations do not add columns to `clients` or persist Order/Reservation-derived facts.
+
+Required Custom Fields are checked on a Client's custom-field save and are not retroactively enforced by adding empty values to all existing Clients. Inactive definitions and options keep their existing value rows but are omitted from the active Customer 360 editor.
+
 Existing clients, orders, reservations, customer_segments and customer_segment_memberships retain their current names and owners. Future Tenant CRM-specific storage uses tenant_crm_* names and a tenant-crm module namespace. Platform CRM keeps its existing crm_* tables. No renaming of current storage is proposed.

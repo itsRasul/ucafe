@@ -3434,6 +3434,38 @@
 .tenant-crm-timeline li strong { color: #1f2937; font-size: .9rem; line-height: 1.55; }
 .tenant-crm-timeline li span { color: #64748b; font-size: .82rem; line-height: 1.6; }
 .tenant-crm-load-more { width: 100%; min-height: 2.75rem !important; margin-top: .65rem; }
+.tenant-crm-heading-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: .5rem; }
+.tenant-crm-heading-actions>a, .tenant-crm-section button, .tenant-crm-reminder-list button, .tenant-crm-reminder-list a, .tenant-crm-tabs button { min-height: 2.4rem; padding: .45rem .7rem; border: 1px solid #dbe3eb; border-radius: .55rem; background: #fff; color: #075985; font: inherit; font-size: .8rem; font-weight: 700; text-decoration: none; cursor: pointer; }
+.tenant-crm-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; margin-top: .8rem; }
+.tenant-crm-form>label { display: grid; align-content: start; gap: .3rem; color: #475569; font-size: .8rem; font-weight: 700; }
+.tenant-crm-form input:not([type="checkbox"]), .tenant-crm-form select, .tenant-crm-form textarea, .tenant-crm-notes textarea, .tenant-crm-field-list input { width: 100%; min-width: 0; min-height: 2.5rem; padding: .5rem .6rem; border: 1px solid #cbd5e1; border-radius: .55rem; background: #fff; color: #172033; font: inherit; font-size: .85rem; }
+.tenant-crm-form textarea, .tenant-crm-notes textarea { min-height: 5.5rem; resize: vertical; }
+.tenant-crm-form small { color: #64748b; font-size: .72rem; font-weight: 400; }
+.tenant-crm-form>button { justify-self: start; }
+.tenant-crm-check { display: flex !important; align-items: center; gap: .4rem !important; }
+.tenant-crm-tag-form { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; align-items: end; }
+.tenant-crm-tag-form>span { padding-bottom: .65rem; color: #64748b; font-size: .8rem; }
+.tenant-crm-chips { display: flex; flex-wrap: wrap; gap: .45rem; margin: 0; padding: 0; list-style: none; }
+.tenant-crm-chips li { display: inline-flex; align-items: center; gap: .25rem; padding: .2rem .3rem .2rem .65rem; border-radius: 99rem; background: #eff6ff; color: #1e3a5f; font-size: .82rem; }
+.tenant-crm-chips button { min-height: 1.7rem !important; width: 1.7rem; padding: 0 !important; border: 0 !important; border-radius: 50% !important; background: transparent !important; color: #475569 !important; font-size: 1.1rem !important; }
+.tenant-crm-option-list { display: grid; gap: .35rem; padding: .5rem; border: 1px solid #e2e8f0; border-radius: .55rem; }
+.tenant-crm-option-list>span { display: flex; align-items: center; gap: .35rem; font-size: .82rem; font-weight: 400; }
+.tenant-crm-notes, .tenant-crm-field-list, .tenant-crm-reminder-list { display: grid; gap: .55rem; margin: 0; padding: 0; list-style: none; }
+.tenant-crm-notes>li, .tenant-crm-field-list>li, .tenant-crm-reminder-list>li { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: .6rem; padding: .7rem; border: 1px solid #edf1f5; border-radius: .65rem; }
+.tenant-crm-notes>li { display: grid; }
+.tenant-crm-notes p, .tenant-crm-reminder-list p { margin: 0; color: #1f2937; font-size: .86rem; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tenant-crm-notes small, .tenant-crm-reminder-list small, .tenant-crm-reminder-list span { color: #64748b; font-size: .76rem; line-height: 1.65; }
+.tenant-crm-notes>li>div, .tenant-crm-reminder-list>li>div:last-child, .tenant-crm-field-list>li>div { display: flex; align-items: center; flex-wrap: wrap; gap: .35rem; }
+.tenant-crm-field-list>li { align-items: center; }
+.tenant-crm-field-list>li>button:first-child { display: grid; justify-items: start; gap: .2rem; min-height: 0; padding: .15rem; border: 0; background: transparent; color: inherit; text-align: right; }
+.tenant-crm-field-list>li>button:first-child span, .tenant-crm-field-list>li>span { color: #64748b; font-size: .75rem; }
+.tenant-crm-section fieldset { display: grid; gap: .5rem; border: 1px solid #dbe3eb; border-radius: .6rem; }
+.tenant-crm-section legend { color: #475569; font-size: .8rem; font-weight: 700; }
+.tenant-crm-tabs { display: flex; gap: .4rem; overflow-x: auto; margin: 0 0 .75rem; padding-bottom: .2rem; }
+.tenant-crm-tabs button[aria-pressed="true"] { border-color: #0369a1; background: #eff6ff; color: #075985; }
+.tenant-crm-reminder-list>li>div:first-child { display: grid; gap: .2rem; }
+.tenant-crm-reminder-list>li>div:first-child strong { color: #1f2937; }
+.tenant-crm-success { padding: .6rem .75rem; border-radius: .55rem; background: #ecfdf5; color: #047857; font-size: .82rem; }
 @media (max-width: 48rem) {
   .promotion-list { grid-template-columns: 1fr; }
   .tenant-crm-identity { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -3460,6 +3492,9 @@
   .tenant-crm-detail dl { grid-template-columns: 1fr; }
   .tenant-crm-section { padding: .85rem; }
   .tenant-crm-section-heading { flex-direction: column; }
+  .tenant-crm-form, .tenant-crm-tag-form { grid-template-columns: 1fr; }
+  .tenant-crm-tag-form>span { padding: 0; }
+  .tenant-crm-heading-actions { justify-content: flex-start; }
   .tenant-crm-activity-list li { align-items: flex-start; }
   .tenant-crm-activity-list li>div:last-child { align-items: flex-end; }
   .tenant-crm-inline-error { align-items: flex-start; flex-direction: column; }

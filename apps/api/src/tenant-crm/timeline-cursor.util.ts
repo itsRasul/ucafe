@@ -2,7 +2,7 @@ import { BadRequestException } from "@nestjs/common";
 
 export type TimelineCursor = { occurredAt: string; eventKey: string };
 
-const cursorEventKey = /^(CLIENT|ORDER|RESERVATION):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:(CREATED|STATUS:[A-Z_]+)$/;
+const cursorEventKey = /^(CLIENT|ORDER|RESERVATION|NOTE|REMINDER):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:(CREATED|COMPLETED|STATUS:[A-Z_]+)$/;
 
 export function encodeTimelineCursor(cursor: TimelineCursor) {
   return Buffer.from(JSON.stringify(cursor)).toString("base64url");

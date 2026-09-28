@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { formatJalaliDate } from "../../jalali-date";
 import { TenantPermission, useAdminSession } from "../admin-session";
+import { TenantCrmRelationshipPanel } from "./relationship-data";
 
 type Order = { id: string; displayNumber: string; status: string; totalAmountToman: string; deliveryMethod: string; createdAt: string; statusChangedAt: string | null };
 type Reservation = { id: string; status: string; reservationDate: string; startTime: string; partySize: number; createdAt: string; statusChangedAt: string | null };
@@ -17,7 +18,7 @@ type ClientDetailRecord = {
   };
   recentOrders: Order[]; recentReservations: Reservation[];
 };
-type TimelineItem = { eventKey: string; type: string; occurredAt: string; sourceType: "CLIENT" | "ORDER" | "RESERVATION"; sourceId: string; metadata: Record<string, string | number> };
+type TimelineItem = { eventKey: string; type: string; occurredAt: string; sourceType: "CLIENT" | "ORDER" | "RESERVATION" | "NOTE" | "REMINDER"; sourceId: string; metadata: Record<string, string | number> };
 type TimelinePage = { items: TimelineItem[]; nextCursor: string | null };
 
 const numbers = new Intl.NumberFormat("fa-IR");
@@ -35,6 +36,9 @@ function dateTime(value: string, timeZone: string) {
 function timelineTitle(item: TimelineItem) {
   const number = item.sourceType === "ORDER" ? `#${item.sourceId.slice(0, 8).toUpperCase()}` : "";
   if (item.type === "CLIENT_CREATED") return "ثبت‌نام مشتری";
+  if (item.type === "NOTE_CREATED") return "یادداشت داخلی ثبت شد";
+  if (item.type === "REMINDER_CREATED") return "یادآوری ثبت شد";
+  if (item.type === "REMINDER_COMPLETED") return "یادآوری انجام شد";
   if (item.type === "ORDER_CREATED") return `سفارش ${number} ثبت شد`;
   if (item.sourceType === "ORDER") {
     const status = String(item.metadata.status ?? "");
@@ -128,6 +132,8 @@ export function ClientDetail() {
             <p className="tenant-crm-subsummary">از {numbers.format(client.summary.orders.trackedCount)} سفارش ثبت‌شده، {numbers.format(client.summary.orders.canceledCount)} لغو شده است. رزروها: {numbers.format(client.summary.reservations.completedCount)} انجام‌شده، {numbers.format(client.summary.reservations.canceledCount)} لغو‌شده و {numbers.format(client.summary.reservations.rejectedCount)} ردشده.</p>
             <p className="tenant-crm-subsummary">سفارش‌ها: اولین {client.summary.orders.firstOrderAt ? dateTime(client.summary.orders.firstOrderAt, access.tenant.timezone) : "ثبت نشده"} · آخرین {client.summary.orders.lastOrderAt ? dateTime(client.summary.orders.lastOrderAt, access.tenant.timezone) : "ثبت نشده"}. رزروها: اولین {client.summary.reservations.firstReservationAt ? dateTime(client.summary.reservations.firstReservationAt, access.tenant.timezone) : "ثبت نشده"} · آخرین {client.summary.reservations.lastReservationAt ? dateTime(client.summary.reservations.lastReservationAt, access.tenant.timezone) : "ثبت نشده"}.</p>
           </section>
+
+          <TenantCrmRelationshipPanel clientId={client.id} api={api} timeZone={access.tenant.timezone} canManage={access.permissions.includes("tenant_crm.manage" as TenantPermission)} />
 
           <section className="tenant-crm-section" aria-labelledby="tenant-crm-orders-title">
             <div className="tenant-crm-section-heading"><h2 id="tenant-crm-orders-title">سفارش‌های اخیر</h2>{canReadOrders && <Link href="/admin/orders">رفتن به سفارش‌ها</Link>}</div>

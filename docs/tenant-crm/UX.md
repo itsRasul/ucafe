@@ -14,6 +14,10 @@ The CRM sidebar/bottom-navigation entry is shown only when the user has `tenant_
 
 ## Directory expectations
 
+**Phase 3 Customer 360.**
+
+Customer 360 adds independent sections for explicit preferences, tags, custom fields, internal notes, and reminders. Operators with `tenant_crm.manage` can edit; read-only users see data without mutation controls. Notes have bounded pagination and edit/archive actions. Reminder date entry uses the device's local datetime control and display/filtering uses the café time zone. Tenant-wide reminders provide Today, Overdue, Upcoming, Completed, Canceled, and All views; custom fields and tenant tags are managed from the CRM admin screen. Empty, loading, error, and success states are shown in the Persian RTL layout.
+
 Use the existing admin shell and Persian RTL, mobile-first, keyboard-accessible patterns. Search is debounced and pagination, status filter, and allowlisted sorting are server-side. Mask phone in list rows and show it only on tenant-authorized Client detail. The read-only Customer 360 detail keeps the existing identity header and adds a compact summary, bounded Recent Orders and Recent Reservations, and a separately paginated Timeline with retry/load-more behavior. Clearly label Known UCafe Spend as delivered UCafe payable value, not confirmed cash or all-café spending. Explain that Timeline reconstructs creation/latest-status facts and cannot show earlier transitions. Empty and error states are independent for overview and Timeline; the view remains responsive and source-module links appear only with the matching read permission (no dedicated Order/Reservation detail deep link currently exists). Loading, focus, and narrow-width states follow existing admin conventions.
 
 Future customer 360, timeline, notes, smart groups, loyalty, feedback, offers, campaigns, and automation belong under this CRM surface by phase, without duplicate Clients, Promotions, or Analytics ownership.

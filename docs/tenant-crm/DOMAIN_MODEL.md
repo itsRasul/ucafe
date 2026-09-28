@@ -12,7 +12,7 @@ Tenant CRM models one café's ongoing relationship with its own Clients. It is a
 
 ## Conceptual model
 
-Client is the central identity. Phase 2 composes a Customer 360 read view from Client, Orders, and Reservations; conceptually Orders and Reservations refer to Client, while Tenant CRM reads those relationships in the other direction. They are linked source records, not CRM-owned children. Customer 360 is not an entity or source of truth. Future CRM-owned records may reference (coffee_shop_id, client_id), and actor fields reference User where needed. Preferences, notes, tags, custom fields, reminders, loyalty, feedback, campaigns, and automation are future concepts only; add each only in its roadmap phase and after defining ownership, privacy, and tenant integrity.
+Client is the central identity. Customer 360 composes a read view from Client, Orders, and Reservations; conceptually Orders and Reservations refer to Client, while Tenant CRM reads those relationships in the other direction. They are linked source records, not CRM-owned children. Customer 360 is not an entity or source of truth. Phase 3 adds café-entered preferences, internal notes, tags, custom fields, and reminders as CRM-owned records referencing `(coffee_shop_id, client_id)`; actor fields reference tenant User membership where required. Loyalty, feedback, campaigns, and automation remain future concepts.
 
 Do not create Customer, Guest, CustomerProfile, TenantCustomerProfile, GlobalCustomer, or equivalent aliases. A supplemental profile is not justified for Phase 1. If a later field cannot appropriately live on Client, store it in a narrowly scoped tenant CRM table.
 
@@ -29,5 +29,9 @@ Phase 1 is a read-only paginated directory over current Clients, with normalized
 There is no Client archive/delete route or deleted_at field today; soft deletion applies to Client addresses and customer segments. Hard delete is constrained by Orders and Reservations, which RESTRICT deleting a referenced Client. CRM must not invent archive, anonymization, or retention semantics; a future privacy workflow must coordinate with those source owners.
 
 ## Platform CRM separation
+
+**Phase 3 relationship data.**
+
+`Client` remains the customer identity. Tenant CRM adds a profile row for manually entered preferences, internal Notes, tenant-owned Tags and Client assignments, tenant-owned Custom Field definitions and typed values, and Reminders. These are café-entered relationship facts; they do not replace or cache Order and Reservation facts. No Platform CRM domain or persistence is shared.
 
 Do not reuse Platform CRM Organization, Contact, Lead, Deal, Activity, Task, Note, Tag, Segment, scoring, filter, automation, or analytics business objects. Generic pagination, phone normalization, plan feature entitlement, DTO validation, and domain-neutral UI primitives may be reused after confirming their contracts fit.

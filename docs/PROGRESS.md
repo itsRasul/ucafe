@@ -2,6 +2,16 @@
 
 Last updated: 2026-09-28
 
+## UCafe Tenant CRM Phase 3: Preferences, Notes, Tags, Custom Fields & Reminders
+
+Implemented café-entered preferences, private staff Notes, tenant-owned Tags and client assignments, typed Custom Fields, and manual Reminders on top of the existing Client identity. Customer 360 now contains all five features; tenant Tags and Custom Fields have a manager page at `/admin/crm/fields`, and Reminders have tenant-wide status views at `/admin/crm/reminders`. Notes and Reminders add selected lifecycle facts to the reconstructed Timeline without note bodies. Overdue state is derived, birthdays store month/day only, and optional reminder assignees are active members of the current tenant.
+
+Added owner-granted `tenant_crm.manage`; all reads and writes retain the CRM entitlement and tenant scope. Migrations `1790600000000-TenantCrmNotes` and `1790610000000-TenantCrmRelationshipData` add CRM-owned storage with tenant-composite foreign keys for Clients, actors, assignees, Tags, fields, and options. Custom Field values are type-checked JSONB against relational definitions/options; Client columns and Order/Reservation semantics remain unchanged. See [docs/tenant-crm/README.md](tenant-crm/README.md) and ADR-005.
+
+Final review fixed the Customer 360 reminder list to use the existing tenant-scoped `/reminders?clientId=...` route. Empty optional Custom Field inputs now clear as `null`; required multi-select fields reject empty selections.
+
+Verification: workspace typecheck and production build passed for API, web, and worker. The full API suite passed (207 tests: 176 passed, 31 environment/database-gated skips, 0 failed); the Tenant CRM PostgreSQL suite passed 20/20, including cross-tenant foreign-key rejection, CRUD, Timeline, and idempotent Tag assignment. `migration:show` confirms all 62 available migrations, including both Phase 3 migrations, are applied. `git diff --check` passed. The local client detail route returns 200; the authenticated proxy request cannot be exercised without a session, while the unauthenticated route correctly returns 401 rather than 404. No frontend E2E suite or lint command exists.
+
 ## UCafe Tenant CRM Phase 2: Customer 360 & Unified Customer Timeline
 
 Implemented the Client detail Customer 360 as a query-time composition of Client, Orders, and Reservations, with tracked/delivered/canceled order measures, delivered-only Known UCafe Spend and AOV, reservation outcome counts, exact first/last timestamps, five-row recent source previews, and a keyset-paginated Timeline. `DELIVERED` is confirmed in the Orders enum/status utility as the canonical successful terminal state. CRM reads the existing `total_amount_toman` amount due after stored discounts for offline Orders; this is not verified cash, and CRM does not redefine Order financial semantics. `lastInteractionAt` uses the latest Order/Reservation creation or currently stored latest status transition, falling back to `Client.created_at`, never `Client.updated_at`.
