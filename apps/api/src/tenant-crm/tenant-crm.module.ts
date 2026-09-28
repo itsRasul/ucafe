@@ -7,10 +7,12 @@ import { TenantPermissionGuard } from "../authorization/tenant-permission.guard"
 import { TenantCrmController } from "./tenant-crm.controller";
 import { TenantCrmService } from "./tenant-crm.service";
 import { TenantCrmResourcesController } from "./tenant-crm-resources.controller";
+import { TenantCrmSegmentsController } from "./tenant-crm-segments.controller";
+import { TenantCrmSegmentsService } from "./tenant-crm-segments.service";
 
 @Module({
   imports: [AuthModule, AuthorizationModule, SubscriptionsModule],
-  controllers: [TenantCrmController, TenantCrmResourcesController],
-  providers: [TenantContextGuard, TenantPermissionGuard, TenantCrmService],
+  controllers: [TenantCrmController, TenantCrmResourcesController, TenantCrmSegmentsController],
+  providers: [TenantContextGuard, TenantPermissionGuard, TenantCrmService, TenantCrmSegmentsService],
 })
 export class TenantCrmModule {}

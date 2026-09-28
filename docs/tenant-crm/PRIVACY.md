@@ -22,3 +22,7 @@ Client addresses are soft deleted. Current Orders and Reservations restrict dele
 CRM records are private to the owning café and authorized tenant users. Notes are internal and excluded from Client APIs and Timeline bodies. Dietary and allergy notes are free-form staff-entered operational context; UCafe does not infer or interpret medical information from Orders. Birthday stores month/day only. Custom field values and reminders are not shared with Platform CRM. Existing Client deletion cascades its CRM-owned records. Reminder assignees and note authors are projected with masked labels, not full phone numbers.
 
 Retention periods, deletion rights, consent wording/evidence, sensitive-field policy, and export format have not been established here. Record a decision with the product/legal owner before implementing the related behavior. This document does not invent legal policy.
+
+## Phase 4 Segments
+
+Saved criteria and current membership are internal data scoped to one café and readable only through authorized tenant CRM APIs. Client-facing routes and Platform CRM do not expose them. Filterable fields are an allowlist; phone supports only a non-empty boolean check, while member/sample projections mask the phone. No automatic sensitive profiling, scoring, cross-café aggregation, marketing consent, or delivery is derived from Segment membership. Membership is query-time only, so there is no historical entry/exit record or stored client-ID audience.

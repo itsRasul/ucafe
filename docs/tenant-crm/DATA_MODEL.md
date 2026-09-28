@@ -41,3 +41,14 @@ Composite tenant-plus-ID foreign keys constrain every Client, User membership, T
 Required Custom Fields are checked on a Client's custom-field save and are not retroactively enforced by adding empty values to all existing Clients. Inactive definitions and options keep their existing value rows but are omitted from the active Customer 360 editor.
 
 Existing clients, orders, reservations, customer_segments and customer_segment_memberships retain their current names and owners. Future Tenant CRM-specific storage uses tenant_crm_* names and a tenant-crm module namespace. Platform CRM keeps its existing crm_* tables. No renaming of current storage is proposed.
+
+## Phase 4 Segment persistence
+
+Migration 1790620000000-TenantCrmSegments adds tenant_crm_segments with:
+
+- UUID ID and coffee_shop_id, with tenant cascade and a unique (coffee_shop_id,id) relationship key.
+- A trimmed 1–120 character name, optional description up to 500 characters, and JSONB criteria object.
+- is_active, created_by_user_id, created_at, and updated_at. The creator references a membership in the same café.
+- A case-insensitive unique index on (coffee_shop_id,lower(name)) and a tenant/update-time listing index.
+
+The JSONB column stores the validated, versioned criteria AST; source rows remain authoritative and the service validates the AST again before executing it. There is no Segment-member or cached-count table. Existing Customer 360 profile, Tag, Custom Field, Order, and Reservation rows are queried live. The Phase 4 migration adds no source aggregate index because representative PostgreSQL plan review was unavailable during implementation.

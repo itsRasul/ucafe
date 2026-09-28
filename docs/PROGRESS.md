@@ -1,6 +1,16 @@
 # Project continuation checkpoint
 
-Last updated: 2026-09-28
+Last updated: 2026-09-29
+
+## UCafe Tenant CRM Phase 4: Dynamic Segmentation & Smart Groups
+
+Implemented tenant-owned criteria-only Segments, one typed bounded compiler for draft/saved/Smart Group evaluation, tenant-scoped field metadata, nested AND/OR conditions, server-side preview and paginated current membership, and Persian RTL builder and Smart Group pages. The allowlisted fields cover Client name/status/phone presence/creation, explicit profile preferences, active Tags, typed Custom Fields, current Order measures, and current Reservation measures. Known Spend and delivered AOV retain Customer 360's delivered-only semantics. Phone values remain masked in preview/member results.
+
+Migration 1790620000000-TenantCrmSegments adds a criteria JSONB table with case-insensitive tenant-local names, a same-tenant creator membership constraint, and a tenant listing index. No member table, member snapshot, historical transition, synchronization job, Campaign, Loyalty, scoring, Automation, or Analytics behavior was added. Platform CRM Segments and Promotions manual groups remain separate. See docs/tenant-crm/SEGMENTATION.md, ADR-006, and D-088.
+
+Review corrected an initial AOV compiler expression so non-delivered amounts cannot enter its numerator, and added phone-presence-only filtering without exposing phone values. Smart Group definitions and their thresholds are explicit; the no-delivered-orders preset does not imply a Client has never placed a non-delivered Order.
+
+Verification: API and web typechecks passed. The final focused Segment API suite passed 11 tests, with one PostgreSQL integration case skipped because TENANT_CRM_INTEGRATION_DATABASE_URL is unset. The root API suite passed 218 tests (186 passed, 32 database/environment-gated skips, 0 failed), and the production build passed for API, web, and worker; a fresh API build also passed after the final compiler changes. Docker Desktop's engine is unavailable and migration:show cannot connect to localhost PostgreSQL, so migration application and live query-plan inspection could not be verified. Authenticated visual acceptance remains pending because no tenant-admin session is available.
 
 ## UCafe Tenant CRM Phase 3: Preferences, Notes, Tags, Custom Fields & Reminders
 

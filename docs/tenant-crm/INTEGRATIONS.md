@@ -43,3 +43,9 @@ Phase 1 registers tenant_crm as a boolean feature in the existing catalog and pl
 **Phase 3 CRM-owned records.**
 
 Phase 3 persists only staff-entered preferences and CRM records. Customer 360's Orders, Reservations, spend, counts, and activity remain query-time projections of their source domains. Notes and CRM fields do not enter client self-service APIs. Reminders are manual records only: there is no scheduler, notification integration, or automated action.
+
+## Phase 4 Segmentation reads
+
+Segments read current tenant Clients, the CRM profile's explicit seating/drink/birthday preferences, active tenant Tags and assignments, active typed Custom Field definitions/options/values, current Orders, and current Reservations. Each source module remains authoritative; Segmentation writes no source-domain data. Order and Reservation aggregates reuse Phase 2's current-state definitions, including delivered-only Known UCafe Spend and explicit NO_SHOW status.
+
+Smart Groups are fixed criteria presets over those same sources and use the Segment compiler. Segment membership is not integrated with Promotions' manual customer groups, and Promotions authorization/entitlement is unchanged. Segment criteria and membership are never sent to Client self-service, Platform CRM, notification providers, or background jobs. Future Campaign integration is deferred until a separate contract covers consent, eligibility, membership snapshots, and delivery.

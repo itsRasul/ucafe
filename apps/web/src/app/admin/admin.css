@@ -3501,3 +3501,66 @@
   .customer-segment-search { align-items: stretch; flex-direction: column; }
   .customer-segment-members li { align-items: flex-start; flex-direction: column; }
 }
+
+.tenant-crm-segment-workspace { display: grid; gap: .85rem; }
+.tenant-crm-segment-workspace .tenant-crm-section { display: grid; gap: .75rem; }
+.tenant-crm-segment-form { display: grid; gap: .8rem; }
+.tenant-crm-control { display: grid; min-width: 0; gap: .3rem; color: #475569; font-size: .82rem; font-weight: 700; }
+.tenant-crm-segment-form input, .tenant-crm-segment-form select, .tenant-crm-criteria select, .tenant-crm-criteria input {
+  width: 100%; min-width: 0; min-height: 2.75rem; padding: .5rem .65rem; border: 1px solid #cbd5e1; border-radius: .55rem;
+  background: #fff; color: #172033; font: inherit; font-size: .85rem;
+}
+.tenant-crm-segment-form input:focus-visible, .tenant-crm-segment-form select:focus-visible, .tenant-crm-criteria input:focus-visible,
+.tenant-crm-criteria select:focus-visible, .tenant-crm-segment-workspace button:focus-visible, .tenant-crm-segment-workspace a:focus-visible {
+  outline: 3px solid rgb(3 105 161/28%); outline-offset: 2px;
+}
+.tenant-crm-segment-form>label { max-width: 42rem; }
+.tenant-crm-criteria { display: grid; gap: .65rem; }
+.tenant-crm-criteria-group { display: grid; min-width: 0; gap: .65rem; margin: 0; padding: .75rem; border: 1px solid #dbe3eb; border-radius: .7rem; }
+.tenant-crm-criteria-group legend { padding: 0 .25rem; color: #334155; font-size: .84rem; font-weight: 800; }
+.tenant-crm-criteria-children { display: grid; gap: .55rem; min-width: 0; }
+.tenant-crm-criteria-rule { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.2fr) auto; align-items: end; gap: .55rem; min-width: 0; padding: .65rem; border: 1px solid #edf1f5; border-radius: .6rem; background: #fafbfc; }
+.tenant-crm-criteria-actions, .tenant-crm-segment-actions { display: flex; flex-wrap: wrap; gap: .45rem; }
+.tenant-crm-segment-actions { align-items: center; justify-content: flex-end; }
+.tenant-crm-segment-workspace .tenant-crm-criteria-actions button, .tenant-crm-segment-workspace .tenant-crm-segment-actions button,
+.tenant-crm-segment-workspace .tenant-crm-section-heading button {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 2.75rem; padding: .45rem .7rem;
+  border: 1px solid #dbe3eb; border-radius: .55rem; background: #fff; color: #075985; font: inherit; font-size: .8rem;
+  font-weight: 700; text-decoration: none; cursor: pointer;
+}
+.tenant-crm-segment-workspace button:disabled { opacity: .55; cursor: not-allowed; }
+.tenant-crm-remove-rule { min-height: 2.75rem; padding: .45rem .65rem; border: 1px solid #fecaca; border-radius: .55rem; background: #fff7f7; color: #b91c1c; font: inherit; cursor: pointer; }
+.tenant-crm-condition-value { min-width: 0; }
+.tenant-crm-condition-value>span { display: grid; }
+.tenant-crm-segment-range { display: grid !important; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: .35rem; }
+.tenant-crm-segment-relative { display: grid !important; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .4rem; }
+.tenant-crm-criteria select[multiple] { min-height: 5rem; }
+.tenant-crm-segment-preview { display: grid; gap: .5rem; padding: .75rem; border: 1px solid #dbeafe; border-radius: .65rem; background: #f8fbff; color: #334155; }
+.tenant-crm-segment-preview>strong { color: #075985; }
+.tenant-crm-segment-preview ul, .tenant-crm-segment-list, .tenant-crm-smart-list, .tenant-crm-segment-client-list { display: grid; gap: .5rem; margin: 0; padding: 0; list-style: none; }
+.tenant-crm-segment-preview li, .tenant-crm-segment-list>li, .tenant-crm-smart-list>li, .tenant-crm-segment-client-list>li {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .65rem; min-width: 0;
+  padding: .75rem; border: 1px solid #edf1f5; border-radius: .65rem; background: #fff;
+}
+.tenant-crm-segment-preview li>span:last-child { color: #64748b; font-variant-numeric: tabular-nums; }
+.tenant-crm-segment-info { display: grid; min-width: 0; gap: .2rem; }
+.tenant-crm-segment-info strong, .tenant-crm-smart-list strong { color: #1f2937; }
+.tenant-crm-segment-info p, .tenant-crm-smart-list p { margin: 0; color: #64748b; font-size: .8rem; line-height: 1.7; }
+.tenant-crm-segment-info small { color: #64748b; font-size: .74rem; }
+.tenant-crm-segment-client-list a { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .2rem .8rem; color: inherit; text-decoration: none; }
+.tenant-crm-segment-client-list strong { color: #1f2937; }
+.tenant-crm-segment-client-list span, .tenant-crm-segment-client-list small { color: #64748b; font-size: .78rem; }
+.tenant-crm-segment-client-list small { grid-column: 1 / -1; }
+.tenant-crm-segment-workspace .tenant-crm-pagination { margin-top: .25rem; }
+@media (max-width: 48rem) {
+  .tenant-crm-criteria-rule { grid-template-columns: 1fr 1fr; }
+  .tenant-crm-criteria-rule .tenant-crm-condition-value { grid-column: 1 / -1; }
+}
+@media (max-width: 36rem) {
+  .tenant-crm-criteria-rule { grid-template-columns: 1fr; }
+  .tenant-crm-criteria-rule .tenant-crm-condition-value { grid-column: auto; }
+  .tenant-crm-segment-list>li, .tenant-crm-smart-list>li { align-items: stretch; flex-direction: column; }
+  .tenant-crm-segment-actions { justify-content: flex-start; }
+  .tenant-crm-segment-actions>* { flex: 1 1 auto; }
+  .tenant-crm-segment-client-list a { grid-template-columns: 1fr; }
+}

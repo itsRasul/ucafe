@@ -1,6 +1,6 @@
 # Tenant CRM
 
-**Status:** Phases 0–3 implemented. Phase 3 API, PostgreSQL isolation, and workspace typechecks pass; authenticated browser acceptance remains pending because no tenant-admin session is available.
+**Status:** Phases 0–4 implemented in code. Phase 4 API/UI typechecks and focused API tests pass; its PostgreSQL integration and authenticated visual acceptance remain pending because the integration database, Docker engine, and tenant-admin session are unavailable.
 
 ## Purpose and boundary
 
@@ -37,6 +37,15 @@ This domain is separate from Platform CRM, which manages UCafe's commercial rela
 - Keep Notes internal, store birthdays as month/day, derive overdue state, and project only note/reminder lifecycle facts without note bodies into the query-time Timeline.
 - Store typed custom field values as validated JSONB against relational definitions/options; see ADR-005. No Client columns or Order/Reservation-derived CRM facts were added.
 
+## Implemented in Phase 4
+
+- Add tenant-owned dynamic Segments and deterministic Smart Groups using one typed, bounded criteria compiler. Membership is evaluated from current Client, CRM, Order, and Reservation data; it is not copied or synchronized.
+- Provide Tenant Admin pages at /admin/crm/segments and /admin/crm/smart-groups, with metadata-driven criteria editing, preview, and paginated member views.
+- Keep current memberships query-derived and historical entry/exit history unavailable. Promotions manual groups and Platform CRM Segments remain separate.
+- Require tenant_crm.read and effective tenant_crm for reads; create/update/status changes require tenant_crm.manage. See SEGMENTATION.md for fields, exact metric definitions, preset criteria, operators, bounds, APIs, and query shape.
+- Migration 1790620000000-TenantCrmSegments persists criteria only; no Segment-member table or synchronization job exists.
+- API/web workspace typechecks and focused Segment service tests passed. The optional PostgreSQL integration test was skipped because its URL is unset; authenticated UI acceptance is pending.
+
 ## Reading order
 
 1. DOMAIN_MODEL.md
@@ -56,15 +65,16 @@ This domain is separate from Platform CRM, which manages UCafe's commercial rela
 | IDENTITY.md | User, Client, normalization, duplicate resolution |
 | INTEGRATIONS.md | Ownership and source-of-truth matrix |
 | PERMISSIONS.md | Implemented tenant permissions and entitlement contract |
-| API.md | Implemented directory, Customer 360, and Phase 3 routes |
+| API.md | Implemented directory, Customer 360, and Phase 3–4 routes |
 | UX.md | Tenant Admin CRM screens and interaction rules |
 | EVENTS.md | Existing durable mechanisms and future event candidates |
 | PRIVACY.md | Current facts and future privacy decisions |
 | ANALYTICS.md | Existing reports and future customer measures |
+| SEGMENTATION.md | Authoritative Phase 4 Segment, field, operator, and Smart Group semantics |
 | TESTING.md | Required isolation and integration coverage |
 | PHASES.md | Incremental roadmap and implemented phase contracts |
-| ADR-001..005 | Accepted domain, identity, isolation, entitlement, and custom-field decisions |
+| ADR-001..006 | Accepted domain, identity, isolation, entitlement, custom-field, and segmentation decisions |
 
 ## Current versus proposed
 
-Statements about current behavior reflect code and migrations; later roadmap phases remain planned and are not implied by Phases 0–3.
+Statements about current behavior reflect code and migrations; later roadmap phases remain planned and are not implied by Phases 0–4.

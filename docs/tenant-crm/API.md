@@ -48,3 +48,25 @@ Client and resource IDs are tenant-scoped. Foreign or archived resources are not
 - DTO validation rejects unsupported status/sort values and invalid UUIDs. Feature denial uses `FEATURE_UNAVAILABLE`; permission denial follows tenant authorization; foreign/missing detail uses 404.
 
 Phase 3 adds `NOTE_CREATED`, `REMINDER_CREATED`, and `REMINDER_COMPLETED` projection items to the Timeline. Notes never contribute their body or other free text to Timeline metadata.
+
+## Phase 4 Segmentation routes
+
+All routes below require tenant_crm.read and effective tenant_crm entitlement. Create/update require tenant_crm.manage. Tenant scope is host/context-derived, never supplied by a request field.
+
+| Route | Contract |
+| --- | --- |
+| GET /tenant/crm/segments/fields | Active allowlisted field metadata and active same-tenant Tag/Custom Field options. |
+| GET /tenant/crm/segments?page=1&pageSize=25&q= | Paged case-insensitive substring search over saved Segment names; returns criteria plus criteriaValid and, when needed, criteriaIssue. |
+| POST /tenant/crm/segments/preview | Body is {criteria}; validates and evaluates unsaved criteria; returns matchingClients and up to five masked Client samples. |
+| POST /tenant/crm/segments | Body has name, optional description, and criteria; returns the created tenant-owned Segment. A case-insensitive name conflict returns 409 with TENANT_CRM_SEGMENT_NAME_IN_USE. |
+| GET /tenant/crm/segments/:segmentId | Read a tenant-owned Segment. |
+| PATCH /tenant/crm/segments/:segmentId | Optionally updates name, description, criteria, or isActive. Omitting criteria preserves it; this allows metadata/status repair while archived criteria remain invalid. |
+| GET /tenant/crm/segments/:segmentId/preview | Re-evaluates current saved criteria and returns matchingClients plus up to five masked samples. |
+| GET /tenant/crm/segments/:segmentId/clients?page=1&pageSize=25 | Re-evaluates criteria and returns a tenant-scoped member page as {items,total,page,pageSize}. |
+| GET /tenant/crm/smart-groups | Returns fixed system preset keys, labels, descriptions, and AST definitions. |
+| GET /tenant/crm/smart-groups/:key/preview | Preview current membership for a known preset. |
+| GET /tenant/crm/smart-groups/:key/clients?page=1&pageSize=25 | Return one server-paginated preset member page. |
+
+Page is a positive integer, pageSize is 1–100, list q is at most 100 characters, names are 1–120 characters, and descriptions are at most 500 characters. Criteria are version 1 typed groups, at most three levels, 20 conditions, 20 children per group, 100 selected values, 3,650 relative days, and 6,000 serialized characters. Unknown fields/operators and inactive or cross-tenant references return 400 before evaluation. Invalid UUIDs use the existing UUID pipe; missing or foreign Segment IDs return 404. Unknown Smart Group keys return 404. The database unique-name constraint maps to the 409 conflict. Feature denial follows existing FEATURE_UNAVAILABLE behavior; permission denial follows TenantPermissionGuard.
+
+The compiler parameterizes values and injects tenant scope. Preview, saved membership, and Smart Groups share it. Membership is current query output; endpoints do not expose historical entry/exit transitions, and inactive status does not create or freeze a member list.

@@ -27,3 +27,9 @@ Directory list rows mask phone; a tenant_crm.read-authorized customer detail sho
 `tenant_crm.read` plus the effective `tenant_crm` feature gates all Phase 3 reads, including metadata administration and reminder views. `tenant_crm.manage` is additionally required for preference, note, tag, custom-field, assignment, and reminder mutations. The migration grants manage to the tenant owner role; other roles require explicit permission assignment. No CRM metadata is exposed to Clients.
 
 Separate permissions for notes, campaigns, loyalty, and analytics are not introduced in Phase 0. Consider them only when a feature has distinct staff duties and product packaging. Entitlement does not replace authorization, and authorization does not imply that a plan includes CRM.
+
+## Phase 4 access
+
+Segment field metadata, list/detail, unsaved and saved previews, member pages, and Smart Group reads require tenant_crm.read plus the effective tenant_crm entitlement. Segment create, edit, criteria replacement, activation, and deactivation additionally require tenant_crm.manage. Controllers use the existing access-token, tenant-context, and tenant-permission guards; each route resolves and checks the feature against the trusted café context.
+
+The builder hides mutation controls for users without manage permission, while server guards remain authoritative. Criteria, members, and Smart Groups are internal tenant CRM data and are not exposed through Client-authenticated routes. Segment APIs do not change Promotions permissions or Platform CRM permissions.

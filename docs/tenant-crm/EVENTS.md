@@ -27,3 +27,7 @@ Any future tenant CRM asynchronous record carries authoritative coffeeShopId and
 The Timeline query now projects `NOTE_CREATED`, `REMINDER_CREATED`, and `REMINDER_COMPLETED` from persisted CRM rows. Note bodies are never included in Timeline metadata. Reminder completion appears only when its persisted status transitions to COMPLETED (using `completed_at`). These are query-time projection items, not a published event stream or complete audit history; edits, archives, cancellations, and prior status changes are not fabricated as events.
 
 Future Tenant CRM automation owns its triggers, conditions, actions, and business meaning. It may reuse a truly generic outbox claim/retry primitive after review, but it does not reuse Platform CRM workflow definitions, filters, actions, or event semantics. No campaigns or automation are Phase 0 work.
+
+## Phase 4 dynamic membership
+
+Segment and Smart Group evaluation is a live read query, not an event publisher. No Client-entered/left transition, Segment evaluation event, stored member list, durable membership history, or background synchronization exists. A changed source row can change the next query's result without producing an event. Future Campaign or automation consumers must explicitly define snapshot timing, deduplication, re-entry, and history rather than infer those facts from current membership.

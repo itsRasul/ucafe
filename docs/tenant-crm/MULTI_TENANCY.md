@@ -35,3 +35,11 @@ Future bulk actions, imports, and exports use the same resolved tenant context a
 Notes, profiles, Client-Tag assignments, Custom Field values, and Reminders carry the tenant key and use composite foreign keys to the matching Client. Tags, field definitions/options, and actor/assignee memberships are tenant-local. Active tag names are unique per tenant, while the same name may exist in multiple tenants. Every service query also scopes reads and writes by the current tenant. Database tests verify same-name tags across tenants and reject cross-tenant Client, Tag, field, and membership references.
 
 For every route or asynchronous operation, fixtures for Tenant A and Tenant B must prove that A cannot list, read, mutate, attach a nested record to, search, aggregate, import, export, or receive B's CRM data. Include random foreign IDs and deliberately mismatched database relationship writes.
+
+## Phase 4 Segment evaluation
+
+Each saved Segment is tenant-owned and constrained by a coffee_shop_id foreign key plus unique (coffee_shop_id,id). Its creator must be a membership of that same tenant. List, detail, update, preview, and member routes use the resolved coffeeShopId; a foreign Segment UUID behaves as not found.
+
+Every draft, saved, and Smart Group evaluation begins with the current Tenant's clients and an injected, parameterized coffee_shop_id predicate. Tenant identity is not a field or AST value. Tag and Custom Field definitions/options come from the same tenant's active catalog; Tag assignments and Custom Field value EXISTS predicates are additionally correlated to the Client's coffee_shop_id and ID. No Client ID membership list is shared or persisted.
+
+The PostgreSQL isolation fixture includes two cafés with identical Tag names and qualifying customer data, tests a foreign Tag reference, and checks that membership stays tenant-scoped after source data changes.

@@ -35,3 +35,9 @@ There is no Client archive/delete route or deleted_at field today; soft deletion
 `Client` remains the customer identity. Tenant CRM adds a profile row for manually entered preferences, internal Notes, tenant-owned Tags and Client assignments, tenant-owned Custom Field definitions and typed values, and Reminders. These are café-entered relationship facts; they do not replace or cache Order and Reservation facts. No Platform CRM domain or persistence is shared.
 
 Do not reuse Platform CRM Organization, Contact, Lead, Deal, Activity, Task, Note, Tag, Segment, scoring, filter, automation, or analytics business objects. Generic pagination, phone normalization, plan feature entitlement, DTO validation, and domain-neutral UI primitives may be reused after confirming their contracts fit.
+
+## Phase 4 Segments
+
+A Tenant CRM Segment belongs to one café and stores its name, optional description, versioned typed criteria, active status, creator, and timestamps. Its criteria query the current tenant-owned Client population and current CRM, Order, and Reservation sources. A Segment does not own Client membership: matching rows are computed on demand, and Phase 4 stores no membership snapshot, enter/exit history, or synchronization state. Smart Groups are deterministic system criteria evaluated by the same compiler; they are not saved Segment records.
+
+Tags are manually assigned labels and remain separate from Segments, which are dynamic predicates. Promotions manual customer groups remain in their existing domain. Tenant CRM Segments do not reuse or expose Platform CRM Segment records or filtering semantics. Later Campaign work may consume a current Segment predicate only after it defines its own consent, eligibility, and history contract.

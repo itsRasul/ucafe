@@ -8,7 +8,7 @@ Phase numbers sequence work; they do not authorize work beyond the agreed phase.
 | 1 | Client directory and identity resolution | Implemented |
 | 2 | Customer 360 and unified customer timeline | Implemented; authenticated visual review pending |
 | 3 | Preferences, notes, tags, custom fields, and reminders | Implemented; authenticated visual acceptance pending |
-| 4 | Segmentation and smart groups | Planned |
+| 4 | Segmentation and smart groups | Implemented; PostgreSQL integration and authenticated visual acceptance pending |
 | 5 | Loyalty and rewards | Planned |
 | 6 | Feedback and service recovery | Planned |
 | 7 | Offers and Discount targeting | Planned |
@@ -32,6 +32,14 @@ The Timeline is reconstructed activity, not a durable lifecycle log: show source
 
 **Phase 3 contract.**
 
-Phase 3 provides explicit CRM preferences, internal notes, manually configured tenant tags, typed custom fields, and manual reminders integrated into Customer 360 and the Timeline projection. It adds owner-granted `tenant_crm.manage`; all reads and writes also retain effective feature gating and tenant scoping. Two forward migrations create CRM-owned tables with tenant-composite foreign keys. Phase 4 Segmentation, automation, client-facing CRM data, reminder delivery, and CRM analytics remain planned. Automated service checks, the PostgreSQL isolation fixture, migration verification, and workspace typecheck pass; the local browser has no tenant-admin session for authenticated visual acceptance.
+Phase 3 provides explicit CRM preferences, internal notes, manually configured tenant tags, typed custom fields, and manual reminders integrated into Customer 360 and the Timeline projection. It adds owner-granted `tenant_crm.manage`; all reads and writes also retain effective feature gating and tenant scoping. Two forward migrations create CRM-owned tables with tenant-composite foreign keys. Phase 4 Segmentation is implemented in code. Its dynamic criteria, persistence, field definitions, endpoints, and verification status are documented in SEGMENTATION.md. Automation, client-facing CRM data, reminder delivery, and CRM analytics remain planned.
+
+## Phase 4 contract
+
+Persist a tenant-owned named criteria AST, then evaluate it against the current tenant Client population and authoritative Client, CRM, Order, and Reservation rows whenever preview or membership is requested. Do not persist member IDs or create a synchronization worker. One allowlisted typed compiler serves draft preview, saved Segment preview/member routes, and Smart Groups. Keep Promotions customer groups and Platform CRM filtering independent.
+
+Migration 1790620000000-TenantCrmSegments adds criteria-only Segment persistence, tenant-composite identity and creator constraints, tenant-local case-insensitive names, and a tenant listing index. Reads require tenant_crm.read plus the effective tenant_crm feature; create/update/status changes also require tenant_crm.manage. Relative dates use the resolved café time zone. Archived Tag/Custom Field references remain stored and are shown as invalid until repaired; they are not reinterpreted.
+
+Phase 4 implementation includes AST/value validation, nested AND/OR, Client and explicit preference fields, tenant Tags, typed Custom Fields, Phase 2-aligned current Order/Reservation metrics, fixed deterministic Smart Groups, paginated member queries, and Persian RTL Tenant Admin pages. API/web typechecks and focused API service tests pass. The optional PostgreSQL isolation/dynamic-membership/EXPLAIN test did not run because TENANT_CRM_INTEGRATION_DATABASE_URL is unset and Docker Desktop is unavailable. Authenticated visual acceptance is pending. Phase 4 is therefore implemented but not marked complete under the Definition of Done.
 
 No loyalty, campaign, consent, automation, custom fields, dynamic segments, customer 360, analytics implementation, search service, broker, separate database, or microservice is part of Phase 0.
