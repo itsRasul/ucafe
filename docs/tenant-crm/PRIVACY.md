@@ -2,7 +2,7 @@
 
 ## Current behavior
 
-Client stores name, E.164 phone, status, and authentication timestamps. OTP and notification paths protect secrets and phone values according to the existing authentication/notification implementation. The authenticated Client can see their own phone; the Tenant CRM list masks it, and tenant-authorized CRM detail exposes it to staff. There is no Client email, marketing consent, CRM note, preferences, export, deletion, anonymization, or retention workflow.
+Client stores name, E.164 phone, status, and authentication timestamps. OTP and notification paths protect secrets and phone values according to the existing authentication/notification implementation. The authenticated Client can see their own phone; the Tenant CRM list masks it, and tenant-authorized CRM detail exposes it to staff. Phase 2 Order/Reservation projections are deliberately limited to fields needed for customer service; they omit addresses, line items, private notes, and staff actor identifiers. Timeline metadata is similarly minimized and is not sourced from logs or notification payloads. There is no Client email, marketing consent, CRM note, preferences, export, deletion, anonymization, or retention workflow.
 
 Client addresses are soft deleted. Current Orders and Reservations restrict deleting a referenced Client. Café suspension preserves tenant data. Platform audit is for platform operations and is not a tenant CRM audit log.
 

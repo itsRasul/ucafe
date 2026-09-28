@@ -1,6 +1,6 @@
 # Tenant CRM
 
-**Status:** Phase 1 Client Directory implemented. It uses existing Client rows and adds no CRM-owned tables.
+**Status:** Phases 0–2 implemented; authenticated visual acceptance for Phase 2 remains pending because no tenant-admin session is available. Phase 2 composes Customer 360 and a paginated activity view from existing Client, Order, and Reservation rows; it adds no CRM-owned tables.
 
 ## Purpose and boundary
 
@@ -17,6 +17,17 @@ This domain is separate from Platform CRM, which manages UCafe's commercial rela
 - Golden defaults to the feature; other plans default off. Platform Admin can change any plan with the existing plan editor. Promotions keeps its current access rules.
 - Search supports names and normalized exact Iranian mobile numbers; list phone values are masked and authorized detail shows full phone.
 - Reuse only domain-neutral primitives. Do not reuse Platform CRM domain records, platform permissions, filter compiler, workflow, or analytics semantics.
+
+## Implemented in Phase 2
+
+- Extend the existing Client detail page with bounded Customer 360 summaries, the five most recent Orders and Reservations, and a keyset-paginated unified Timeline.
+- Client, Orders, and Reservations remain authoritative. Customer 360 is a query-time read composition, not a Customer/Profile entity or copied history.
+- “Known UCafe Spend” sums `orders.total_amount_toman` only for current `DELIVERED` Orders. That stored value is the final offline payable order amount after recorded discounts; it does not prove collection and omits off-platform purchases. CRM does not change Order financial semantics.
+- `lastInteractionAt` is the latest Order/Reservation creation or currently retained latest status transition timestamp; it falls back to `Client.createdAt`, never administrative `Client.updatedAt`.
+- Timeline is reconstructed from source rows, not an immutable event log. Order/Reservation rows retain only current status and latest `status_changed_at`, so earlier transitions cannot be recovered or displayed.
+- `tenant_crm.read` permits this deliberately limited CRM projection without granting `orders.read` or `reservations.read`. CRM returns only fields needed for the customer view; source-module access remains separately protected.
+- Tenant + Client scope is included in every source branch/query. Timeline uses globally unique event keys and strict descending `(occurredAt,eventKey)` keyset pagination.
+- No new table, migration, or index was justified by `EXPLAIN (ANALYZE, BUFFERS)` on the exact queries at current development fixture volume; revisit with representative production volume.
 
 ## Reading order
 
@@ -43,9 +54,9 @@ This domain is separate from Platform CRM, which manages UCafe's commercial rela
 | PRIVACY.md | Current facts and future privacy decisions |
 | ANALYTICS.md | Existing reports and future customer measures |
 | TESTING.md | Required isolation and integration coverage |
-| PHASES.md | Incremental roadmap and Phase 1 contract |
+| PHASES.md | Incremental roadmap and implemented phase contracts |
 | ADR-001..004 | Accepted Phase 0 architecture decisions |
 
 ## Current versus proposed
 
-Statements about current behavior reflect code and migrations; later roadmap phases remain planned and are not implied by Phase 1.
+Statements about current behavior reflect code and migrations; later roadmap phases remain planned and are not implied by Phases 0–2.

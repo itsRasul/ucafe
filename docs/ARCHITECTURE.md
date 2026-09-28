@@ -37,7 +37,7 @@ Platform CRM uses the existing modular monolith, PostgreSQL migration path, plat
 
 Analytics imports the exported `InventoryVarianceService` for the Inventory Phase 7 report. That service reads tenant-scoped physical counts, source-validated movements and order recipe snapshots; it checks both effective `inventory` and `analytics` entitlements. Inventory does not depend on Analytics, and report reads do not post stock movements.
 
-Tenant CRM is a separate Tenant Admin bounded context documented at [docs/tenant-crm/README.md](tenant-crm/README.md). Phase 1 adds a read-only Client directory inside the modular monolith; it uses the existing café-scoped Client and does not reuse Platform CRM domain records, permissions, filters, or workflow semantics.
+Tenant CRM is a separate Tenant Admin bounded context documented at [docs/tenant-crm/README.md](tenant-crm/README.md). Phases 1–2 provide a read-only Client directory and query-composed Customer 360/Timeline over tenant-scoped Client, Order, and Reservation sources; no Customer 360 entity or persisted Timeline was added. Tenant CRM reads bounded CRM-specific projections without making Orders or Reservations depend on CRM or granting full source-module permissions. The Timeline reconstructs creation and currently retained latest-status facts, not complete lifecycle history. It does not reuse Platform CRM records, permissions, filters, or workflow semantics.
 
 ### Data and infrastructure
 

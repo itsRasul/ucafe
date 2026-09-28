@@ -14,7 +14,11 @@ The forward migration grants `tenant_crm.read` to the existing tenant owner role
 - Promotions customer search retains its existing orders.read requirement; manual customer segment CRUD retains current menu permissions. Neither requires tenant_crm.read nor the tenant_crm feature.
 - Client self-service remains on client-authenticated routes and cannot read internal CRM data.
 
-Phase 1 list rows mask phone; a tenant_crm.read-authorized detail shows the full phone, matching the identity-resolution and operational need. Do not assume access to Orders or Reservations implies access to future CRM-only notes.
+## Phase 2 CRM-only source projection
+
+`tenant_crm.read` also permits the Customer 360 summary, five-row recent Order/Reservation previews, and reconstructed Timeline. This is an intentionally limited CRM projection, not a grant of `orders.read` or `reservations.read`, and it does not permit their list/detail/mutation/settings APIs. Source-module permissions remain independently enforced on source routes. The CRM DTOs expose only CRM-relevant fields: Order ID/display number, current status, total amount, delivery method, creation/latest-status time; Reservation ID, current status, reservation date/time, party size, creation/latest-status time; and Timeline event type/time/source identity plus limited event metadata. They omit internal Order/Reservation/customer/staff notes, addresses, line items, acting staff IDs, and other source-module data. Links to source screens are shown only when the corresponding source `read` permission is present.
+
+Directory list rows mask phone; a tenant_crm.read-authorized customer detail shows the full phone, matching the identity-resolution and operational need. Do not assume access to Orders or Reservations implies access to future CRM-only notes, or that CRM read grants source-module access.
 
 ## Future capabilities
 

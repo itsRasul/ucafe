@@ -6,9 +6,9 @@
 | --- | --- | --- |
 | Tenant context | Host/domain and tenant middleware | Supplies authoritative coffeeShopId |
 | Users and permissions | Identity, memberships, authorization | User is operator/actor; no new RBAC system |
-| Client identity | clients and ClientAuthService | Customer identity; Phase 1 directory reads it |
-| Orders | orders, order_items, ordering service | Future read-only history and aggregates; no duplicate order storage |
-| Reservations | reservations and reservation service | Future read-only timeline facts; no duplicate booking logic |
+| Client identity | clients and ClientAuthService | Customer identity; directory and Customer 360 read it |
+| Orders | orders, order_items, ordering service | Phase 2 read-only CRM projection and aggregates; no duplicate order storage |
+| Reservations | reservations and reservation service | Phase 2 read-only CRM projection and aggregates; no duplicate booking logic |
 | Discounts | promotions, coupons, redemptions and manual customer segments | Later CRM may choose audiences; Discounts owns definitions, eligibility, redemption and limits |
 | Tenant Analytics | analytics module | Already owns delivered-order customer metrics; coordinate definitions and avoid duplicate reports |
 | Plans | subscription_plans JSON features, SubscriptionsService | tenant_crm uses effective feature entitlement; Golden defaults on |
@@ -18,11 +18,11 @@
 
 ## Orders
 
-Orders are required to have a tenant-owned Client and are authoritative for statuses, delivered outcome timestamp, amount and frozen line/promotion snapshots. CRM may later show tracked order count, delivered order count, Known UCafe Spend, average order value, last order, and item preferences from these sources. Current Analytics uses delivered Orders at status_changed_at and café-local periods. The amount is offline payable value, not proof of cash collection, and external POS transactions are not necessarily recorded.
+Orders are required to have a tenant-owned Client and are authoritative for statuses, delivered outcome timestamp, amounts, and frozen line/promotion snapshots. `OrderStatus.Delivered` is `DELIVERED`, the canonical successfully fulfilled terminal state (`COMPLETED_ORDER_STATUS`); `CANCELED` is unsuccessful and other states are nonterminal. Phase 2 counts every current Order as tracked and sums `total_amount_toman` only where current status is `DELIVERED`. The field is the stored final payable amount in integer toman after recorded item/order discounts (`subtotal_before_discount_toman - discount_total_toman`); it is not collected/settled cash. Customer payment is offline only, with no refund, tax, or delivery-fee ledger, and external/POS sales are not necessarily recorded. CRM reads this existing field without redefining Order financial semantics. Tenant Analytics continues to use delivered `status_changed_at` in café-local report periods.
 
 ## Reservations
 
-Reservations are required to have a tenant Client and remain authoritative for dates, party size, customer/staff notes, status, and latest status actor/time. CRM may read history and derive completed/no-show counts, but must not alter booking capacity or transitions. Reservations are not linked to Orders today.
+Reservations are required to have a tenant Client and remain authoritative for dates, party size, customer/staff notes, status, and latest status actor/time. CRM reads current-state counts (including explicit `NO_SHOW`) and bounded recent fields; it does not infer a no-show from elapsed schedule time or alter booking capacity/transitions. Orders/Reservations have no complete status history: `status_changed_at` retains only the latest transition timestamp. CRM's Timeline therefore reconstructs creation and latest-status activity only, not an immutable lifecycle log. Reservations are not linked to Orders today. Neither source module depends on Tenant CRM or its entitlement.
 
 ## Discounts and customer segments
 

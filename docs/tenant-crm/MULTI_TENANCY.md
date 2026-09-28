@@ -10,6 +10,7 @@ Tenant admin routes use the existing AccessTokenGuard, TenantContextGuard, and T
 
 - Pass resolved coffeeShopId from the request context through controller to service.
 - Phase 1 list/search applies `coffee_shop_id` before status filters, ordering, limits, and offsets. Detail requires both Client ID and resolved `coffee_shop_id`.
+- Phase 2 Customer 360 aggregate and recent Orders/Reservations queries constrain both `coffee_shop_id` and `client_id`; each Timeline `UNION ALL` branch constrains the same resolved tenant and Client. Client existence is first checked with both IDs. Cursor values are validated and parameterized; they never supply tenant scope.
 - Every directory list, search, detail, update, bulk action, export, and aggregate includes coffeeShopId in the database query.
 - Load nested records with tenant scope on both the parent and related Client. An ID alone is never authorization.
 - Return not-found or the repository's established safe error for foreign tenant IDs without revealing whether the record exists elsewhere.

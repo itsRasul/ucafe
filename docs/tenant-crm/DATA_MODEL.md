@@ -12,6 +12,10 @@ client_addresses are soft deleted. Client sessions are tenant and Client scoped.
 
 Phase 1 reads existing Client rows and adds no CRM tables, columns, indexes, or entities. Migration `1790590000000-TenantCrmDirectory` adds the owner read permission and initializes missing `tenant_crm` plan values; it preserves explicitly configured feature values.
 
+## Phase 2 read composition
+
+Customer 360 is query-derived from the tenant-scoped Client, Orders, and Reservations tables. A summary aggregate and bounded recent-record queries return only CRM-facing projections; Timeline uses one `UNION ALL` read over Client creation plus Order/Reservation creation and each source row's currently retained latest status transition. No Customer 360 table, event table, copied source data, migration, or index was added. `EXPLAIN (ANALYZE, BUFFERS)` on the actual summary, previews, and first/cursor Timeline queries at the local fixture size selected sequential scans and bounded top-N sorting. This small fixture does not represent production volume. No composite index was justified by those plans; recheck with representative tenant history before adding one.
+
 ## Future persistence rules
 
 - Use an explicit tenant CRM table prefix such as tenant_crm_ to distinguish storage from platform crm_ tables and existing Clients/Promotions tables.
@@ -19,7 +23,7 @@ Phase 1 reads existing Client rows and adds no CRM tables, columns, indexes, or 
 - Actor references identify tenant Users, never the customer Client. Keep audit summaries free of phone, notes, preferences, and other customer PII.
 - Do not write tenant customer actions to platform_audit_events. Add tenant-owned audit history only with an implemented CRM write workflow and a defined actor/retention contract.
 - Keep source-domain records authoritative. Do not copy Orders or Reservations into CRM tables to build a timeline.
-- Add only indexes supported by actual query patterns. Initial likely paths are tenant + created Client directory ordering, tenant + client timeline lookup, and source owner indexes. Inspect query plans before adding search or aggregate indexes.
+- Add only indexes supported by actual query patterns. Existing indexes are not presumed sufficient or insufficient; inspect query plans at representative volume before adding search or aggregate indexes.
 - Use forward TypeORM migrations; synchronization stays disabled.
 
 ## Table naming and ownership

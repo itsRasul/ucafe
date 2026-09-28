@@ -9,6 +9,7 @@ import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { TENANT_CONTEXT } from "../tenants/tenant-context";
 import { TenantContextGuard } from "../tenants/tenant-context.guard";
 import { ClientDirectoryQueryDto } from "./dto/client-directory-query.dto";
+import { ClientTimelineQueryDto } from "./dto/client-timeline-query.dto";
 import { TenantCrmService } from "./tenant-crm.service";
 
 @Controller("tenant/crm/clients")
@@ -29,5 +30,12 @@ export class TenantCrmController {
     const tenantId = request[TENANT_CONTEXT]!.coffeeShopId;
     await this.subscriptions.requireFeature(tenantId, SubscriptionFeatures.TenantCrm);
     return this.crm.detail(tenantId, clientId);
+  }
+
+  @Get(":clientId/timeline")
+  async timeline(@Req() request: AuthorizedRequest, @Param("clientId", ParseUUIDPipe) clientId: string, @Query() query: ClientTimelineQueryDto) {
+    const tenantId = request[TENANT_CONTEXT]!.coffeeShopId;
+    await this.subscriptions.requireFeature(tenantId, SubscriptionFeatures.TenantCrm);
+    return this.crm.timeline(tenantId, clientId, query);
   }
 }

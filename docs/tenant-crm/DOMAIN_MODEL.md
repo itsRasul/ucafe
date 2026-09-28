@@ -12,7 +12,7 @@ Tenant CRM models one café's ongoing relationship with its own Clients. It is a
 
 ## Conceptual model
 
-Client is the central identity. Future CRM-owned records may reference (coffee_shop_id, client_id), and actor fields reference User where needed. Orders and Reservations are linked source records, not CRM-owned children. Preferences, notes, tags, custom fields, reminders, loyalty, feedback, campaigns, and automation are future concepts only; add each only in its roadmap phase and after defining ownership, privacy, and tenant integrity.
+Client is the central identity. Phase 2 composes a Customer 360 read view from Client, Orders, and Reservations; conceptually Orders and Reservations refer to Client, while Tenant CRM reads those relationships in the other direction. They are linked source records, not CRM-owned children. Customer 360 is not an entity or source of truth. Future CRM-owned records may reference (coffee_shop_id, client_id), and actor fields reference User where needed. Preferences, notes, tags, custom fields, reminders, loyalty, feedback, campaigns, and automation are future concepts only; add each only in its roadmap phase and after defining ownership, privacy, and tenant integrity.
 
 Do not create Customer, Guest, CustomerProfile, TenantCustomerProfile, GlobalCustomer, or equivalent aliases. A supplemental profile is not justified for Phase 1. If a later field cannot appropriately live on Client, store it in a narrowly scoped tenant CRM table.
 
@@ -20,7 +20,7 @@ Do not create Customer, Guest, CustomerProfile, TenantCustomerProfile, GlobalCus
 
 Client owns identity and authentication state. Orders own commerce events and snapshots. Reservations own booking facts and status. Discounts own definitions, eligibility, and redemption. Analytics owns existing commerce reports. Tenant CRM owns only data introduced for relationship management and its future read experiences.
 
-Derived values such as order count, completed-order count, Known UCafe Spend, average order, and last order must be read from Orders or an explicit measured read model. Do not duplicate counters on Client in Phase 0.
+Derived values such as tracked/delivered order counts, Known UCafe Spend, average delivered order value, reservation outcomes, and last interaction are read from source rows in the Phase 2 Customer 360 query. Do not duplicate counters on Client or copy source records into CRM.
 
 ## Lifecycle and identity policy
 
