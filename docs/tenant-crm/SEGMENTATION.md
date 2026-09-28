@@ -1,6 +1,6 @@
 # Tenant CRM Segmentation
 
-**Phase 4 status:** Implemented in the API and Tenant Admin UI. PostgreSQL integration and authenticated visual acceptance remain pending because the integration database and Docker engine are unavailable in the current environment.
+**Phase 4 status:** Implemented in the API and Tenant Admin UI. The focused PostgreSQL isolation/dynamic-membership/EXPLAIN integration passed during the Phase 5 regression run; authenticated visual acceptance remains pending.
 
 ## Model
 
@@ -84,7 +84,7 @@ The query left-joins the unique tenant/Client CRM profile. Tag and Custom Field 
 
 Migration 1790620000000-TenantCrmSegments creates tenant_crm_segments with JSONB criteria, a tenant FK, creator membership FK, (coffee_shop_id,id) unique key, case-insensitive tenant-local name uniqueness, and tenant/update listing index. There is no tenant_crm_segment_members table. No source aggregate index was added without a representative query-plan review.
 
-Integration coverage includes an optional PostgreSQL dynamic-membership and cross-tenant fixture with EXPLAIN. It was skipped in this environment because TENANT_CRM_INTEGRATION_DATABASE_URL is unset and Docker Desktop is unavailable. Correlated aggregates keep the query shape simple and correct; production-scale latency and plans still need review against representative tenant history before optimization.
+Integration coverage includes a PostgreSQL dynamic-membership and cross-tenant fixture with EXPLAIN. It passed during Phase 5 regression against the local development database. Correlated aggregates keep the query shape simple and correct; the small local fixture does not establish production-scale latency or plans, so review against representative tenant history before optimization.
 
 ## API and access
 
@@ -111,3 +111,7 @@ Page sizes are capped at 100; preview samples are capped at five. Client-facing 
 The Tenant Admin workspace lives at /admin/crm/segments with presets at /admin/crm/smart-groups. The Persian RTL builder uses server field metadata, nested AND/OR groups, native value inputs, preview, paged member rows, and loading/error/empty states. It marks archived criteria unavailable while retaining them for repair. Existing CRM navigation links to both screens.
 
 Future Campaign or Analytics work may consume a Segment as a current audience predicate after defining its own consent, eligibility, snapshot, and history semantics. Phase 4 does not implement any such integration, delivery, loyalty, automation, scoring, or analytics.
+
+## Phase 5 boundary
+
+Loyalty adds no criteria field, stored membership, or automatic Segment recalculation. Segment filters continue to use current Client, CRM, Order, and Reservation sources only. A later phase may define a points-balance filter or loyalty audience independently after measuring query cost and specifying membership freshness/history semantics.

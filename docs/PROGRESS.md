@@ -2,6 +2,14 @@
 
 Last updated: 2026-09-29
 
+## UCafe Tenant CRM Phase 5: Loyalty, Points Ledger, Rewards & Redemption
+
+Implemented the tenant-scoped Loyalty vertical slice around the existing Client identity. Each café can version a spend-per-point program, manage active Rewards, and view/adjust a Client's points and record staff redemption. Integer points use `floor(total_amount_toman / spend_per_point_toman)` for `DELIVERED` Orders; the signed bigint ledger is authoritative and no balance cache is stored. Account-row locks, database idempotency, composite tenant constraints, and immutable redemption snapshots protect accounting and history.
+
+Orders writes `tenant.order.delivered` to `domain_event_outbox` in the Order status transaction without calling CRM. A PostgreSQL poller claims/retries events and uses the program version effective when the event was persisted; ledger uniqueness makes duplicate Order events harmless. Customer 360 shows balance, active eligibility, redemption and ledger history; CRM Timeline projects ledger entries. The `/admin/crm/loyalty` manager page configures the program and Reward catalog. No campaign, checkout/Discount integration, expiry, refund reversal, loyalty analytics, or saved Segment field was added. See [LOYALTY.md](tenant-crm/LOYALTY.md) and [ADR-007](tenant-crm/ADR-007-loyalty-ledger-and-order-outbox.md).
+
+Migrations `1790620000000-TenantCrmSegments` and `1790630000000-TenantCrmLoyalty` were applied to the local development database; `migration:show` reports all 64 migrations applied. Workspace typecheck passed. The focused Loyalty suite passed 4/4, including its PostgreSQL integration for tenant isolation, concurrent redemption, and duplicate outbox delivery. The Segment suite passed 12/12 with its PostgreSQL case enabled; it exposed and verified a fix for an untyped timezone parameter on criteria without date fields. The full API suite passed (219 tests: 192 passed, 27 skipped, 0 failed), and the `NODE_ENV=production` workspace build passed for API, web, and worker. Authenticated browser acceptance remains pending because the browser session reaches tenant sign-in and no tenant-admin session is available. No repository lint command exists.
+
 ## UCafe Tenant CRM Phase 4: Dynamic Segmentation & Smart Groups
 
 Implemented tenant-owned criteria-only Segments, one typed bounded compiler for draft/saved/Smart Group evaluation, tenant-scoped field metadata, nested AND/OR conditions, server-side preview and paginated current membership, and Persian RTL builder and Smart Group pages. The allowlisted fields cover Client name/status/phone presence/creation, explicit profile preferences, active Tags, typed Custom Fields, current Order measures, and current Reservation measures. Known Spend and delivered AOV retain Customer 360's delivered-only semantics. Phone values remain masked in preview/member results.

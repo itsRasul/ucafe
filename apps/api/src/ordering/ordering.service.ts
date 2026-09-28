@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import { DataSource, In, IsNull } from "typeorm";
 import { Client, ClientAddress } from "../clients/entities";
 import { Branch, CoffeeShop } from "../database/entities";
+import { DomainEventTypes } from "../database/domain-event.constants";
 import { MenuCategory, MenuItem, MenuItemVariant } from "../menu/entities";
 import { NotificationsService } from "../notifications/notifications.service";
 import { displayOrderNumber, displayToman, NotificationType } from "../notifications/notification-type";
@@ -192,6 +193,12 @@ export class OrderingService {
       order.statusChangedAt = new Date();
       order.statusChangedByUserId = actorUserId;
       await manager.save(order);
+      if (next === OrderStatus.Delivered) {
+        await manager.query(`
+          INSERT INTO domain_event_outbox(event_key,event_type,coffee_shop_id,aggregate_type,aggregate_id,payload)
+          VALUES($1,$2,$3,'ORDER',$4,jsonb_build_object('orderId',$4::text))
+          ON CONFLICT(event_key) DO NOTHING`, [`order-delivered:${id}`, DomainEventTypes.OrderDelivered, coffeeShopId, id]);
+      }
       const saved = await manager.findOneOrFail(Order, { where: { id, coffeeShopId }, relations: { client: true, items: true } });
       const type = this.notificationType(saved);
       if (type) {

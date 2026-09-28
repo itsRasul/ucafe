@@ -70,3 +70,19 @@ All routes below require tenant_crm.read and effective tenant_crm entitlement. C
 Page is a positive integer, pageSize is 1–100, list q is at most 100 characters, names are 1–120 characters, and descriptions are at most 500 characters. Criteria are version 1 typed groups, at most three levels, 20 conditions, 20 children per group, 100 selected values, 3,650 relative days, and 6,000 serialized characters. Unknown fields/operators and inactive or cross-tenant references return 400 before evaluation. Invalid UUIDs use the existing UUID pipe; missing or foreign Segment IDs return 404. Unknown Smart Group keys return 404. The database unique-name constraint maps to the 409 conflict. Feature denial follows existing FEATURE_UNAVAILABLE behavior; permission denial follows TenantPermissionGuard.
 
 The compiler parameterizes values and injects tenant scope. Preview, saved membership, and Smart Groups share it. Membership is current query output; endpoints do not expose historical entry/exit transitions, and inactive status does not create or freeze a member list.
+
+## Phase 5 Loyalty routes
+
+| Method and route | Behavior |
+| --- | --- |
+| `GET /tenant/crm/loyalty/program` | Return current configuration or an unconfigured/disabled projection. |
+| `PATCH /tenant/crm/loyalty/program` | Append an enabled/rate version; unchanged values do not create history. |
+| `GET /tenant/crm/loyalty/rewards?page=1&pageSize=20` | Return a tenant-paginated catalog, including inactive records for managers. |
+| `POST /tenant/crm/loyalty/rewards` | Create a same-café Reward. |
+| `PATCH /tenant/crm/loyalty/rewards/:rewardId` | Edit or activate/deactivate a Reward; no delete route exists. |
+| `GET /tenant/crm/clients/:clientId/loyalty` | Return derived balance, active reward eligibility, five recent ledger rows/redemptions, and ledger total. |
+| `GET /tenant/crm/clients/:clientId/loyalty/ledger?page=1&pageSize=20` | Return bounded ledger history, total, and the current derived balance. |
+| `POST /tenant/crm/clients/:clientId/loyalty/adjust` | Append a reasoned credit/debit using `direction`, positive integer `points`, and required idempotency key. |
+| `POST /tenant/crm/clients/:clientId/loyalty/redeem` | Record a same-café active Reward redemption with an idempotency key. |
+
+All Loyalty reads require `tenant_crm.read` plus effective `tenant_crm`; mutations additionally require `tenant_crm.manage`. Page is positive and pageSize is 1–100. Spend threshold, reward cost, and adjustment amount are positive integers bounded to 1,000,000,000; reasons are required and at most 500 characters; idempotency keys are 8–120 safe ASCII characters. Invalid UUIDs use `ParseUUIDPipe`; foreign Client/Reward IDs are not found. Manual debit/redemption that would make balance negative return `LOYALTY_INSUFFICIENT_POINTS`; blocked Clients cannot mutate points; disabled Programs reject earning/redemption while retaining history.

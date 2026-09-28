@@ -36,3 +36,7 @@ No analytics tables, counters, materialized views, indexes, or refresh jobs are 
 ## Phase 4 membership boundary
 
 Segment preview/member counts describe matches at query time. There is no historical membership snapshot, transition event, customer-lifetime attribution, campaign response measure, or saved analytics aggregate. A later analytics phase may use a current Segment predicate only after defining its own reporting window and historical semantics.
+
+## Phase 5 Loyalty boundary
+
+Current balance is derived from signed ledger entries at read time; accounts contain no cached balance or analytics counters. The CRM profile exposes a single Client's balance and short history for operations, not a cross-client dashboard or retention metric. Earning uses the current `DELIVERED` Order amount semantics but does not alter or extend Analytics aggregates. Loyalty measures in analytics, retention, or Segmentation remain future work and require explicit windows and history semantics.

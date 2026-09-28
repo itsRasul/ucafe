@@ -52,3 +52,9 @@ Migration 1790620000000-TenantCrmSegments adds tenant_crm_segments with:
 - A case-insensitive unique index on (coffee_shop_id,lower(name)) and a tenant/update-time listing index.
 
 The JSONB column stores the validated, versioned criteria AST; source rows remain authoritative and the service validates the AST again before executing it. There is no Segment-member or cached-count table. Existing Customer 360 profile, Tag, Custom Field, Order, and Reservation rows are queried live. The Phase 4 migration adds no source aggregate index because representative PostgreSQL plan review was unavailable during implementation.
+
+## Phase 5 Loyalty persistence
+
+Migration `1790630000000-TenantCrmLoyalty` adds versioned `tenant_crm_loyalty_programs`, one lazy `tenant_crm_loyalty_accounts` row per tenant/Client, tenant-owned `tenant_crm_loyalty_rewards`, immutable `tenant_crm_loyalty_redemptions`, signed `tenant_crm_loyalty_ledger`, and the PostgreSQL `domain_event_outbox`. There is no cached balance. Composite foreign keys tie accounts, ledger entries, redemptions, Orders, Rewards, and staff actors to the same café. The Order composite key is added by this migration for ledger integrity.
+
+The ledger uses bigint points, a tenant/idempotency-key uniqueness constraint, and a partial tenant/Order uniqueness constraint for EARN. Checks constrain signed semantics and required source snapshots by entry type. Redemptions snapshot Reward name and cost. The outbox retains bounded retry state and contains only the Order event identity; no customer phone or order body is stored there.

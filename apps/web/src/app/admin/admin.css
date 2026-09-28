@@ -3552,6 +3552,40 @@
 .tenant-crm-segment-client-list span, .tenant-crm-segment-client-list small { color: #64748b; font-size: .78rem; }
 .tenant-crm-segment-client-list small { grid-column: 1 / -1; }
 .tenant-crm-segment-workspace .tenant-crm-pagination { margin-top: .25rem; }
+.tenant-crm-loyalty-workspace { display: grid; gap: .85rem; }
+.tenant-crm-loyalty-workspace .tenant-crm-section, .tenant-crm-loyalty { display: grid; gap: .75rem; }
+.tenant-crm-loyalty-program, .tenant-crm-loyalty-form, .tenant-crm-loyalty-adjust { display: grid; gap: .7rem; }
+.tenant-crm-loyalty-program { max-width: 42rem; }
+.tenant-crm-loyalty-form { grid-template-columns: repeat(3,minmax(0,1fr)); align-items: end; }
+.tenant-crm-loyalty-adjust { grid-template-columns: repeat(3,minmax(0,1fr)); align-items: end; padding-top: .75rem; border-top: 1px solid #edf1f5; }
+.tenant-crm-loyalty-adjust h3, .tenant-crm-loyalty-adjust>button { grid-column: 1 / -1; }
+.tenant-crm-loyalty input:not([type="checkbox"]), .tenant-crm-loyalty select, .tenant-crm-loyalty-workspace input:not([type="checkbox"]) {
+  width: 100%; min-width: 0; min-height: 2.75rem; padding: .5rem .65rem; border: 1px solid #cbd5e1; border-radius: .55rem; background: #fff; color: #172033; font: inherit;
+}
+.tenant-crm-loyalty input:focus-visible, .tenant-crm-loyalty select:focus-visible, .tenant-crm-loyalty button:focus-visible, .tenant-crm-loyalty a:focus-visible,
+.tenant-crm-loyalty-workspace input:focus-visible, .tenant-crm-loyalty-workspace button:focus-visible, .tenant-crm-loyalty-workspace a:focus-visible { outline: 3px solid rgb(3 105 161/28%); outline-offset: 2px; }
+.tenant-crm-loyalty-toggle { display: flex; align-items: center; gap: .5rem; min-height: 2.75rem; color: #334155; font-size: .85rem; }
+.tenant-crm-loyalty-toggle input { width: 1.1rem; height: 1.1rem; }
+.tenant-crm-loyalty-balance { display: grid; justify-items: start; gap: .25rem; padding: 1rem; border: 1px solid #dbeafe; border-radius: .7rem; background: #f8fbff; }
+.tenant-crm-loyalty-balance span, .tenant-crm-loyalty-balance small { color: #475569; font-size: .82rem; }
+.tenant-crm-loyalty-balance strong { color: #075985; font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+.tenant-crm-loyalty-rewards ul, .tenant-crm-loyalty-ledger ul, .tenant-crm-loyalty-reward-list { display: grid; gap: .5rem; margin: 0; padding: 0; list-style: none; }
+.tenant-crm-loyalty-rewards li, .tenant-crm-loyalty-ledger li, .tenant-crm-loyalty-reward-list>li { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .6rem; min-width: 0; padding: .7rem; border: 1px solid #edf1f5; border-radius: .65rem; }
+.tenant-crm-loyalty-rewards li>span, .tenant-crm-loyalty-ledger li>span, .tenant-crm-loyalty-reward-list>li>div:first-child { display: grid; gap: .2rem; min-width: 0; }
+.tenant-crm-loyalty-rewards small, .tenant-crm-loyalty-ledger small, .tenant-crm-loyalty-reward-list span { color: #64748b; font-size: .78rem; line-height: 1.6; }
+.tenant-crm-loyalty-ledger b { direction: ltr; font-variant-numeric: tabular-nums; }
+.tenant-crm-loyalty-ledger .is-credit { color: #047857; }
+.tenant-crm-loyalty-ledger .is-debit { color: #b91c1c; }
+.tenant-crm-loyalty-state { display: inline-flex; width: fit-content; padding: .2rem .55rem; border-radius: 99rem; background: #f1f5f9; color: #475569; font-size: .75rem; font-weight: 700; }
+.tenant-crm-loyalty-state.is-active { background: #ecfdf5; color: #047857; }
+.tenant-crm-loyalty-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; }
+.tenant-crm-loyalty button, .tenant-crm-loyalty-workspace button { min-height: 2.75rem; }
+.tenant-crm-loyalty button:disabled, .tenant-crm-loyalty-workspace button:disabled { opacity: .55; cursor: not-allowed; }
+@media (max-width: 36rem) {
+  .tenant-crm-loyalty-form, .tenant-crm-loyalty-adjust { grid-template-columns: 1fr; }
+  .tenant-crm-loyalty-adjust h3, .tenant-crm-loyalty-adjust>button { grid-column: auto; }
+  .tenant-crm-loyalty-reward-list>li { align-items: stretch; flex-direction: column; }
+}
 @media (max-width: 48rem) {
   .tenant-crm-criteria-rule { grid-template-columns: 1fr 1fr; }
   .tenant-crm-criteria-rule .tenant-crm-condition-value { grid-column: 1 / -1; }

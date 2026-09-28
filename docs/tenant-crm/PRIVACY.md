@@ -26,3 +26,7 @@ Retention periods, deletion rights, consent wording/evidence, sensitive-field po
 ## Phase 4 Segments
 
 Saved criteria and current membership are internal data scoped to one café and readable only through authorized tenant CRM APIs. Client-facing routes and Platform CRM do not expose them. Filterable fields are an allowlist; phone supports only a non-empty boolean check, while member/sample projections mask the phone. No automatic sensitive profiling, scoring, cross-café aggregation, marketing consent, or delivery is derived from Segment membership. Membership is query-time only, so there is no historical entry/exit record or stored client-ID audience.
+
+## Phase 5 Loyalty
+
+Program, reward, adjustment reason, redemption, and ledger history are staff-only tenant CRM data. Loyalty APIs accept tenant identity only from trusted tenant context; they do not search by or share a Client's phone across cafés. The event outbox stores only event identity, type, tenant, aggregate, and an Order ID payload; logs record a failed event identifier/attempt without logging customer/order bodies or phones. Customer 360 masks staff actor phone labels. Adjustment reasons are internal free text and should describe the operational correction without including customer contact/payment data. No consent, customer notification, audience export, or third-party sharing is added.

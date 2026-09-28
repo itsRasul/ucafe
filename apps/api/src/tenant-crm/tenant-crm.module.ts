@@ -9,10 +9,12 @@ import { TenantCrmService } from "./tenant-crm.service";
 import { TenantCrmResourcesController } from "./tenant-crm-resources.controller";
 import { TenantCrmSegmentsController } from "./tenant-crm-segments.controller";
 import { TenantCrmSegmentsService } from "./tenant-crm-segments.service";
+import { TenantCrmLoyaltyController } from "./tenant-crm-loyalty.controller";
+import { TenantCrmLoyaltyService } from "./tenant-crm-loyalty.service";
 
 @Module({
   imports: [AuthModule, AuthorizationModule, SubscriptionsModule],
-  controllers: [TenantCrmController, TenantCrmResourcesController, TenantCrmSegmentsController],
-  providers: [TenantContextGuard, TenantPermissionGuard, TenantCrmService, TenantCrmSegmentsService],
+  controllers: [TenantCrmController, TenantCrmResourcesController, TenantCrmSegmentsController, TenantCrmLoyaltyController],
+  providers: [TenantContextGuard, TenantPermissionGuard, TenantCrmService, TenantCrmSegmentsService, TenantCrmLoyaltyService],
 })
 export class TenantCrmModule {}

@@ -33,3 +33,7 @@ Separate permissions for notes, campaigns, loyalty, and analytics are not introd
 Segment field metadata, list/detail, unsaved and saved previews, member pages, and Smart Group reads require tenant_crm.read plus the effective tenant_crm entitlement. Segment create, edit, criteria replacement, activation, and deactivation additionally require tenant_crm.manage. Controllers use the existing access-token, tenant-context, and tenant-permission guards; each route resolves and checks the feature against the trusted café context.
 
 The builder hides mutation controls for users without manage permission, while server guards remain authoritative. Criteria, members, and Smart Groups are internal tenant CRM data and are not exposed through Client-authenticated routes. Segment APIs do not change Promotions permissions or Platform CRM permissions.
+
+## Phase 5 Loyalty access
+
+Program, reward, Client Loyalty summary, ledger, and redemption history reads require `tenant_crm.read` and effective `tenant_crm`. Program/reward changes, manual adjustments, and staff redemptions additionally require `tenant_crm.manage`. No loyalty-specific permission or feature flag is introduced. Management controls are hidden when the manager permission is absent; each API route independently checks trusted tenant context, permission, and entitlement.

@@ -31,3 +31,9 @@ Future Tenant CRM automation owns its triggers, conditions, actions, and busines
 ## Phase 4 dynamic membership
 
 Segment and Smart Group evaluation is a live read query, not an event publisher. No Client-entered/left transition, Segment evaluation event, stored member list, durable membership history, or background synchronization exists. A changed source row can change the next query's result without producing an event. Future Campaign or automation consumers must explicitly define snapshot timing, deduplication, re-entry, and history rather than infer those facts from current membership.
+
+## Phase 5 durable delivery event
+
+Orders writes `tenant.order.delivered` into `domain_event_outbox` in the same transaction that persists the transition to `DELIVERED`. This narrow PostgreSQL outbox is durable and independent of the Platform CRM workflow outbox. The consumer claims with `FOR UPDATE SKIP LOCKED`, recovers claims older than five minutes, and retries failures with capped exponential delay up to five attempts; exhausted or crashed-final-attempt records become `FAILED` for operations review. Ledger uniqueness is the final duplicate guard, even if a second outbox event exists for an Order.
+
+The Customer 360 Timeline separately projects each persisted Loyalty ledger row with `LOYALTY_LEDGER:<ledger-id>` as its globally unique event key. It remains a current-source projection, not a publication of the outbox stream or a full event history. Timeline metadata includes entry type, signed points, and the manual reason or Reward name snapshot; it excludes phone numbers and Order payloads.

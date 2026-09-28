@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { formatJalaliDate } from "../../jalali-date";
 import { TenantPermission, useAdminSession } from "../admin-session";
 import { TenantCrmRelationshipPanel } from "./relationship-data";
+import { TenantCrmLoyaltyPanel } from "./loyalty-client-panel";
 
 type Order = { id: string; displayNumber: string; status: string; totalAmountToman: string; deliveryMethod: string; createdAt: string; statusChangedAt: string | null };
 type Reservation = { id: string; status: string; reservationDate: string; startTime: string; partySize: number; createdAt: string; statusChangedAt: string | null };
@@ -18,7 +19,7 @@ type ClientDetailRecord = {
   };
   recentOrders: Order[]; recentReservations: Reservation[];
 };
-type TimelineItem = { eventKey: string; type: string; occurredAt: string; sourceType: "CLIENT" | "ORDER" | "RESERVATION" | "NOTE" | "REMINDER"; sourceId: string; metadata: Record<string, string | number> };
+type TimelineItem = { eventKey: string; type: string; occurredAt: string; sourceType: "CLIENT" | "ORDER" | "RESERVATION" | "NOTE" | "REMINDER" | "LOYALTY"; sourceId: string; metadata: Record<string, string | number | null> };
 type TimelinePage = { items: TimelineItem[]; nextCursor: string | null };
 
 const numbers = new Intl.NumberFormat("fa-IR");
@@ -39,6 +40,9 @@ function timelineTitle(item: TimelineItem) {
   if (item.type === "NOTE_CREATED") return "یادداشت داخلی ثبت شد";
   if (item.type === "REMINDER_CREATED") return "یادآوری ثبت شد";
   if (item.type === "REMINDER_COMPLETED") return "یادآوری انجام شد";
+  if (item.type === "LOYALTY_POINTS_EARNED") return "امتیاز وفاداری دریافت شد";
+  if (item.type === "LOYALTY_POINTS_ADJUSTED") return "امتیاز وفاداری اصلاح شد";
+  if (item.type === "REWARD_REDEEMED") return "جایزه با امتیاز دریافت شد";
   if (item.type === "ORDER_CREATED") return `سفارش ${number} ثبت شد`;
   if (item.sourceType === "ORDER") {
     const status = String(item.metadata.status ?? "");
@@ -53,6 +57,7 @@ function timelineTitle(item: TimelineItem) {
 }
 
 function timelineDetail(item: TimelineItem) {
+  if (item.sourceType === "LOYALTY") return `${item.metadata.points ?? "0"} امتیاز${item.metadata.description ? ` · ${item.metadata.description}` : ""}`;
   if (item.type === "ORDER_CREATED") return `${money(String(item.metadata.totalAmountToman ?? "0"))} · ${item.metadata.deliveryMethod === "COURIER" ? "ارسال با پیک" : "تحویل در کافه"}`;
   if (item.type === "RESERVATION_CREATED") return `${formatJalaliDate(String(item.metadata.reservationDate))}، ${item.metadata.startTime} · ${numbers.format(Number(item.metadata.partySize))} نفر`;
   return "";
@@ -134,6 +139,7 @@ export function ClientDetail() {
           </section>
 
           <TenantCrmRelationshipPanel clientId={client.id} api={api} timeZone={access.tenant.timezone} canManage={access.permissions.includes("tenant_crm.manage" as TenantPermission)} />
+          <TenantCrmLoyaltyPanel clientId={client.id} api={api} timeZone={access.tenant.timezone} canManage={access.permissions.includes("tenant_crm.manage" as TenantPermission)} />
 
           <section className="tenant-crm-section" aria-labelledby="tenant-crm-orders-title">
             <div className="tenant-crm-section-heading"><h2 id="tenant-crm-orders-title">سفارش‌های اخیر</h2>{canReadOrders && <Link href="/admin/orders">رفتن به سفارش‌ها</Link>}</div>

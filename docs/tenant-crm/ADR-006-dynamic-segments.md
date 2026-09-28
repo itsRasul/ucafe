@@ -1,6 +1,6 @@
 # ADR-006: Tenant CRM Segments evaluate current data
 
-- **Status:** Implemented in Phase 4; PostgreSQL integration and authenticated UI acceptance pending.
+- **Status:** Implemented in Phase 4; PostgreSQL integration passed during Phase 5 regression; authenticated UI acceptance pending.
 - **Date:** 2026-09-29
 
 ## Context
@@ -25,6 +25,6 @@ Keep Tenant CRM Segments separate from Platform CRM Segments and Promotions cust
 
 ## Consequences
 
-Membership is current and query-derived, with no historical entry/exit record. Preview and membership automatically reflect source changes. Segment evaluation does not introduce eventual-consistency jobs or duplicated member state. Correlated aggregate performance requires representative query-plan validation before production-scale optimization; the implementation's optional PostgreSQL fixture was unavailable during this phase.
+Membership is current and query-derived, with no historical entry/exit record. Preview and membership automatically reflect source changes. Segment evaluation does not introduce eventual-consistency jobs or duplicated member state. Its PostgreSQL tenant-isolation/dynamic-membership/EXPLAIN fixture passed during Phase 5 regression on a small local dataset; representative query-plan validation is still required before production-scale optimization.
 
 Migration 1790620000000-TenantCrmSegments creates criteria-only storage with tenant-local names and a same-tenant creator reference. See SEGMENTATION.md, DATA_MODEL.md, MULTI_TENANCY.md, API.md, and TESTING.md.

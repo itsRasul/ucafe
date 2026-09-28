@@ -254,7 +254,8 @@ export class TenantCrmSegmentsService {
     const parameters: unknown[] = [coffeeShopId, timeZone];
     const state = { conditions: 0 };
     const where = this.compileGroup(criteria, 1, true, parameters, catalog, state);
-    return { where, parameters };
+    // Keep the tenant timezone parameter typed even when criteria use no date field.
+    return { where: `$2::text IS NOT NULL AND ${where}`, parameters };
   }
 
   private compileGroup(input: unknown, depth: number, root: boolean, parameters: unknown[], catalog: Catalog,

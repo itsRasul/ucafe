@@ -41,3 +41,7 @@ Do not reuse Platform CRM Organization, Contact, Lead, Deal, Activity, Task, Not
 A Tenant CRM Segment belongs to one café and stores its name, optional description, versioned typed criteria, active status, creator, and timestamps. Its criteria query the current tenant-owned Client population and current CRM, Order, and Reservation sources. A Segment does not own Client membership: matching rows are computed on demand, and Phase 4 stores no membership snapshot, enter/exit history, or synchronization state. Smart Groups are deterministic system criteria evaluated by the same compiler; they are not saved Segment records.
 
 Tags are manually assigned labels and remain separate from Segments, which are dynamic predicates. Promotions manual customer groups remain in their existing domain. Tenant CRM Segments do not reuse or expose Platform CRM Segment records or filtering semantics. Later Campaign work may consume a current Segment predicate only after it defines its own consent, eligibility, and history contract.
+
+## Phase 5 Loyalty
+
+Loyalty is another tenant-owned relationship around `Client`; it adds no alternate customer identity. A café owns its versioned earning configuration, lazy per-Client account, signed ledger, reward catalog, and redemption history. Orders remain authoritative for qualifying activity and amount; the ledger records the points consequence. The current balance is the sum of ledger rows, not a mutable Client field. Loyalty rewards and redemptions do not own Menu Items, Discounts, checkout, or Platform CRM data.

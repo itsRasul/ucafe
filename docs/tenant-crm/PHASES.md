@@ -8,8 +8,8 @@ Phase numbers sequence work; they do not authorize work beyond the agreed phase.
 | 1 | Client directory and identity resolution | Implemented |
 | 2 | Customer 360 and unified customer timeline | Implemented; authenticated visual review pending |
 | 3 | Preferences, notes, tags, custom fields, and reminders | Implemented; authenticated visual acceptance pending |
-| 4 | Segmentation and smart groups | Implemented; PostgreSQL integration and authenticated visual acceptance pending |
-| 5 | Loyalty and rewards | Planned |
+| 4 | Segmentation and smart groups | Implemented; PostgreSQL regression passed, authenticated visual acceptance pending |
+| 5 | Loyalty and rewards | Implemented; authenticated visual acceptance pending |
 | 6 | Feedback and service recovery | Planned |
 | 7 | Offers and Discount targeting | Planned |
 | 8 | Customer communications and campaigns | Planned |
@@ -40,6 +40,12 @@ Persist a tenant-owned named criteria AST, then evaluate it against the current 
 
 Migration 1790620000000-TenantCrmSegments adds criteria-only Segment persistence, tenant-composite identity and creator constraints, tenant-local case-insensitive names, and a tenant listing index. Reads require tenant_crm.read plus the effective tenant_crm feature; create/update/status changes also require tenant_crm.manage. Relative dates use the resolved café time zone. Archived Tag/Custom Field references remain stored and are shown as invalid until repaired; they are not reinterpreted.
 
-Phase 4 implementation includes AST/value validation, nested AND/OR, Client and explicit preference fields, tenant Tags, typed Custom Fields, Phase 2-aligned current Order/Reservation metrics, fixed deterministic Smart Groups, paginated member queries, and Persian RTL Tenant Admin pages. API/web typechecks and focused API service tests pass. The optional PostgreSQL isolation/dynamic-membership/EXPLAIN test did not run because TENANT_CRM_INTEGRATION_DATABASE_URL is unset and Docker Desktop is unavailable. Authenticated visual acceptance is pending. Phase 4 is therefore implemented but not marked complete under the Definition of Done.
+Phase 4 implementation includes AST/value validation, nested AND/OR, Client and explicit preference fields, tenant Tags, typed Custom Fields, Phase 2-aligned current Order/Reservation metrics, fixed deterministic Smart Groups, paginated member queries, and Persian RTL Tenant Admin pages. The 12-test Segment suite and its PostgreSQL isolation/dynamic-membership/EXPLAIN case passed during Phase 5 regression; the small local fixture does not establish production-scale query performance. Authenticated visual acceptance is pending. Phase 4 is therefore implemented but not marked complete under the Definition of Done.
 
-No loyalty, campaign, consent, automation, custom fields, dynamic segments, customer 360, analytics implementation, search service, broker, separate database, or microservice is part of Phase 0.
+## Phase 5 contract
+
+Use the existing Client identity and effective `tenant_crm` entitlement. Add a versioned spend-per-point program, lazy tenant/Client account, signed authoritative ledger, manual credits/debits, tenant Rewards, and atomic staff redemptions. Earning is integer floor division of current `DELIVERED` Order payable toman amount by the configuration effective when the transactional Order-delivered outbox event was written. Preserve historical entries and snapshots, prevent negative balances under account-row locks, and enforce uniqueness for earning per tenant/Order.
+
+Migration `1790630000000-TenantCrmLoyalty` creates tenant-composite persistence and the PostgreSQL outbox. Orders only writes the durable event; a CRM-owned consumer claims/retries it and no-ops without effective CRM entitlement. Reward redemption is not checkout or a Discount. The Customer 360 panel and `/admin/crm/loyalty` workspace use existing CRM permissions and Persian RTL patterns. Segmentation, Campaign, Automation, expiry, refund reversals, and Loyalty analytics stay outside Phase 5. Focused database tests and migration application passed; see LOYALTY.md and TESTING.md. Authenticated visual acceptance remains pending.
+
+No Campaign, consent, automation, dynamic membership persistence, analytics implementation, search service, broker, separate database, or microservice was introduced by Phase 5.

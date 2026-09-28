@@ -16,7 +16,7 @@ const accessKey = "ucafe_owner_access";
 function messageFor(response: Response, body: ApiError) {
   const detail = Array.isArray(body.message) ? body.message[0] : body.message;
   if (response.status === 403) return body.code === "FEATURE_UNAVAILABLE" ? body.feature === "inventory" ? "مدیریت موجودی در اشتراک فعلی فعال نیست." : body.feature === "reservations" ? "رزرو میز در اشتراک فعلی فعال نیست." : body.feature === "tenant_crm" ? "مدیریت مشتریان در اشتراک فعلی فعال نیست." : "آمار و تحلیل در اشتراک فعلی فعال نیست." : "این حساب اجازه دسترسی به این بخش از کافه را ندارد.";
-  if (response.status === 409) return "این عملیات دیگر مجاز نیست؛ اطلاعات را تازه کنید.";
+  if (response.status === 409) return body.code === "LOYALTY_INSUFFICIENT_POINTS" ? "امتیاز مشتری برای این عملیات کافی نیست." : body.code === "LOYALTY_PROGRAM_DISABLED" ? "برنامه وفاداری غیرفعال است." : "این عملیات دیگر مجاز نیست؛ اطلاعات را تازه کنید.";
   return detail || "ارتباط با سرور برقرار نشد. دوباره تلاش کنید.";
 }
 

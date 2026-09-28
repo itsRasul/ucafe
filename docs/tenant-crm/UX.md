@@ -29,3 +29,9 @@ The saved Segment workspace is at /admin/crm/segments; fixed Smart Groups are at
 The UI states that membership is recalculated from current café data. Smart Group cards show their exact definitions and can open members or start a saved Segment copied from that preset. Segment list rows show active status and invalid archived criteria; invalid references remain visible so a manager can repair the definition. Empty, loading, permission, entitlement, error, and success states have Persian copy. Mutation controls require tenant_crm.manage; the API independently enforces permission and feature access.
 
 The page is Persian RTL and responsive with labeled controls, keyboard-visible focus, native form validation, and mobile-width layouts. Authenticated desktop/mobile visual acceptance remains pending until a tenant-admin session and running app are available.
+
+## Phase 5 Loyalty
+
+The manager workspace is `/admin/crm/loyalty`, linked from the CRM directory. It edits the spend-per-point threshold and program state, then creates, edits, activates, and deactivates tenant Rewards. Customer 360 shows the derived balance, active reward costs/eligibility, recent redemptions, and recent Ledger activity with a bounded older-history action. Managers can record reasoned credits/debits and staff redemption; native confirmation precedes redemption. Blocked Clients can still be reviewed but point-changing controls are unavailable. Loading, errors, empty program/catalog/history, busy actions, and success feedback use the existing Persian RTL CRM styles and native form validation.
+
+No customer-facing reward claim, checkout integration, coupon generation, or automatic fulfillment is implied; the staff action records that the café fulfilled a Reward.

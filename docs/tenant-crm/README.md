@@ -1,6 +1,6 @@
 # Tenant CRM
 
-**Status:** Phases 0–4 implemented in code. Phase 4 API/UI typechecks and focused API tests pass; its PostgreSQL integration and authenticated visual acceptance remain pending because the integration database, Docker engine, and tenant-admin session are unavailable.
+**Status:** Phases 0–5 implemented in code. Phase 5 typecheck, production workspace build, full API regression (192 passed, 27 skipped), focused Segment regression (12/12), focused Loyalty tests (4/4), live PostgreSQL integration, and migration application pass. Authenticated browser acceptance remains pending until a tenant-admin session is available.
 
 ## Purpose and boundary
 
@@ -44,7 +44,19 @@ This domain is separate from Platform CRM, which manages UCafe's commercial rela
 - Keep current memberships query-derived and historical entry/exit history unavailable. Promotions manual groups and Platform CRM Segments remain separate.
 - Require tenant_crm.read and effective tenant_crm for reads; create/update/status changes require tenant_crm.manage. See SEGMENTATION.md for fields, exact metric definitions, preset criteria, operators, bounds, APIs, and query shape.
 - Migration 1790620000000-TenantCrmSegments persists criteria only; no Segment-member table or synchronization job exists.
-- API/web workspace typechecks and focused Segment service tests passed. The optional PostgreSQL integration test was skipped because its URL is unset; authenticated UI acceptance is pending.
+- The focused Segment service suite passed 12/12, including its PostgreSQL tenant-isolation, dynamic-membership, and EXPLAIN case during the Phase 5 regression run. The local fixture is small and does not establish production-scale query performance. Authenticated UI acceptance is pending.
+
+## Implemented in Phase 5
+
+- Add tenant-scoped Programs, lazy Client accounts, an authoritative signed points ledger, reasoned manual adjustments, Rewards, and staff-recorded redemptions.
+- Award integer points only for `DELIVERED` Orders using floor of existing payable toman amount divided by the program's versioned spend threshold. Ledger uniqueness prevents duplicate earning per café/Order.
+- Keep balance derived from ledger sum; account-row locks and transactions protect manual debits and redemption from overspending. Redemption snapshots name and cost and cannot be edited away by later Reward changes.
+- Orders writes a durable `tenant.order.delivered` outbox record in its status transaction. The Tenant CRM processor claims/retries independently; Orders do not call Tenant CRM.
+- Add the `/admin/crm/loyalty` program/reward workspace and Client 360 balance, rewards, redemption and paginated history panel. Tenant CRM Timeline includes ledger-backed loyalty projections.
+- Keep feature access on effective `tenant_crm`; reads require `tenant_crm.read` and changes require `tenant_crm.manage`. No separate flag, discount/checkout behavior, segment membership, automation, or analytics was added.
+- Migration `1790630000000-TenantCrmLoyalty` adds the durable event outbox and tenant-composite Loyalty schema. The focused PostgreSQL test covers independent café balances, duplicate earning, event-time rule snapshots, unfinished Orders, cross-tenant Reward denial, blocked Clients, and competing redemptions.
+- The Phase 5 regression run passed workspace typecheck and production build; the full API suite passed 192 tests with 27 skips. Authenticated browser acceptance remains pending.
+- See [LOYALTY.md](LOYALTY.md) and [ADR-007](ADR-007-loyalty-ledger-and-order-outbox.md) for the model and limits.
 
 ## Reading order
 
@@ -71,10 +83,11 @@ This domain is separate from Platform CRM, which manages UCafe's commercial rela
 | PRIVACY.md | Current facts and future privacy decisions |
 | ANALYTICS.md | Existing reports and future customer measures |
 | SEGMENTATION.md | Authoritative Phase 4 Segment, field, operator, and Smart Group semantics |
+| LOYALTY.md | Phase 5 earning, ledger, rewards, redemption, event processing, and limits |
 | TESTING.md | Required isolation and integration coverage |
 | PHASES.md | Incremental roadmap and implemented phase contracts |
-| ADR-001..006 | Accepted domain, identity, isolation, entitlement, custom-field, and segmentation decisions |
+| ADR-001..007 | Accepted domain, identity, isolation, entitlement, custom-field, segmentation, and loyalty decisions |
 
 ## Current versus proposed
 
-Statements about current behavior reflect code and migrations; later roadmap phases remain planned and are not implied by Phases 0–4.
+Statements about current behavior reflect code and migrations; Phases 6–10 remain planned and are not implied by Phases 0–5.

@@ -89,6 +89,14 @@ const timelineEventsSql = `
     UNION ALL
     SELECT 'REMINDER:' || r.id::text || ':COMPLETED', 'REMINDER_COMPLETED', r.completed_at, 'REMINDER', r.id::text, '{}'::jsonb
     FROM tenant_crm_reminders r WHERE r.coffee_shop_id=$1 AND r.client_id=$2 AND r.completed_at IS NOT NULL
+    UNION ALL
+    SELECT 'LOYALTY_LEDGER:' || l.id::text,
+           CASE l.entry_type WHEN 'EARN' THEN 'LOYALTY_POINTS_EARNED' WHEN 'REDEMPTION' THEN 'REWARD_REDEEMED' ELSE 'LOYALTY_POINTS_ADJUSTED' END,
+           l.created_at, 'LOYALTY', l.id::text,
+           jsonb_build_object('entryType',l.entry_type,'points',l.points::text,'description',COALESCE(l.reason,r.reward_name_snapshot))
+    FROM tenant_crm_loyalty_ledger l
+    LEFT JOIN tenant_crm_loyalty_redemptions r ON r.coffee_shop_id=l.coffee_shop_id AND r.id=l.redemption_id
+    WHERE l.coffee_shop_id=$1 AND l.client_id=$2
   ) events
   WHERE 1=1 __CURSOR_PREDICATE__
   ORDER BY occurred_at DESC,event_key DESC
@@ -160,7 +168,7 @@ export class TenantCrmService {
     const limitParameter = cursor ? 5 : 3;
     const sql = timelineEventsSql.replace("__CURSOR_PREDICATE__", cursorPredicate).replace("__LIMIT_PARAMETER__", `$${limitParameter}`);
     const parameters = cursor ? [coffeeShopId,clientId,cursor.occurredAt,cursor.eventKey,query.pageSize + 1] : [coffeeShopId,clientId,query.pageSize + 1];
-    const rows = await this.dataSource.query<Array<{ eventKey: string; type: string; occurredAt: Date; sourceType: string; sourceId: string; metadata: Record<string, string | number> }>>(sql, parameters);
+    const rows = await this.dataSource.query<Array<{ eventKey: string; type: string; occurredAt: Date; sourceType: string; sourceId: string; metadata: Record<string, string | number | null> }>>(sql, parameters);
     const hasMore = rows.length > query.pageSize;
     const items = rows.slice(0, query.pageSize);
     const last = items.at(-1);

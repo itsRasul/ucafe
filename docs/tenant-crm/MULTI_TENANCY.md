@@ -43,3 +43,7 @@ Each saved Segment is tenant-owned and constrained by a coffee_shop_id foreign k
 Every draft, saved, and Smart Group evaluation begins with the current Tenant's clients and an injected, parameterized coffee_shop_id predicate. Tenant identity is not a field or AST value. Tag and Custom Field definitions/options come from the same tenant's active catalog; Tag assignments and Custom Field value EXISTS predicates are additionally correlated to the Client's coffee_shop_id and ID. No Client ID membership list is shared or persisted.
 
 The PostgreSQL isolation fixture includes two cafés with identical Tag names and qualifying customer data, tests a foreign Tag reference, and checks that membership stays tenant-scoped after source data changes.
+
+## Phase 5 Loyalty isolation
+
+Every Program, Account, Reward, Redemption, Ledger entry, and outbox event carries `coffee_shop_id`. Composite foreign keys require the same café for Client, Account/Client, Reward, Order, Redemption, and membership actor relationships. Every API lookup includes the trusted Tenant context; a foreign Client or Reward behaves as not found. Same-phone Clients in two cafés retain independent account rows and ledger sums. Background earning also derives tenant and Client from the delivered Order row and uses the event's tenant-scoped aggregate ID.
