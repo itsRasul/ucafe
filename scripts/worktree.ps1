@@ -475,6 +475,8 @@ Choose another name or manage the existing branch manually.
         Set-EnvValue $TargetEnvFile "MINIO_HOST_PORT" $ports.Minio
         Set-EnvValue $TargetEnvFile "MINIO_CONSOLE_HOST_PORT" $ports.MinioConsole
 
+        Set-EnvValue $TargetEnvFile "PAYMENT_CALLBACK_BASE_URL" "http://localhost:$($ports.Api)"
+
 
         Write-Step "Validating Docker Compose configuration"
 
