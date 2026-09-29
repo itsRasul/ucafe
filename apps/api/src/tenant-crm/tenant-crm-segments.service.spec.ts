@@ -95,6 +95,25 @@ test("preview and paginated members use the same tenant predicate and server-sid
   assert.deepEqual(members.parameters, [tenantA, "Asia/Tehran", 2, 10, 10]);
 });
 
+test("Offer activation compiles the saved active Segment with its tenant predicate under a share lock", async () => {
+  const segmentId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  const calls: Array<{ sql: string; parameters: unknown[] }> = [];
+  const manager = { query: async (sql: string, parameters: unknown[] = []) => {
+    calls.push({ sql, parameters });
+    if (sql.includes("FROM tenant_crm_segments")) return [{ id: segmentId, name: "فعال‌ها", criteria: criteria([rule("client.status", "equals", "ACTIVE")]), isActive: true }];
+    if (sql.includes("SELECT id,key,label,data_type AS")) return [];
+    if (sql.includes("SELECT id,name FROM tenant_crm_tags")) return [];
+    return [];
+  } } as unknown as EntityManager;
+  const { service } = mockService();
+  const audience = await service.audienceQuery(manager, tenantA, "Asia/Tehran", segmentId);
+  const segmentRead = calls.find((call) => call.sql.includes("FROM tenant_crm_segments"));
+  assert.match(segmentRead!.sql, /WHERE coffee_shop_id=\$1 AND id=\$2 FOR SHARE/);
+  assert.match(audience.sql, /c\.coffee_shop_id=\$1/);
+  assert.deepEqual(audience.parameters, [tenantA, "Asia/Tehran", "ACTIVE"]);
+  assert.equal(audience.segmentName, "فعال‌ها");
+});
+
 test("delivered-value averages and phone-presence criteria use their safe source semantics", async () => {
   const { service, calls } = mockService();
   await service.preview(tenantA, "Asia/Tehran", criteria([

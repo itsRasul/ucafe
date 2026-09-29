@@ -2,8 +2,10 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { DataSource, EntityManager } from "typeorm";
 import { normalizeIranianMobile, maskPhone } from "../auth/iran-phone.util";
 import { displayOrderNumber } from "../notifications/notification-type";
+import { DomainEventTypes } from "../database/domain-event.constants";
 import { ClientDirectoryQueryDto } from "./dto/client-directory-query.dto";
 import { ClientTimelineQueryDto } from "./dto/client-timeline-query.dto";
+import { CreateTenantCrmFeedbackDto, ResolveTenantCrmFeedbackDto, SubmitTenantCrmFeedbackDto, TenantCrmFeedbackListQueryDto } from "./dto/tenant-crm-feedback.dto";
 import { CreateTenantCrmCustomFieldDto, CreateTenantCrmNoteDto, CreateTenantCrmReminderDto, CreateTenantCrmTagDto,
   TenantCrmCustomFieldListQueryDto, TenantCrmCustomFieldType, TenantCrmNoteListQueryDto, TenantCrmReminderListQueryDto,
   TenantCrmTagListQueryDto, UpdateTenantCrmCustomFieldDto, UpdateTenantCrmCustomFieldValuesDto, UpdateTenantCrmNoteDto,
@@ -17,6 +19,7 @@ type ClientOverviewRow = { id: string; firstName: string; lastName: string; phon
   totalReservationCount: number; completedReservationCount: number; canceledReservationCount: number;
   rejectedReservationCount: number; noShowReservationCount: number;
   firstReservationAt: Date | null; lastReservationAt: Date | null; lastInteractionAt: Date;
+  feedbackCount: number; averageFeedbackRating: string | null; negativeFeedbackCount: number; needsAttentionFeedbackCount: number; lastFeedbackAt: Date | null;
 };
 
 const overviewSql = `
@@ -39,6 +42,12 @@ const overviewSql = `
            MIN(created_at) AS first_reservation_at, MAX(created_at) AS last_reservation_at,
            MAX(GREATEST(created_at,COALESCE(status_changed_at,created_at))) AS last_reservation_interaction_at
     FROM reservations WHERE coffee_shop_id=$1 AND client_id=$2
+  ), feedback_summary AS (
+    SELECT COUNT(*)::int AS feedback_count, ROUND(AVG(rating)::numeric,1)::text AS average_feedback_rating,
+           COUNT(*) FILTER (WHERE rating<=2)::int AS negative_feedback_count,
+           COUNT(*) FILTER (WHERE status='NEEDS_ATTENTION')::int AS needs_attention_feedback_count,
+           MAX(created_at) AS last_feedback_at
+    FROM tenant_crm_feedback WHERE coffee_shop_id=$1 AND client_id=$2
   )
   SELECT c.id, c.first_name AS "firstName", c.last_name AS "lastName", c.phone, c.status,
          c.phone_verified_at AS "phoneVerifiedAt", c.created_at AS "createdAt", c.updated_at AS "updatedAt",
@@ -50,8 +59,11 @@ const overviewSql = `
          r.canceled_reservation_count AS "canceledReservationCount", r.rejected_reservation_count AS "rejectedReservationCount",
          r.no_show_reservation_count AS "noShowReservationCount", r.first_reservation_at AS "firstReservationAt",
          r.last_reservation_at AS "lastReservationAt",
+         f.feedback_count AS "feedbackCount", f.average_feedback_rating AS "averageFeedbackRating",
+         f.negative_feedback_count AS "negativeFeedbackCount", f.needs_attention_feedback_count AS "needsAttentionFeedbackCount",
+         f.last_feedback_at AS "lastFeedbackAt",
          GREATEST(c.created_at, o.last_order_interaction_at, r.last_reservation_interaction_at) AS "lastInteractionAt"
-  FROM clients c CROSS JOIN order_summary o CROSS JOIN reservation_summary r
+  FROM clients c CROSS JOIN order_summary o CROSS JOIN reservation_summary r CROSS JOIN feedback_summary f
   WHERE c.id=$2 AND c.coffee_shop_id=$1`;
 
 const timelineEventsSql = `
@@ -81,14 +93,24 @@ const timelineEventsSql = `
            r.status_changed_at, 'RESERVATION', r.id::text, jsonb_build_object('status',r.status::text)
     FROM reservations r WHERE r.coffee_shop_id=$1 AND r.client_id=$2 AND r.status_changed_at IS NOT NULL
     UNION ALL
-    SELECT 'NOTE:' || n.id::text || ':CREATED', 'NOTE_CREATED', n.created_at, 'NOTE', n.id::text, '{}'::jsonb
+    SELECT 'NOTE:' || n.id::text || ':CREATED', 'NOTE_CREATED', n.created_at, 'NOTE', n.id::text,
+           jsonb_build_object('source',CASE WHEN n.automation_action_execution_id IS NULL THEN 'USER' ELSE 'AUTOMATION' END)
     FROM tenant_crm_client_notes n WHERE n.coffee_shop_id=$1 AND n.client_id=$2
     UNION ALL
-    SELECT 'REMINDER:' || r.id::text || ':CREATED', 'REMINDER_CREATED', r.created_at, 'REMINDER', r.id::text, '{}'::jsonb
+    SELECT 'REMINDER:' || r.id::text || ':CREATED', 'REMINDER_CREATED', r.created_at, 'REMINDER', r.id::text,
+           jsonb_build_object('source',CASE WHEN r.automation_action_execution_id IS NULL THEN 'USER' ELSE 'AUTOMATION' END)
     FROM tenant_crm_reminders r WHERE r.coffee_shop_id=$1 AND r.client_id=$2
     UNION ALL
     SELECT 'REMINDER:' || r.id::text || ':COMPLETED', 'REMINDER_COMPLETED', r.completed_at, 'REMINDER', r.id::text, '{}'::jsonb
     FROM tenant_crm_reminders r WHERE r.coffee_shop_id=$1 AND r.client_id=$2 AND r.completed_at IS NOT NULL
+    UNION ALL
+    SELECT 'FEEDBACK:' || f.id::text || ':CREATED', 'FEEDBACK_RECEIVED', f.created_at, 'FEEDBACK', f.id::text,
+           jsonb_build_object('rating',f.rating,'source',f.source)
+    FROM tenant_crm_feedback f WHERE f.coffee_shop_id=$1 AND f.client_id=$2
+    UNION ALL
+    SELECT 'FEEDBACK:' || f.id::text || ':RESOLVED', 'FEEDBACK_RESOLVED', f.resolved_at, 'FEEDBACK', f.id::text,
+           jsonb_build_object('rating',f.rating,'source',f.source)
+    FROM tenant_crm_feedback f WHERE f.coffee_shop_id=$1 AND f.client_id=$2 AND f.resolved_at IS NOT NULL
     UNION ALL
     SELECT 'LOYALTY_LEDGER:' || l.id::text,
            CASE l.entry_type WHEN 'EARN' THEN 'LOYALTY_POINTS_EARNED' WHEN 'REDEMPTION' THEN 'REWARD_REDEEMED' ELSE 'LOYALTY_POINTS_ADJUSTED' END,
@@ -97,6 +119,25 @@ const timelineEventsSql = `
     FROM tenant_crm_loyalty_ledger l
     LEFT JOIN tenant_crm_loyalty_redemptions r ON r.coffee_shop_id=l.coffee_shop_id AND r.id=l.redemption_id
     WHERE l.coffee_shop_id=$1 AND l.client_id=$2
+    UNION ALL
+    SELECT 'OFFER_ELIGIBILITY:' || a.id::text, 'OFFER_ELIGIBILITY_CREATED', a.granted_at, 'OFFER', o.id::text,
+           jsonb_build_object('offerName',o.name,'segmentName',o.segment_name_snapshot)
+    FROM tenant_crm_offer_audience_members a
+    JOIN tenant_crm_offers o ON o.coffee_shop_id=a.coffee_shop_id AND o.id=a.offer_id
+    WHERE a.coffee_shop_id=$1 AND a.client_id=$2 AND o.status IN ('ACTIVE','ENDED')
+    UNION ALL
+    SELECT 'OFFER_ORDER:' || o.id::text || ':' || ord.id::text, 'OFFER_DISCOUNT_APPLIED', ord.created_at, 'OFFER', o.id::text,
+           jsonb_build_object('offerName',o.name,'promotionName',p.name,'orderId',ord.id::text)
+    FROM tenant_crm_offers o
+    JOIN tenant_crm_offer_audience_members a ON a.coffee_shop_id=o.coffee_shop_id AND a.offer_id=o.id
+    JOIN promotions p ON p.coffee_shop_id=o.coffee_shop_id AND p.id=o.promotion_id
+    JOIN orders ord ON ord.coffee_shop_id=o.coffee_shop_id AND ord.client_id=a.client_id
+    WHERE o.coffee_shop_id=$1 AND a.client_id=$2 AND o.status IN ('ACTIVE','ENDED')
+      AND ord.created_at>=o.activated_at AND (o.ended_at IS NULL OR ord.created_at<o.ended_at)
+      AND ((ord.order_promotion_id_snapshot=o.promotion_id AND ord.order_discount_toman>0) OR EXISTS (
+        SELECT 1 FROM order_items oi WHERE oi.coffee_shop_id=ord.coffee_shop_id AND oi.order_id=ord.id
+          AND oi.promotion_id_snapshot=o.promotion_id AND oi.discount_amount_toman>0
+      ))
   ) events
   WHERE 1=1 __CURSOR_PREDICATE__
   ORDER BY occurred_at DESC,event_key DESC
@@ -133,17 +174,20 @@ export class TenantCrmService {
   async detail(coffeeShopId: string, clientId: string) {
     const [overview] = await this.dataSource.query<ClientOverviewRow[]>(overviewSql, [coffeeShopId, clientId]);
     if (!overview) throw new NotFoundException("Client not found");
-    const [orders, reservations] = await Promise.all([
+    const [orders, reservations, recentFeedback] = await Promise.all([
       this.dataSource.query<Array<{ id: string; status: string; totalAmountToman: string; deliveryMethod: string; createdAt: Date; statusChangedAt: Date | null }>>(
         `SELECT id,status,total_amount_toman AS "totalAmountToman",delivery_method AS "deliveryMethod",created_at AS "createdAt",status_changed_at AS "statusChangedAt"
          FROM orders WHERE coffee_shop_id=$1 AND client_id=$2 ORDER BY created_at DESC,id DESC LIMIT 5`, [coffeeShopId,clientId]),
       this.dataSource.query<Array<{ id: string; status: string; reservationDate: string; startTime: string; partySize: number; createdAt: Date; statusChangedAt: Date | null }>>(
         `SELECT id,status,reservation_date::text AS "reservationDate",to_char(start_time,'HH24:MI') AS "startTime",party_size AS "partySize",created_at AS "createdAt",status_changed_at AS "statusChangedAt"
          FROM reservations WHERE coffee_shop_id=$1 AND client_id=$2 ORDER BY created_at DESC,id DESC LIMIT 5`, [coffeeShopId,clientId]),
+      this.dataSource.query<Array<Record<string, unknown>>>(`SELECT id,rating,comment,source,status,order_id AS "orderId",reservation_id AS "reservationId",
+        created_at AS "createdAt" FROM tenant_crm_feedback WHERE coffee_shop_id=$1 AND client_id=$2 ORDER BY created_at DESC,id DESC LIMIT 5`, [coffeeShopId,clientId]),
     ]);
     const { trackedOrderCount, deliveredOrderCount, canceledOrderCount, knownSpendToman, averageDeliveredOrderValueToman,
       firstOrderAt, lastOrderAt, totalReservationCount, completedReservationCount, canceledReservationCount,
-      rejectedReservationCount, noShowReservationCount, firstReservationAt, lastReservationAt, lastInteractionAt, ...client } = overview;
+      rejectedReservationCount, noShowReservationCount, firstReservationAt, lastReservationAt, lastInteractionAt,
+      feedbackCount, averageFeedbackRating, negativeFeedbackCount, needsAttentionFeedbackCount, lastFeedbackAt, ...client } = overview;
     return {
       ...client,
       firstSeenAt: client.createdAt,
@@ -153,9 +197,12 @@ export class TenantCrmService {
           knownSpendToman, averageDeliveredOrderValueToman, firstOrderAt, lastOrderAt },
         reservations: { totalCount: totalReservationCount, completedCount: completedReservationCount, canceledCount: canceledReservationCount,
           rejectedCount: rejectedReservationCount, noShowCount: noShowReservationCount, firstReservationAt, lastReservationAt },
+        feedback: { count: feedbackCount, averageRating: averageFeedbackRating, negativeCount: negativeFeedbackCount,
+          needsAttentionCount: needsAttentionFeedbackCount, lastFeedbackAt },
       },
       recentOrders: orders.map((order) => ({ ...order, displayNumber: displayOrderNumber(order.id) })),
       recentReservations: reservations,
+      recentFeedback: recentFeedback.map((item) => ({ ...item, orderDisplayNumber: item.orderId ? displayOrderNumber(String(item.orderId)) : null })),
     };
   }
 
@@ -173,6 +220,168 @@ export class TenantCrmService {
     const items = rows.slice(0, query.pageSize);
     const last = items.at(-1);
     return { items, nextCursor: hasMore && last ? encodeTimelineCursor({ occurredAt: new Date(last.occurredAt).toISOString(), eventKey: last.eventKey }) : null };
+  }
+
+  async listFeedback(coffeeShopId: string, query: TenantCrmFeedbackListQueryDto, timezone = "UTC") {
+    if (query.clientId) await this.assertClient(this.dataSource, coffeeShopId, query.clientId);
+    if ((query.dateFrom && !validIsoDate(query.dateFrom)) || (query.dateTo && !validIsoDate(query.dateTo))
+      || (query.dateFrom && query.dateTo && query.dateFrom > query.dateTo)) throw new BadRequestException("Feedback date range is invalid");
+    const clauses = ["f.coffee_shop_id=$1"];
+    const parameters: unknown[] = [coffeeShopId];
+    const add = (sql: (index: number) => string, value: unknown) => {
+      parameters.push(value);
+      clauses.push(sql(parameters.length));
+    };
+    if (query.clientId) add((index) => `f.client_id=$${index}`, query.clientId);
+    if (query.status) add((index) => `f.status=$${index}`, query.status);
+    if (query.rating) add((index) => `f.rating=$${index}`, query.rating);
+    if (query.source) add((index) => `f.source=$${index}`, query.source);
+    let timezoneIndex: number | undefined;
+    const addDateFilter = (sql: (dateIndex: number, timezoneIndex: number) => string, value: string) => {
+      if (timezoneIndex === undefined) {
+        parameters.push(timezone);
+        timezoneIndex = parameters.length;
+      }
+      parameters.push(value);
+      clauses.push(sql(parameters.length, timezoneIndex));
+    };
+    if (query.dateFrom) addDateFilter((dateIndex, timezoneIndex) => `f.created_at >= ($${dateIndex}::date::timestamp AT TIME ZONE $${timezoneIndex})`, query.dateFrom);
+    if (query.dateTo) addDateFilter((dateIndex, timezoneIndex) => `f.created_at < (($${dateIndex}::date + 1)::timestamp AT TIME ZONE $${timezoneIndex})`, query.dateTo);
+    const search = query.q?.trim();
+    if (search) {
+      let phone: string | undefined;
+      try { phone = normalizeIranianMobile(search); } catch { /* Non-phone input searches names and comments. */ }
+      if (phone) add((index) => `c.phone=$${index}`, phone);
+      else add((index) => `(c.first_name ILIKE $${index} OR c.last_name ILIKE $${index} OR (c.first_name || ' ' || c.last_name) ILIKE $${index} OR COALESCE(f.comment,'') ILIKE $${index})`, `%${search}%`);
+    }
+    const where = clauses.join(" AND ");
+    const [count] = await this.dataSource.query<Array<{ total: string }>>(`SELECT COUNT(*)::text AS total FROM tenant_crm_feedback f
+      JOIN clients c ON c.coffee_shop_id=f.coffee_shop_id AND c.id=f.client_id WHERE ${where}`, parameters);
+    const sortColumn = ({ createdAt: "f.created_at", rating: "f.rating", updatedAt: "f.updated_at" } as const)[query.sortBy];
+    const pageParameters = [...parameters, query.pageSize, (query.page - 1) * query.pageSize];
+    const rows = await this.dataSource.query<Array<Record<string, unknown>>>(`${this.feedbackSelectSql()}
+      WHERE ${where} ORDER BY ${sortColumn} ${query.sortOrder.toUpperCase()},f.id DESC LIMIT $${pageParameters.length - 1} OFFSET $${pageParameters.length}`, pageParameters);
+    return { items: rows.map((row) => ({ ...row, phone: maskPhone(String(row.phone)), orderDisplayNumber: row.orderId ? displayOrderNumber(String(row.orderId)) : null })),
+      total: Number(count?.total ?? 0), page: query.page, pageSize: query.pageSize };
+  }
+
+  async feedbackDetail(coffeeShopId: string, feedbackId: string) {
+    return this.feedbackById(this.dataSource, coffeeShopId, feedbackId);
+  }
+
+  async createFeedback(coffeeShopId: string, actorId: string, input: CreateTenantCrmFeedbackDto) {
+    return this.insertFeedback(coffeeShopId, input.clientId, actorId, "MANUAL", input.rating, input.comment);
+  }
+
+  async submitClientFeedback(coffeeShopId: string, clientId: string, input: SubmitTenantCrmFeedbackDto) {
+    if (Boolean(input.orderId) === Boolean(input.reservationId)) throw new BadRequestException("Feedback must reference one completed Order or Reservation");
+    return this.insertFeedback(coffeeShopId, clientId, null, "CUSTOMER_PANEL", input.rating, input.comment, input.orderId, input.reservationId);
+  }
+
+  async clientFeedbackForOrder(coffeeShopId: string, clientId: string, orderId: string) {
+    return this.clientFeedbackForSource(coffeeShopId, clientId, "order_id", orderId);
+  }
+
+  async clientFeedbackForReservation(coffeeShopId: string, clientId: string, reservationId: string) {
+    return this.clientFeedbackForSource(coffeeShopId, clientId, "reservation_id", reservationId);
+  }
+
+  async markFeedbackNeedsAttention(coffeeShopId: string, feedbackId: string) {
+    return this.dataSource.transaction(async (manager) => {
+      const rows = await manager.query<Array<{ status: string; clientId: string; rating: number; source: string }>>(`SELECT status,client_id AS "clientId",rating,source FROM tenant_crm_feedback
+        WHERE coffee_shop_id=$1 AND id=$2 FOR UPDATE`, [coffeeShopId, feedbackId]);
+      const current = rows[0];
+      if (!current) throw new NotFoundException("Feedback not found");
+      if (current.status === "RESOLVED") throw new ConflictException("Resolved feedback cannot be reopened");
+      if (current.status === "NEW") await manager.query(`UPDATE tenant_crm_feedback SET status='NEEDS_ATTENTION',updated_at=clock_timestamp()
+        WHERE coffee_shop_id=$1 AND id=$2`, [coffeeShopId, feedbackId]);
+      return this.feedbackById(manager, coffeeShopId, feedbackId);
+    });
+  }
+
+  async resolveFeedback(coffeeShopId: string, actorId: string, feedbackId: string, input: ResolveTenantCrmFeedbackDto) {
+    return this.dataSource.transaction(async (manager) => {
+      const rows = await manager.query<Array<{ status: string; clientId: string; rating: number; source: string }>>(`SELECT status,
+        client_id AS "clientId",rating,source FROM tenant_crm_feedback
+        WHERE coffee_shop_id=$1 AND id=$2 FOR UPDATE`, [coffeeShopId, feedbackId]);
+      const current = rows[0];
+      if (!current) throw new NotFoundException("Feedback not found");
+      if (current.status !== "RESOLVED") await manager.query(`UPDATE tenant_crm_feedback SET status='RESOLVED',resolved_at=clock_timestamp(),
+        resolved_by_user_id=$3,resolution_note=$4,updated_at=clock_timestamp() WHERE coffee_shop_id=$1 AND id=$2`,
+      [coffeeShopId, feedbackId, actorId, cleanOptionalText(input.resolutionNote)]);
+      if (current.status !== "RESOLVED") await manager.query(`INSERT INTO domain_event_outbox
+        (event_key,event_type,coffee_shop_id,aggregate_type,aggregate_id,payload,correlation_id,causation_execution_id,automation_depth)
+        VALUES($1,$2,$3,'TENANT_CRM_FEEDBACK',$4,jsonb_build_object('feedbackId',$4::uuid::text,'clientId',$5::uuid::text,'rating',$6::int,'source',$7::text),
+          COALESCE(NULLIF(current_setting('ucafe.tenant_crm_automation_correlation_id',true),'')::uuid,gen_random_uuid()),
+          NULLIF(current_setting('ucafe.tenant_crm_automation_execution_id',true),'')::uuid,
+          COALESCE(NULLIF(current_setting('ucafe.tenant_crm_automation_depth',true),'')::smallint,0))
+        ON CONFLICT(event_key) DO NOTHING`, [`feedback-resolved:${feedbackId}`, DomainEventTypes.TenantCrmFeedbackResolved, coffeeShopId, feedbackId,
+          current.clientId, current.rating, current.source]);
+      return this.feedbackById(manager, coffeeShopId, feedbackId);
+    });
+  }
+
+  private async insertFeedback(coffeeShopId: string, clientId: string, actorId: string | null, source: "MANUAL" | "CUSTOMER_PANEL",
+    rating: number, comment?: string | null, orderId?: string, reservationId?: string) {
+    return this.dataSource.transaction(async (manager) => {
+      await this.assertClient(manager, coffeeShopId, clientId);
+      if (orderId) await this.assertFeedbackOrder(manager, coffeeShopId, clientId, orderId);
+      if (reservationId) await this.assertFeedbackReservation(manager, coffeeShopId, clientId, reservationId);
+      const status = rating <= 2 ? "NEEDS_ATTENTION" : "NEW";
+      const rows = await manager.query<Array<{ id: string }>>(`INSERT INTO tenant_crm_feedback
+        (coffee_shop_id,client_id,rating,comment,source,order_id,reservation_id,status,created_by_user_id)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT DO NOTHING RETURNING id`,
+      [coffeeShopId, clientId, rating, cleanOptionalText(comment), source, orderId ?? null, reservationId ?? null, status, actorId]);
+      if (!rows[0]) throw new ConflictException("Feedback already exists for this Order or Reservation");
+      await manager.query(`INSERT INTO domain_event_outbox
+        (event_key,event_type,coffee_shop_id,aggregate_type,aggregate_id,payload,correlation_id,causation_execution_id,automation_depth)
+        VALUES($1,$2,$3,'TENANT_CRM_FEEDBACK',$4,jsonb_build_object('feedbackId',$4::uuid::text,'clientId',$5::uuid::text,'rating',$6::int,'source',$7::text),
+          COALESCE(NULLIF(current_setting('ucafe.tenant_crm_automation_correlation_id',true),'')::uuid,gen_random_uuid()),
+          NULLIF(current_setting('ucafe.tenant_crm_automation_execution_id',true),'')::uuid,
+          COALESCE(NULLIF(current_setting('ucafe.tenant_crm_automation_depth',true),'')::smallint,0))
+        ON CONFLICT(event_key) DO NOTHING`, [`feedback-created:${rows[0].id}`, DomainEventTypes.TenantCrmFeedbackCreated, coffeeShopId, rows[0].id, clientId, rating, source]);
+      return this.feedbackById(manager, coffeeShopId, rows[0].id);
+    });
+  }
+
+  private async assertFeedbackOrder(manager: EntityManager, coffeeShopId: string, clientId: string, orderId: string) {
+    const rows = await manager.query<Array<{ status: string }>>(`SELECT status FROM orders WHERE coffee_shop_id=$1 AND id=$2 AND client_id=$3`,
+      [coffeeShopId, orderId, clientId]);
+    if (!rows[0]) throw new NotFoundException("Order not found");
+    if (rows[0].status !== "DELIVERED") throw new BadRequestException("Feedback is available after Order delivery");
+  }
+
+  private async assertFeedbackReservation(manager: EntityManager, coffeeShopId: string, clientId: string, reservationId: string) {
+    const rows = await manager.query<Array<{ status: string }>>(`SELECT status FROM reservations WHERE coffee_shop_id=$1 AND id=$2 AND client_id=$3`,
+      [coffeeShopId, reservationId, clientId]);
+    if (!rows[0]) throw new NotFoundException("Reservation not found");
+    if (rows[0].status !== "COMPLETED") throw new BadRequestException("Feedback is available after Reservation completion");
+  }
+
+  private async clientFeedbackForSource(coffeeShopId: string, clientId: string, column: "order_id" | "reservation_id", sourceId: string) {
+    const rows = await this.dataSource.query<Array<Record<string, unknown>>>(`SELECT id,rating,comment,source,order_id AS "orderId",
+      reservation_id AS "reservationId",created_at AS "createdAt" FROM tenant_crm_feedback
+      WHERE coffee_shop_id=$1 AND client_id=$2 AND ${column}=$3 AND source='CUSTOMER_PANEL'`, [coffeeShopId, clientId, sourceId]);
+    return rows[0] ?? null;
+  }
+
+  private async feedbackById(manager: DataSource | EntityManager, coffeeShopId: string, feedbackId: string) {
+    const rows = await manager.query<Array<Record<string, unknown>>>(`${this.feedbackSelectSql()}
+      WHERE f.coffee_shop_id=$1 AND f.id=$2`, [coffeeShopId, feedbackId]);
+    if (!rows[0]) throw new NotFoundException("Feedback not found");
+    return { ...rows[0], phone: maskPhone(String(rows[0].phone)), orderDisplayNumber: rows[0].orderId ? displayOrderNumber(String(rows[0].orderId)) : null };
+  }
+
+  private feedbackSelectSql() {
+    return `SELECT f.id,f.client_id AS "clientId",c.first_name AS "clientFirstName",c.last_name AS "clientLastName",c.phone,
+      f.rating,f.comment,f.source,f.status,f.order_id AS "orderId",o.status AS "orderStatus",
+      f.reservation_id AS "reservationId",r.status AS "reservationStatus",r.reservation_date::text AS "reservationDate",
+      to_char(r.start_time,'HH24:MI') AS "reservationStartTime",f.created_by_user_id AS "createdByUserId",
+      f.resolved_by_user_id AS "resolvedByUserId",f.resolution_note AS "resolutionNote",f.resolved_at AS "resolvedAt",
+      f.created_at AS "createdAt",f.updated_at AS "updatedAt"
+      FROM tenant_crm_feedback f JOIN clients c ON c.coffee_shop_id=f.coffee_shop_id AND c.id=f.client_id
+      LEFT JOIN orders o ON o.coffee_shop_id=f.coffee_shop_id AND o.id=f.order_id AND o.client_id=f.client_id
+      LEFT JOIN reservations r ON r.coffee_shop_id=f.coffee_shop_id AND r.id=f.reservation_id AND r.client_id=f.client_id`;
   }
 
   async listNotes(coffeeShopId: string, clientId: string, query: TenantCrmNoteListQueryDto) {
@@ -236,9 +445,21 @@ export class TenantCrmService {
 
   private noteSelectSql() {
     return `SELECT n.id,n.client_id AS "clientId",n.body,n.created_by_user_id AS "createdByUserId",
-      CASE WHEN u.phone IS NOT NULL THEN 'کاربر ·•••' || right(u.phone,4) ELSE 'کاربر' END AS "authorLabel",
+      CASE WHEN n.automation_action_execution_id IS NOT NULL THEN 'اتوماسیون'
+        WHEN u.phone IS NOT NULL THEN 'کاربر ·•••' || right(u.phone,4) ELSE 'کاربر' END AS "authorLabel",
       n.updated_by_user_id AS "updatedByUserId",n.archived_at AS "archivedAt",n.created_at AS "createdAt",n.updated_at AS "updatedAt"
       FROM tenant_crm_client_notes n LEFT JOIN users u ON u.id=n.created_by_user_id`;
+  }
+
+  async createAutomationNote(manager: EntityManager, coffeeShopId: string, clientId: string, actionExecutionId: string, body: string) {
+    await this.assertClient(manager, coffeeShopId, clientId);
+    const rows = await manager.query<Array<{ id: string }>>(`INSERT INTO tenant_crm_client_notes
+      (coffee_shop_id,client_id,body,automation_action_execution_id)
+      VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING id`, [coffeeShopId, clientId, body, actionExecutionId]);
+    const id = rows[0]?.id ?? (await manager.query<Array<{ id: string }>>(`SELECT id FROM tenant_crm_client_notes
+      WHERE coffee_shop_id=$1 AND automation_action_execution_id=$2`, [coffeeShopId, actionExecutionId]))[0]?.id;
+    if (!id) throw new ConflictException("Automation Note could not be stored");
+    return { noteId: id };
   }
 
   async preferences(coffeeShopId: string, clientId: string) {
@@ -306,7 +527,8 @@ export class TenantCrmService {
 
   async clientTags(coffeeShopId: string, clientId: string) {
     await this.assertClient(this.dataSource, coffeeShopId, clientId);
-    return this.dataSource.query<Array<Record<string, unknown>>>(`SELECT t.id,t.name,ct.created_at AS "assignedAt",ct.created_by_user_id AS "assignedByUserId"
+    return this.dataSource.query<Array<Record<string, unknown>>>(`SELECT t.id,t.name,ct.created_at AS "assignedAt",ct.created_by_user_id AS "assignedByUserId",
+        ct.automation_action_execution_id IS NOT NULL AS "createdByAutomation"
       FROM tenant_crm_client_tags ct JOIN tenant_crm_tags t ON t.coffee_shop_id=ct.coffee_shop_id AND t.id=ct.tag_id
       WHERE ct.coffee_shop_id=$1 AND ct.client_id=$2 AND t.archived_at IS NULL ORDER BY lower(t.name),t.id`, [coffeeShopId, clientId]);
   }
@@ -320,6 +542,23 @@ export class TenantCrmService {
         VALUES($1,$2,$3,$4) ON CONFLICT(coffee_shop_id,client_id,tag_id) DO NOTHING`, [coffeeShopId, clientId, tagId, actorId]);
     });
     return this.clientTags(coffeeShopId, clientId);
+  }
+
+  async applyAutomationTag(manager: EntityManager, coffeeShopId: string, clientId: string, tagId: string,
+    actionExecutionId: string, add: boolean) {
+    await this.assertClient(manager, coffeeShopId, clientId);
+    const tags = await manager.query<Array<{ id: string }>>(`SELECT id FROM tenant_crm_tags
+      WHERE coffee_shop_id=$1 AND id=$2 AND archived_at IS NULL`, [coffeeShopId, tagId]);
+    if (!tags[0]) throw new NotFoundException("Tag not found");
+    if (add) {
+      const rows = await manager.query<Array<{ id: string }>>(`INSERT INTO tenant_crm_client_tags
+        (coffee_shop_id,client_id,tag_id,automation_action_execution_id) VALUES($1,$2,$3,$4)
+        ON CONFLICT(coffee_shop_id,client_id,tag_id) DO NOTHING RETURNING id`, [coffeeShopId, clientId, tagId, actionExecutionId]);
+      return { assigned: Boolean(rows[0]) };
+    }
+    const rows = await manager.query<Array<{ id: string }>>(`DELETE FROM tenant_crm_client_tags
+      WHERE coffee_shop_id=$1 AND client_id=$2 AND tag_id=$3 RETURNING id`, [coffeeShopId, clientId, tagId]);
+    return { removed: Boolean(rows[0]) };
   }
 
   async removeTag(coffeeShopId: string, clientId: string, tagId: string) {
@@ -581,6 +820,20 @@ export class TenantCrmService {
     });
   }
 
+  async createAutomationReminder(manager: EntityManager, coffeeShopId: string, clientId: string, actionExecutionId: string,
+    input: { title: string; description: string | null; dueAt: Date; assignedToUserId: string | null }) {
+    await this.assertClient(manager, coffeeShopId, clientId);
+    if (input.assignedToUserId) await this.assertActiveTenantUser(manager, coffeeShopId, input.assignedToUserId);
+    const rows = await manager.query<Array<{ id: string }>>(`INSERT INTO tenant_crm_reminders
+      (coffee_shop_id,client_id,title,description,due_at,assigned_to_user_id,automation_action_execution_id)
+      VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING RETURNING id`,
+    [coffeeShopId, clientId, input.title, input.description, input.dueAt, input.assignedToUserId, actionExecutionId]);
+    const id = rows[0]?.id ?? (await manager.query<Array<{ id: string }>>(`SELECT id FROM tenant_crm_reminders
+      WHERE coffee_shop_id=$1 AND automation_action_execution_id=$2`, [coffeeShopId, actionExecutionId]))[0]?.id;
+    if (!id) throw new ConflictException("Automation Reminder could not be stored");
+    return { reminderId: id };
+  }
+
   async updateReminder(coffeeShopId: string, reminderId: string, actorId: string, input: UpdateTenantCrmReminderDto) {
     return this.dataSource.transaction(async (manager) => {
       const rows = await manager.query<Array<Record<string, unknown>>>(`SELECT id,client_id AS "clientId",title,description,due_at AS "dueAt",
@@ -612,7 +865,8 @@ export class TenantCrmService {
     return `SELECT r.id,r.client_id AS "clientId",c.first_name AS "clientFirstName",c.last_name AS "clientLastName",
       r.title,r.description,r.due_at AS "dueAt",r.status,r.assigned_to_user_id AS "assignedToUserId",
       CASE WHEN u.phone IS NOT NULL THEN 'کاربر ·•••' || right(u.phone,4) ELSE CASE WHEN u.id IS NULL THEN NULL ELSE 'کاربر' END END AS "assigneeLabel",
-      r.created_by_user_id AS "createdByUserId",r.completed_at AS "completedAt",r.created_at AS "createdAt",r.updated_at AS "updatedAt",
+      r.created_by_user_id AS "createdByUserId",r.automation_action_execution_id IS NOT NULL AS "createdByAutomation",
+      r.completed_at AS "completedAt",r.created_at AS "createdAt",r.updated_at AS "updatedAt",
       (r.status='OPEN' AND r.due_at < now()) AS "overdue"
       FROM tenant_crm_reminders r JOIN clients c ON c.coffee_shop_id=r.coffee_shop_id AND c.id=r.client_id
       LEFT JOIN users u ON u.id=r.assigned_to_user_id`;

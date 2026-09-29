@@ -195,9 +195,15 @@ export class OrderingService {
       await manager.save(order);
       if (next === OrderStatus.Delivered) {
         await manager.query(`
-          INSERT INTO domain_event_outbox(event_key,event_type,coffee_shop_id,aggregate_type,aggregate_id,payload)
-          VALUES($1,$2,$3,'ORDER',$4,jsonb_build_object('orderId',$4::text))
-          ON CONFLICT(event_key) DO NOTHING`, [`order-delivered:${id}`, DomainEventTypes.OrderDelivered, coffeeShopId, id]);
+          INSERT INTO domain_event_outbox(event_key,event_type,coffee_shop_id,aggregate_type,aggregate_id,payload,
+            correlation_id,causation_execution_id,automation_depth)
+          VALUES($1,$2,$3,'ORDER',$4,jsonb_build_object('orderId',$4::text,'clientId',$5::text,
+            'totalAmountToman',$6::text,'deliveryMethod',$7::text),
+            COALESCE(NULLIF(current_setting('ucafe.tenant_crm_automation_correlation_id',true),'')::uuid,gen_random_uuid()),
+            NULLIF(current_setting('ucafe.tenant_crm_automation_execution_id',true),'')::uuid,
+            COALESCE(NULLIF(current_setting('ucafe.tenant_crm_automation_depth',true),'')::smallint,0))
+          ON CONFLICT(event_key) DO NOTHING`, [`order-delivered:${id}`, DomainEventTypes.OrderDelivered, coffeeShopId, id,
+          order.clientId, order.totalAmountToman, order.deliveryMethod]);
       }
       const saved = await manager.findOneOrFail(Order, { where: { id, coffeeShopId }, relations: { client: true, items: true } });
       const type = this.notificationType(saved);
@@ -320,6 +326,7 @@ export class OrderingService {
     if (code === "INACTIVITY_PERIOD_NOT_MET") return "این تخفیف برای مشتریانی است که مدتی سفارش نداده‌اند.";
     if (code === "REGISTRATION_AGE_NOT_MET") return "این تخفیف در بازه فعلی حساب مشتری قابل استفاده نیست.";
     if (code === "CUSTOMER_NOT_IN_REQUIRED_SEGMENT") return "این کد برای این مشتری قابل استفاده نیست.";
+    if (code === "CUSTOMER_NOT_IN_CRM_OFFER_AUDIENCE") return "این پیشنهاد برای حساب شما فعال نیست.";
     return "برای استفاده از این تخفیف وارد حساب مشتری شوید.";
   }
 

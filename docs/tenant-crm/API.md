@@ -14,6 +14,8 @@
 - All routes use the administrative access token and tenant permission guard and require `tenant_crm.read` plus effective `tenant_crm`. The CRM-only source projection does not require `orders.read` or `reservations.read`, and does not expose their full module DTOs. `/tenant/admin/access` projects the effective feature for navigation.
 - CRM does not expose Client creation or authentication routes. Client self-service can return a Client's own phone; the CRM list projection masks phone.
 
+Phase 6 extends `GET /tenant/crm/clients/:clientId` with a tenant/Client-scoped Feedback summary and at most five recent Feedback rows. The summary contains count, one-decimal average rating, negative count (`rating <= 2`), current Needs Attention count, and latest Feedback timestamp. Timeline projects `FEEDBACK_RECEIVED` and `FEEDBACK_RESOLVED` with stable UUID-based keys; metadata includes rating/source but no free text.
+
 ## Contract rules
 
 ### Phase 3 routes
@@ -71,6 +73,23 @@ Page is a positive integer, pageSize is 1–100, list q is at most 100 character
 
 The compiler parameterizes values and injects tenant scope. Preview, saved membership, and Smart Groups share it. Membership is current query output; endpoints do not expose historical entry/exit transitions, and inactive status does not create or freeze a member list.
 
+## Phase 6 Feedback routes
+
+Tenant Admin Feedback routes require effective `tenant_crm` and `tenant_crm.read`; mutations also require `tenant_crm.manage`.
+
+| Method and route | Behavior |
+| --- | --- |
+| `GET /tenant/crm/feedback` | Server-paginated inbox. Supports `q`, `clientId`, `status`, `rating`, `source`, `dateFrom`, `dateTo`, allowlisted `sortBy=createdAt|rating|updatedAt`, `sortOrder=asc|desc`, `page`, and `pageSize` (max 100). Dates use café timezone. Search covers Client name, normalized exact Iranian phone, and comment; list phone is masked. |
+| `POST /tenant/crm/feedback` | Manual entry `{ clientId, rating, comment? }`; creator comes from authenticated staff identity. |
+| `GET /tenant/crm/feedback/:feedbackId` | Staff detail including internal resolution fields; foreign/missing ID returns 404. |
+| `POST /tenant/crm/feedback/:feedbackId/needs-attention` | Marks a NEW item for follow-up. Resolved items cannot reopen. |
+| `POST /tenant/crm/feedback/:feedbackId/resolve` | Resolves with optional `{ resolutionNote }`; repeated resolve preserves first resolution. |
+| `GET /public/client-panel/feedback/orders/:orderId` | Returns the authenticated Client's own response, if any, with rating/comment/source/time only. |
+| `GET /public/client-panel/feedback/reservations/:reservationId` | Same limited response projection for the authenticated Client's Reservation. |
+| `POST /public/client-panel/feedback` | Client-authenticated `{ rating, comment?, orderId?, reservationId? }`; exactly one completed same-tenant/same-Client Order or Reservation is required. One response per source record. |
+
+Ratings are required integers 1–5. Ratings 1–2 start at `NEEDS_ATTENTION`; ratings 3–5 start at `NEW`. Customer panel accepts only `DELIVERED` Orders and `COMPLETED` Reservations. Feedback source is `MANUAL` or `CUSTOMER_PANEL`; duplicate linked sources return 409. Client IDs and tenant IDs are never accepted from customer input. Recovery status, resolution notes, and staff identities never appear in Client responses.
+
 ## Phase 5 Loyalty routes
 
 | Method and route | Behavior |
@@ -86,3 +105,31 @@ The compiler parameterizes values and injects tenant scope. Preview, saved membe
 | `POST /tenant/crm/clients/:clientId/loyalty/redeem` | Record a same-café active Reward redemption with an idempotency key. |
 
 All Loyalty reads require `tenant_crm.read` plus effective `tenant_crm`; mutations additionally require `tenant_crm.manage`. Page is positive and pageSize is 1–100. Spend threshold, reward cost, and adjustment amount are positive integers bounded to 1,000,000,000; reasons are required and at most 500 characters; idempotency keys are 8–120 safe ASCII characters. Invalid UUIDs use `ParseUUIDPipe`; foreign Client/Reward IDs are not found. Manual debit/redemption that would make balance negative return `LOYALTY_INSUFFICIENT_POINTS`; blocked Clients cannot mutate points; disabled Programs reject earning/redemption while retaining history.
+
+
+## Phase 7 Offers routes
+
+- GET /tenant/crm/offers with status, q, page, and pageSize filters; GET /tenant/crm/offers/:offerId.
+- POST /tenant/crm/offers/preview accepts a saved Segment ID and returns the existing evaluator's count and masked sample.
+- POST /tenant/crm/offers creates a Draft; PATCH /tenant/crm/offers/:offerId edits a Draft.
+- POST /tenant/crm/offers/:offerId/activate snapshots the current audience; POST /tenant/crm/offers/:offerId/end ends an active Offer.
+- GET /tenant/crm/offers/:offerId/clients and GET /tenant/crm/clients/:clientId/offers return bounded pages.
+- Access requires tenant_crm.read, menu.read, and the tenant_crm feature. Mutations also require tenant_crm.manage.
+
+## Phase 9 Automation routes
+
+All routes use the trusted café context and effective `tenant_crm`; reads require `tenant_crm.read`, while definition mutations, trigger metadata and time-trigger previews also require `tenant_crm.manage`.
+
+| Method and route | Behavior |
+| --- | --- |
+| `GET /tenant/crm/automations` | Filtered, paginated tenant definitions (`q`, `status`, `triggerType`, `page`, `pageSize`). |
+| `GET /tenant/crm/automations/metadata?triggerType=...` | Trigger field catalog, active Tags, active staff assignees, and supported action catalog. |
+| `POST /tenant/crm/automations` / `PATCH /tenant/crm/automations/:automationId` | Create Draft or update a non-archived definition; updates increment version. |
+| `GET /tenant/crm/automations/:automationId` | Tenant-owned current definition. |
+| `POST /tenant/crm/automations/:automationId/activate` | Revalidate fields/actions and activate from now; no historical event replay. |
+| `POST /tenant/crm/automations/:automationId/pause` / `archive` | Stop intake or archive Draft/Paused definitions. Existing runs finish from snapshots. |
+| `POST /tenant/crm/automations/preview` | Count current matches for `CLIENT_LAPSED` or `CLIENT_BIRTHDAY`. |
+| `GET /tenant/crm/automations/:automationId/executions` | Paginated execution history, optionally filtered by status. |
+| `GET /tenant/crm/automations/executions/:executionId` | Execution snapshot and ordered action statuses. |
+
+Trigger configurations and action configs are allowlisted and DTO validated. Conditions use the Phase 4 version-1 AST and limits; event fields are available only for their corresponding trigger. No manual run/retry endpoint or communication action exists. See [AUTOMATION.md](AUTOMATION.md) for event and lifecycle semantics.

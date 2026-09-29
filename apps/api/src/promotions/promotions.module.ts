@@ -11,9 +11,10 @@ import { Promotion, PromotionAdvancedRule, PromotionCustomerCondition, Promotion
 import { PromotionPricingService } from "./promotion-pricing.service";
 import { PromotionsService } from "./promotions.service";
 import { TenantPromotionsController } from "./tenant-promotions.controller";
+import { SubscriptionsModule } from "../subscriptions/subscriptions.module";
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Promotion, PromotionTarget, PromotionScheduleWindow, PromotionAdvancedRule, PromotionRuleGroup, PromotionRuleTarget, PromotionQuantityTier, PromotionCustomerCondition, CustomerSegment, MenuItem, MenuCategory]), AuthModule, AuthorizationModule],
+  imports: [TypeOrmModule.forFeature([Promotion, PromotionTarget, PromotionScheduleWindow, PromotionAdvancedRule, PromotionRuleGroup, PromotionRuleTarget, PromotionQuantityTier, PromotionCustomerCondition, CustomerSegment, MenuItem, MenuCategory]), AuthModule, AuthorizationModule, SubscriptionsModule],
   controllers: [TenantPromotionsController],
   providers: [PromotionsService, PromotionPricingService, AccessTokenGuard, TenantContextGuard, TenantPermissionGuard],
   exports: [PromotionPricingService],

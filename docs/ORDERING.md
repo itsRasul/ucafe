@@ -55,3 +55,8 @@ Defaults enable pickup, courier, and offline payment. Tenant managers may toggle
 
 `orders.total_amount_toman` is the final integer-toman amount payable for that Order after the recorded item/order discounts, constrained to `subtotal_before_discount_toman - discount_total_toman`. It is an amount due for the offline Order, not a settlement/collection fact. There is no refund, tax, or delivery-fee ledger. Analytics and Tenant CRM must use this existing source field without redefining Order financial semantics; CRM's “Known UCafe Spend” includes it only for current `DELIVERED` Orders and must not imply verified cash or purchases outside UCafe.
 
+
+
+## Offer-targeted Promotion eligibility
+
+Checkout continues to call PromotionPricingService. When a Promotion is linked to a CRM Offer, the customer must also be in that Offer's activation audience and the tenant_crm feature must be enabled. Existing Promotion schedule, dates, coupon limits, customer conditions, price calculation, and immutable Order snapshots remain authoritative. A Draft or Ended Offer cannot grant its linked discount.

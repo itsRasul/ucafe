@@ -1,8 +1,9 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
-import { DataSource } from "typeorm";
+import { DataSource, EntityManager } from "typeorm";
 import { maskPhone } from "../auth/iran-phone.util";
 import { CreateTenantCrmSegmentDto, TenantCrmSegmentListQueryDto, TenantCrmSegmentMembersQueryDto,
   UpdateTenantCrmSegmentDto } from "./dto/tenant-crm-segments.dto";
+import { TenantCrmAutomationTrigger } from "./tenant-crm-automation.util";
 
 type Row = Record<string, any>;
 type ValueType = "TEXT" | "NUMBER" | "BOOLEAN" | "DATE" | "ENUM" | "TAG" | "BIRTHDAY" | "MULTI_SELECT";
@@ -10,6 +11,7 @@ type Option = { value: string; label: string };
 type Field = { key: string; label: string; dataType: ValueType; source: string; operators: string[]; options: Option[];
   sql?: string; customFieldId?: string; optionValues: Set<string> };
 type Catalog = { fields: Field[]; byKey: Map<string, Field> };
+type QueryExecutor = { query<T = any>(query: string, parameters?: any[]): Promise<T> };
 type Condition = { type: "condition"; field: string; operator: string; value?: unknown };
 type Group = { type: "group"; operator: "AND" | "OR"; conditions: Array<Group | Condition>; version?: number };
 type Preset = { key: string; name: string; description: string; criteria: Group };
@@ -21,7 +23,7 @@ const operators: Record<ValueType, string[]> = {
   DATE: ["before", "after", "between", "within_last", "older_than", "this_month", "is_empty", "is_not_empty"],
   ENUM: ["equals", "in", "not_in", "is_empty", "is_not_empty"],
   TAG: ["has_tag", "does_not_have_tag"],
-  BIRTHDAY: ["this_month", "is_empty", "is_not_empty"],
+  BIRTHDAY: ["today", "this_month", "is_empty", "is_not_empty"],
   MULTI_SELECT: ["contains_any", "contains_all", "contains_none", "is_empty", "is_not_empty"],
 };
 
@@ -122,7 +124,7 @@ export class TenantCrmSegmentsService {
     const row = await this.segmentRow(coffeeShopId, segmentId);
     const criteria = this.parseStoredCriteria(row.criteria);
     const issue = this.criteriaIssue(criteria, coffeeShopId, timeZone, await this.catalog(coffeeShopId));
-    return { ...row, criteria, criteriaValid: !issue, ...(issue ? { criteriaIssue: issue } : {}) };
+    return { ...row, isActive: Boolean(row.isActive), criteria, criteriaValid: !issue, ...(issue ? { criteriaIssue: issue } : {}) };
   }
 
   async create(coffeeShopId: string, timeZone: string, actorId: string, input: CreateTenantCrmSegmentDto) {
@@ -186,6 +188,21 @@ export class TenantCrmSegmentsService {
     return this.members(coffeeShopId, timeZone, this.parseStoredCriteria(row.criteria), query);
   }
 
+  async audienceQuery(manager: EntityManager, coffeeShopId: string, timeZone: string, segmentId: string) {
+    const [row] = await manager.query<Array<Row>>(`SELECT id,name,criteria,is_active AS "isActive" FROM tenant_crm_segments
+      WHERE coffee_shop_id=$1 AND id=$2 FOR SHARE`, [coffeeShopId, segmentId]);
+    if (!row) throw new NotFoundException("Segment not found");
+    if (!row.isActive) throw new BadRequestException("Offer audience Segment must be active");
+    const criteria = this.parseStoredCriteria(row.criteria);
+    const compiled = this.compileCriteria(criteria, coffeeShopId, timeZone, await this.catalog(coffeeShopId, manager));
+    return {
+      sql: `SELECT c.id ${this.fromSql()} WHERE c.coffee_shop_id=$1 AND ${compiled.where}`,
+      parameters: compiled.parameters,
+      segmentName: row.name,
+      criteria,
+    };
+  }
+
   listSmartGroups(): Array<{ key: string; name: string; description: string; criteria: unknown }> {
     return presets.map(({ key, name, description, criteria }) => ({ key, name, description, criteria }));
   }
@@ -198,21 +215,68 @@ export class TenantCrmSegmentsService {
     return this.members(coffeeShopId, timeZone, this.smartGroup(key).criteria, query);
   }
 
-  private async segmentRow(coffeeShopId: string, segmentId: string) {
-    const rows = await this.dataSource.query<Array<Row>>(`SELECT id,name,description,criteria,is_active AS "isActive",
+  async automationFields(coffeeShopId: string, triggerType: TenantCrmAutomationTrigger) {
+    const catalog = await this.catalog(coffeeShopId);
+    for (const field of this.automationEventFields(triggerType)) catalog.fields.push(field), catalog.byKey.set(field.key, field);
+    return catalog.fields.map(({ optionValues: _optionValues, sql: _sql, customFieldId: _customFieldId, ...field }) => field);
+  }
+
+  async validateAutomationCriteria(coffeeShopId: string, timeZone: string, triggerType: TenantCrmAutomationTrigger, criteria: unknown) {
+    if (criteria === undefined || criteria === null) return;
+    const catalog = await this.catalog(coffeeShopId);
+    for (const field of this.automationEventFields(triggerType)) catalog.fields.push(field), catalog.byKey.set(field.key, field);
+    this.compileCriteria(criteria, coffeeShopId, timeZone, catalog, this.automationEventFields(triggerType));
+  }
+
+  async automationCriteriaMatch(manager: EntityManager, coffeeShopId: string, timeZone: string, clientId: string,
+    triggerType: TenantCrmAutomationTrigger, criteria: unknown, triggerData: Record<string, unknown>) {
+    if (criteria === undefined || criteria === null) return true;
+    const catalog = await this.catalog(coffeeShopId, manager);
+    const eventFields = this.automationEventFields(triggerType);
+    for (const field of eventFields) catalog.fields.push(field), catalog.byKey.set(field.key, field);
+    const compiled = this.compileCriteria(criteria, coffeeShopId, timeZone, catalog, eventFields, triggerData);
+    const clientParameter = compiled.parameters.length + 1;
+    const rows = await manager.query<Array<{ id: string }>>(`SELECT c.id ${this.fromSql()}
+      WHERE c.coffee_shop_id=$1 AND c.id=$${clientParameter} AND ${compiled.where} LIMIT 1`, [...compiled.parameters, clientId]);
+    return Boolean(rows[0]);
+  }
+
+  async timeAutomationCandidates(manager: EntityManager, coffeeShopId: string, timeZone: string, automationId: string,
+    triggerType: "CLIENT_LAPSED" | "CLIENT_BIRTHDAY", criteria: unknown, limit: number) {
+    const compiled = this.compileCriteria(criteria, coffeeShopId, timeZone, await this.catalog(coffeeShopId, manager));
+    const lastDelivered = `(SELECT MAX(COALESCE(o.status_changed_at,o.created_at)) FROM orders o
+      WHERE o.coffee_shop_id=c.coffee_shop_id AND o.client_id=c.id AND o.status='DELIVERED')`;
+    const key = triggerType === "CLIENT_LAPSED"
+      ? `'LAPSED:'||c.id::text||':'||floor(extract(epoch FROM ${lastDelivered})*1000)::bigint::text`
+      : `'BIRTHDAY:'||c.id::text||':'||to_char(now() AT TIME ZONE $2,'YYYY-MM-DD')`;
+    const automationParameter = compiled.parameters.length + 1;
+    const limitParameter = automationParameter + 1;
+    return manager.query<Array<{ clientId: string; occurrenceKey: string; occurrenceAt: Date | null }>>(`
+      SELECT c.id AS "clientId",${key} AS "occurrenceKey",
+        ${triggerType === "CLIENT_LAPSED" ? lastDelivered : "NULL::timestamptz"} AS "occurrenceAt"
+      ${this.fromSql()}
+      WHERE c.coffee_shop_id=$1 AND ${compiled.where}
+        AND NOT EXISTS (SELECT 1 FROM tenant_crm_automation_executions e
+          WHERE e.coffee_shop_id=c.coffee_shop_id AND e.automation_id=$${automationParameter} AND e.occurrence_key=${key})
+      ORDER BY c.id LIMIT $${limitParameter}`,
+    [...compiled.parameters, automationId, limit]);
+  }
+
+  private async segmentRow(coffeeShopId: string, segmentId: string, executor: QueryExecutor = this.dataSource) {
+    const rows = await executor.query<Array<Row>>(`SELECT id,name,description,criteria,is_active AS "isActive",
       created_by_user_id AS "createdByUserId",created_at AS "createdAt",updated_at AS "updatedAt"
       FROM tenant_crm_segments WHERE coffee_shop_id=$1 AND id=$2`, [coffeeShopId, segmentId]);
     if (!rows[0]) throw new NotFoundException("Segment not found");
     return rows[0];
   }
 
-  private async catalog(coffeeShopId: string): Promise<Catalog> {
-    const tags = await this.dataSource.query<Array<{ id: string; name: string }>>(
+  private async catalog(coffeeShopId: string, executor: QueryExecutor = this.dataSource): Promise<Catalog> {
+    const tags = await executor.query<Array<{ id: string; name: string }>>(
       `SELECT id,name FROM tenant_crm_tags WHERE coffee_shop_id=$1 AND archived_at IS NULL ORDER BY lower(name),id`, [coffeeShopId]);
-    const definitions = await this.dataSource.query<Array<{ id: string; key: string; label: string; dataType: string }>>(
+    const definitions = await executor.query<Array<{ id: string; key: string; label: string; dataType: string }>>(
       `SELECT id,key,label,data_type AS "dataType" FROM tenant_crm_custom_field_definitions
        WHERE coffee_shop_id=$1 AND active=TRUE ORDER BY sort_order,id`, [coffeeShopId]);
-    const optionRows = definitions.length ? await this.dataSource.query<Array<{ fieldDefinitionId: string; id: string; label: string }>>(
+    const optionRows = definitions.length ? await executor.query<Array<{ fieldDefinitionId: string; id: string; label: string }>>(
       `SELECT field_definition_id AS "fieldDefinitionId",id,label FROM tenant_crm_custom_field_options
        WHERE coffee_shop_id=$1 AND active=TRUE AND field_definition_id=ANY($2::uuid[]) ORDER BY sort_order,id`,
       [coffeeShopId, definitions.map((definition) => definition.id)]) : [];
@@ -236,6 +300,23 @@ export class TenantCrmSegmentsService {
     return { fields, byKey: new Map(fields.map((field) => [field.key, field])) };
   }
 
+  private automationEventFields(triggerType: TenantCrmAutomationTrigger): Field[] {
+    const field = (key: string, label: string, dataType: ValueType, sql: string, options: Option[] = []): Field => ({
+      key, label, dataType, source: "event", operators: operators[dataType], options, sql,
+      optionValues: new Set(options.map((option) => option.value)),
+    });
+    if (triggerType === "FEEDBACK_CREATED" || triggerType === "FEEDBACK_RESOLVED") return [
+      field("event.feedback.rating", "امتیاز بازخورد رخداد", "NUMBER", `NULLIF($3::jsonb #>> '{feedback,rating}','')::numeric`),
+      field("event.feedback.source", "منبع بازخورد رخداد", "ENUM", `$3::jsonb #>> '{feedback,source}'`, [
+        { value: "MANUAL", label: "ثبت کارکنان" }, { value: "CUSTOMER_PANEL", label: "پنل مشتری" },
+      ]),
+    ];
+    if (triggerType === "ORDER_DELIVERED") return [
+      field("event.order.totalAmountToman", "مبلغ سفارش تحویل‌شده (تومان)", "NUMBER", `NULLIF($3::jsonb #>> '{order,totalAmountToman}','')::numeric`),
+    ];
+    return [];
+  }
+
   private customType(type: string): ValueType | null {
     if (["TEXT", "LONG_TEXT", "URL"].includes(type)) return "TEXT";
     if (type === "NUMBER" || type === "BOOLEAN" || type === "DATE") return type;
@@ -249,13 +330,22 @@ export class TenantCrmSegmentsService {
     catch (error) { return error instanceof BadRequestException ? String(error.message) : "معیار این بخش‌بندی در دسترس نیست."; }
   }
 
-  private compileCriteria(criteria: unknown, coffeeShopId: string, timeZone: string, catalog: Catalog) {
+  private compileCriteria(criteria: unknown, coffeeShopId: string, timeZone: string, catalog: Catalog,
+    eventFields: Field[] = [], eventData?: Record<string, unknown>) {
     if (JSON.stringify(criteria)?.length > 6000) throw new BadRequestException("Criteria is too large");
     const parameters: unknown[] = [coffeeShopId, timeZone];
+    if (eventData !== undefined && eventFields.length && this.criteriaUsesEventFields(criteria, eventFields))
+      parameters.push(JSON.stringify(eventData));
     const state = { conditions: 0 };
     const where = this.compileGroup(criteria, 1, true, parameters, catalog, state);
     // Keep the tenant timezone parameter typed even when criteria use no date field.
     return { where: `$2::text IS NOT NULL AND ${where}`, parameters };
+  }
+
+  private criteriaUsesEventFields(criteria: unknown, eventFields: Field[]): boolean {
+    if (!this.isRecord(criteria)) return false;
+    if (criteria.type === "condition") return eventFields.some((field) => field.key === criteria.field);
+    return Array.isArray(criteria.conditions) && criteria.conditions.some((condition) => this.criteriaUsesEventFields(condition, eventFields));
   }
 
   private compileGroup(input: unknown, depth: number, root: boolean, parameters: unknown[], catalog: Catalog,
@@ -293,6 +383,7 @@ export class TenantCrmSegmentsService {
     }
     if (field.customFieldId) return this.compileCustom(field, input.operator, value, parameters);
     if (field.dataType === "BIRTHDAY") {
+      if (input.operator === "today") return `${field.sql}=to_char(now() AT TIME ZONE $2,'MM-DD')`;
       if (input.operator === "this_month") return `substring(COALESCE(${field.sql},''),1,2)=to_char(now() AT TIME ZONE $2,'MM')`;
       return input.operator === "is_empty" ? `${field.sql} IS NULL` : `${field.sql} IS NOT NULL`;
     }
@@ -300,7 +391,7 @@ export class TenantCrmSegmentsService {
   }
 
   private validateValue(field: Field, operator: string, value: unknown, hasValue: boolean): unknown {
-    const noValue = ["is_true", "is_false", "is_empty", "is_not_empty", "this_month"];
+    const noValue = ["is_true", "is_false", "is_empty", "is_not_empty", "today", "this_month"];
     if (noValue.includes(operator)) {
       if (hasValue) throw new BadRequestException("This rule must not include a value");
       return undefined;

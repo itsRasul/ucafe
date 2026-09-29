@@ -29,6 +29,7 @@ The existing customer search applies parameterized ILIKE substring matching to f
 | Client search | SQL ILIKE substring search in customer segments; no dedicated search index | Reuse PostgreSQL for Phase 1; measure before introducing indexes or search infrastructure |
 | Manual segments | customer_segments and memberships are tenant scoped and promotion eligibility consumes them | Keep these existing rule groups; dynamic CRM segments are a later distinct capability and need an explicit compatibility design |
 | Platform CRM | Separate platform-owned Organizations, Contacts, Leads, etc. | No shared CRM domain entities or cross-CRM links |
+| Review invitations and Feedback | No customer review-request, survey, or standalone feedback flow existed in the inspected API/UI | Phase 6 owns the actual response only; it reuses existing Client auth and does not invent an invitation system |
 
 ## Isolation enforcement today
 
@@ -40,6 +41,7 @@ TenantContextMiddleware resolves a tenant from the trusted host. TenantPermissio
 - Tenant Analytics already reports customer rankings and repeat behavior from delivered Orders and Client IDs.
 - sms.ir handles OTP and the durable notification outbox handles transactional messages. No marketing-consent model or CRM campaign system exists.
 - Platform CRM Phase 9 has its own transactional CRM workflow outbox. It is domain-specific and is not a general event bus.
+- No review-request, customer survey, or standalone feedback feature was found before Phase 6; Feedback therefore supports only staff entry and the existing authenticated customer panel.
 - Plans are managed through a typed feature registry and Platform Admin plan editor. Current keys do not include tenant_crm.
 - Platform audit is not a tenant CRM audit facility. Do not write tenant customer actions into platform audit records.
 

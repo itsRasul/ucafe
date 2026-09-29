@@ -94,6 +94,24 @@ See [docs/crm/README.md](crm/README.md) for the implemented scope and future sou
 - Tenant CRM routes require the effective tenant_crm plan feature and tenant permission checks on the server. Golden defaults to the feature, but plan keys never determine access. Existing Promotions customer search and manual segments keep their current access rules.
 - Phase 3 relationship data (preferences, internal notes, tags, custom fields, and reminders) belongs to Tenant CRM and is private to the owning café. `Client` remains the customer identity; staff-entered preferences are never inferred from Orders or Reservations. Reminder overdue state is derived, and reminders do not send notifications.
 - Phase 5 Loyalty is tenant-local to the existing Client identity. A points balance is the sum of signed ledger entries; only `DELIVERED` Orders earn `floor(total_amount_toman / spend_per_point_toman)` using the configuration effective at delivery. Manual adjustments require a reason, and redemption/manual debits cannot make the balance negative. Reward redemption records staff fulfillment without changing Order pricing, Discounts, Promotions, or checkout. Blocked Clients cannot earn, receive adjustments, or redeem; disabling the program retains history and permits authorized manual adjustments. See [LOYALTY.md](tenant-crm/LOYALTY.md).
+- Phase 6 Feedback belongs to the existing Client and current café. Rating is required on a 1–5 scale; `rating <= 2` is the fixed negative threshold and starts in `NEEDS_ATTENTION`, while 3–5 starts in `NEW`. Customer submissions may reference only one same-Client `DELIVERED` Order or `COMPLETED` Reservation and only once per source. Resolution records staff and time; resolved Feedback cannot reopen. Follow-up uses existing Reminders. Feedback does not alter Loyalty/Discounts, send SMS, create a public reply, or enter Platform CRM. See [FEEDBACK.md](tenant-crm/FEEDBACK.md).
 
 See [docs/tenant-crm/README.md](tenant-crm/README.md). Phases 1–2 provide a read-only directory and Customer 360 over existing source data; customer creation and edits remain in their source flows. The CRM-only Order/Reservation projection requires `tenant_crm.read` and `tenant_crm`, but does not grant `orders.read` or `reservations.read` or access to their full modules. Known UCafe Spend is only the sum of current `DELIVERED` Orders' existing `total_amount_toman` (the offline payable amount after stored discounts; not proof of payment collection or all customer spend). `lastInteractionAt` is the latest Order/Reservation creation or latest currently stored status transition; it falls back to `Client.created_at` and never uses administrative `Client.updated_at`. Customer Timeline is reconstructed from source rows; overwritten intermediate Order/Reservation transitions are unavailable and must not be synthesized.
 
+
+
+## Tenant CRM Offers
+
+- Each Offer links one existing Promotion and one saved active tenant Segment.
+- Draft Offers do not affect checkout. Activation snapshots the current matching Clients; later Segment edits do not rewrite the snapshot.
+- An active Offer is an extra eligibility requirement in the existing Promotion pricing path. Discount terms and redemption limits remain controlled by Discounts.
+
+## Tenant CRM automation
+
+- Only durable Order delivered and Feedback created/resolved events plus café-local birthday and lapsed-customer scans trigger Tenant CRM Phase 9 automation.
+- Current state conditions use the typed Tenant CRM Segment criteria compiler. Dynamic Segment entry/exit events are not inferred.
+- Actions run in order and may add/remove a tenant Tag, create an internal Note, or create a staff Reminder. Actions do not send customer messages, grant Offers, or change Loyalty.
+- Definition and event snapshots, occurrence deduplication, bounded retries, stale recovery, tenant scope, and feature rechecks apply. Pausing stops new intake while existing execution snapshots finish.
+- Phase 8 communications remain deferred pending tenant-funded messaging billing, wallet, or quota. See `docs/tenant-crm/AUTOMATION.md`.
+- Ending an Offer stops its linked Promotion from applying through that Offer; it does not alter the Promotion or turn it back into a general discount.
+- Recorded promotion redemptions and positive discount values in Order snapshots are reported separately.

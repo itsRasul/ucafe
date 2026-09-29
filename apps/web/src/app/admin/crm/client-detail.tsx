@@ -7,19 +7,22 @@ import { formatJalaliDate } from "../../jalali-date";
 import { TenantPermission, useAdminSession } from "../admin-session";
 import { TenantCrmRelationshipPanel } from "./relationship-data";
 import { TenantCrmLoyaltyPanel } from "./loyalty-client-panel";
+import { TenantCrmOffersPanel } from "./offers-client-panel";
 
 type Order = { id: string; displayNumber: string; status: string; totalAmountToman: string; deliveryMethod: string; createdAt: string; statusChangedAt: string | null };
 type Reservation = { id: string; status: string; reservationDate: string; startTime: string; partySize: number; createdAt: string; statusChangedAt: string | null };
+type Feedback = { id: string; rating: number; comment: string | null; source: "MANUAL" | "CUSTOMER_PANEL"; status: "NEW" | "NEEDS_ATTENTION" | "RESOLVED"; orderId: string | null; orderDisplayNumber: string | null; reservationId: string | null; createdAt: string };
 type ClientDetailRecord = {
   id: string; firstName: string; lastName: string; phone: string; status: "ACTIVE" | "BLOCKED"; phoneVerifiedAt: string | null; createdAt: string;
   firstSeenAt: string; lastInteractionAt: string;
   summary: {
     orders: { trackedCount: number; deliveredCount: number; canceledCount: number; knownSpendToman: string; averageDeliveredOrderValueToman: string | null; firstOrderAt: string | null; lastOrderAt: string | null };
     reservations: { totalCount: number; completedCount: number; canceledCount: number; rejectedCount: number; noShowCount: number; firstReservationAt: string | null; lastReservationAt: string | null };
+    feedback: { count: number; averageRating: string | null; negativeCount: number; needsAttentionCount: number; lastFeedbackAt: string | null };
   };
-  recentOrders: Order[]; recentReservations: Reservation[];
+  recentOrders: Order[]; recentReservations: Reservation[]; recentFeedback: Feedback[];
 };
-type TimelineItem = { eventKey: string; type: string; occurredAt: string; sourceType: "CLIENT" | "ORDER" | "RESERVATION" | "NOTE" | "REMINDER" | "LOYALTY"; sourceId: string; metadata: Record<string, string | number | null> };
+type TimelineItem = { eventKey: string; type: string; occurredAt: string; sourceType: "CLIENT" | "ORDER" | "RESERVATION" | "NOTE" | "REMINDER" | "LOYALTY" | "FEEDBACK" | "OFFER"; sourceId: string; metadata: Record<string, string | number | null> };
 type TimelinePage = { items: TimelineItem[]; nextCursor: string | null };
 
 const numbers = new Intl.NumberFormat("fa-IR");
@@ -43,6 +46,10 @@ function timelineTitle(item: TimelineItem) {
   if (item.type === "LOYALTY_POINTS_EARNED") return "امتیاز وفاداری دریافت شد";
   if (item.type === "LOYALTY_POINTS_ADJUSTED") return "امتیاز وفاداری اصلاح شد";
   if (item.type === "REWARD_REDEEMED") return "جایزه با امتیاز دریافت شد";
+  if (item.type === "FEEDBACK_RECEIVED") return "بازخورد مشتری ثبت شد";
+  if (item.type === "FEEDBACK_RESOLVED") return "به بازخورد مشتری رسیدگی شد";
+  if (item.type === "OFFER_ELIGIBILITY_CREATED") return "مشتری در مخاطبان یک پیشنهاد ثبت شد";
+  if (item.type === "OFFER_DISCOUNT_APPLIED") return "تخفیف پیشنهاد در سفارش ثبت شد";
   if (item.type === "ORDER_CREATED") return `سفارش ${number} ثبت شد`;
   if (item.sourceType === "ORDER") {
     const status = String(item.metadata.status ?? "");
@@ -58,6 +65,8 @@ function timelineTitle(item: TimelineItem) {
 
 function timelineDetail(item: TimelineItem) {
   if (item.sourceType === "LOYALTY") return `${item.metadata.points ?? "0"} امتیاز${item.metadata.description ? ` · ${item.metadata.description}` : ""}`;
+  if (item.sourceType === "FEEDBACK") return `${item.metadata.rating ?? "—"} از ۵ ستاره · ${item.metadata.source === "CUSTOMER_PANEL" ? "پنل مشتری" : "ثبت کافه"}`;
+  if (item.sourceType === "OFFER") return `${item.metadata.offerName ?? "پیشنهاد"}${item.metadata.orderId ? ` · سفارش #${String(item.metadata.orderId).slice(0, 8).toUpperCase()}` : item.metadata.segmentName ? ` · بخش‌بندی ${item.metadata.segmentName}` : ""}`;
   if (item.type === "ORDER_CREATED") return `${money(String(item.metadata.totalAmountToman ?? "0"))} · ${item.metadata.deliveryMethod === "COURIER" ? "ارسال با پیک" : "تحویل در کافه"}`;
   if (item.type === "RESERVATION_CREATED") return `${formatJalaliDate(String(item.metadata.reservationDate))}، ${item.metadata.startTime} · ${numbers.format(Number(item.metadata.partySize))} نفر`;
   return "";
@@ -79,6 +88,7 @@ export function ClientDetail() {
   const entitled = access.features?.tenant_crm === true;
   const canReadOrders = access.permissions.includes("orders.read");
   const canReadReservations = access.permissions.includes("reservations.read");
+  const canReadMenu = access.permissions.includes("menu.read" as TenantPermission);
 
   useEffect(() => {
     if (!permitted || !entitled) { setLoading(false); return; }
@@ -140,6 +150,14 @@ export function ClientDetail() {
 
           <TenantCrmRelationshipPanel clientId={client.id} api={api} timeZone={access.tenant.timezone} canManage={access.permissions.includes("tenant_crm.manage" as TenantPermission)} />
           <TenantCrmLoyaltyPanel clientId={client.id} api={api} timeZone={access.tenant.timezone} canManage={access.permissions.includes("tenant_crm.manage" as TenantPermission)} />
+          {canReadMenu && <TenantCrmOffersPanel clientId={client.id} api={api} />}
+
+          <section className="tenant-crm-section tenant-crm-feedback-summary" aria-labelledby="tenant-crm-feedback-title">
+            <div className="tenant-crm-section-heading"><div><h2 id="tenant-crm-feedback-title">بازخورد مشتری</h2><p>نظرهای ثبت‌شده برای سفارش‌ها و مراجعه‌های این مشتری</p></div><Link href={`/admin/crm/feedback?clientId=${encodeURIComponent(client.id)}`}>همه بازخوردها</Link></div>
+            <dl className="tenant-crm-metrics"><div><dt>میانگین امتیاز</dt><dd>{client.summary.feedback.averageRating === null ? "—" : numbers.format(Number(client.summary.feedback.averageRating))}</dd></div><div><dt>تعداد بازخورد</dt><dd>{numbers.format(client.summary.feedback.count)}</dd></div><div><dt>نیازمند پیگیری</dt><dd>{numbers.format(client.summary.feedback.needsAttentionCount)}</dd></div></dl>
+            {client.recentFeedback.length ? <ul className="tenant-feedback-recent">{client.recentFeedback.map((item) => <li key={item.id}><Link href={`/admin/crm/feedback/${item.id}`}><span><strong className="tenant-feedback-stars" aria-label={`${item.rating} از ۵ ستاره`}>{"★".repeat(item.rating)}<span>{"★".repeat(5 - item.rating)}</span></strong><span>{item.comment || "مشتری فقط امتیاز ثبت کرده است."}</span></span><span className={`tenant-crm-status ${item.status === "NEEDS_ATTENTION" ? "is-feedback-attention" : item.status === "RESOLVED" ? "is-active" : ""}`}>{item.status === "NEEDS_ATTENTION" ? "نیازمند پیگیری" : item.status === "RESOLVED" ? "رسیدگی‌شده" : "جدید"}</span><time dateTime={item.createdAt}>{dateTime(item.createdAt, access.tenant.timezone)}</time></Link></li>)}</ul>
+              : <p className="tenant-crm-inline-empty">هنوز بازخوردی ثبت نشده است.</p>}
+          </section>
 
           <section className="tenant-crm-section" aria-labelledby="tenant-crm-orders-title">
             <div className="tenant-crm-section-heading"><h2 id="tenant-crm-orders-title">سفارش‌های اخیر</h2>{canReadOrders && <Link href="/admin/orders">رفتن به سفارش‌ها</Link>}</div>

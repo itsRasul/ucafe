@@ -40,4 +40,17 @@ The `/admin/crm/loyalty` workspace manages the program and reward catalog. Custo
 
 ## Segments, analytics, and future phases
 
-Phase 4 Segment criteria remain unchanged and do not store or calculate loyalty membership. This phase adds no analytics aggregates or cached counters. Future Segment/Analytics use requires a separately defined query contract and measured need; future Campaigns must define consent and eligibility before using Loyalty. Feedback and service recovery remain Phase 6.
+Phase 4 Segment criteria remain unchanged and do not store or calculate loyalty membership. This phase adds no analytics aggregates or cached counters. Future Segment/Analytics use requires a separately defined query contract and measured need; future Campaigns must define consent and eligibility before using Loyalty. Feedback and service recovery are implemented separately in [FEEDBACK.md](FEEDBACK.md).
+
+## Phase 6 independence
+
+Feedback does not award, debit, or otherwise mutate points. A manager may use existing Phase 5 manual adjustment controls separately when authorized, but no automatic Loyalty consequence is tied to a rating or resolution.
+
+
+## Phase 7 boundary
+
+Commercial Offers use the existing Discounts/Promotion engine and do not read, grant, or redeem Loyalty points. Promotion eligibility may target CRM Segments through the separate Offer audience snapshot. Loyalty balances, reward inventory, and redemption accounting remain owned by this document's existing Loyalty model.
+
+## Phase 9 independence
+
+The automation consumer has a separate dispatch state on the shared Order outbox; it cannot complete or claim Loyalty work. Phase 9 actions do not award, adjust, or redeem points. Order delivery remains the only automatic Loyalty earning source.

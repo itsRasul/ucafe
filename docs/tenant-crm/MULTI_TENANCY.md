@@ -44,6 +44,19 @@ Every draft, saved, and Smart Group evaluation begins with the current Tenant's 
 
 The PostgreSQL isolation fixture includes two cafés with identical Tag names and qualifying customer data, tests a foreign Tag reference, and checks that membership stays tenant-scoped after source data changes.
 
+## Phase 6 Feedback isolation
+
+Every Feedback list/detail/write and Customer 360 aggregate/recent query includes the resolved `coffee_shop_id`; Client references additionally match `client_id`. Customer submissions use the authenticated Client principal rather than a request-supplied identity. An Order or Reservation link must match the trusted tenant and same Client and must be `DELIVERED` or `COMPLETED`, respectively. Composite foreign keys independently enforce both tenant and Client identity. Customer response lookups filter tenant, authenticated Client, and linked source. Service recovery mutations lock and update by tenant plus Feedback ID; resolver membership must belong to that tenant. Platform CRM has no route or relation to this table.
+
 ## Phase 5 Loyalty isolation
 
 Every Program, Account, Reward, Redemption, Ledger entry, and outbox event carries `coffee_shop_id`. Composite foreign keys require the same café for Client, Account/Client, Reward, Order, Redemption, and membership actor relationships. Every API lookup includes the trusted Tenant context; a foreign Client or Reward behaves as not found. Same-phone Clients in two cafés retain independent account rows and ledger sums. Background earning also derives tenant and Client from the delivered Order row and uses the event's tenant-scoped aggregate ID.
+
+
+## Phase 7 Offer isolation
+
+Offer, Segment, Promotion, Client, and membership reads carry coffee_shop_id predicates. Composite foreign keys enforce same-tenant references in the database. Activation locks the Draft Offer and active Segment, compiles the shared Segment evaluator with the current tenant catalog, and inserts its audience using one set-based statement in the same transaction as the Offer state and Segment snapshots.
+
+## Phase 9 automation isolation
+
+Definitions, executions, action executions, outbox rows, and action-created CRM records carry the trusted `coffee_shop_id`. Event fanout uses the tenant from the source outbox row and checks the subject Client in that tenant; Tags and assignees are revalidated in the same café. Composite FKs protect definition, source event, Client, causal execution, and action-source relationships. Worker queries never infer tenant from payload data or HTTP context. Foreign definition/execution IDs resolve as not found. See [AUTOMATION.md](AUTOMATION.md).
