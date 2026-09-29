@@ -11,9 +11,9 @@ Phase numbers sequence work; they do not authorize work beyond the agreed phase.
 | 4 | Segmentation and smart groups | Implemented; PostgreSQL regression passed, authenticated visual acceptance pending |
 | 5 | Loyalty and rewards | Implemented; authenticated visual acceptance pending |
 | 6 | Feedback and service recovery | Implemented; authenticated visual acceptance pending |
-| 7 | Offers and Discount targeting | Planned |
-| 8 | Customer communications and campaigns | Planned |
-| 9 | Lifecycle automation and retention journeys | Planned |
+| 7 | Offers and Discount targeting | Implemented |
+| 8 | Customer communications and campaigns | Deferred |
+| 9 | Lifecycle automation and retention journeys | Implemented; authenticated UI acceptance pending |
 | 10 | Customer analytics and retention intelligence | Planned |
 
 ## Phase 1 contract
@@ -32,7 +32,7 @@ The Timeline is reconstructed activity, not a durable lifecycle log: show source
 
 **Phase 3 contract.**
 
-Phase 3 provides explicit CRM preferences, internal notes, manually configured tenant tags, typed custom fields, and manual reminders integrated into Customer 360 and the Timeline projection. It adds owner-granted `tenant_crm.manage`; all reads and writes also retain effective feature gating and tenant scoping. Two forward migrations create CRM-owned tables with tenant-composite foreign keys. Phase 4 Segmentation is implemented in code. Its dynamic criteria, persistence, field definitions, endpoints, and verification status are documented in SEGMENTATION.md. Automation, client-facing CRM data, reminder delivery, and CRM analytics remain planned.
+Phase 3 provides explicit CRM preferences, internal notes, manually configured tenant tags, typed custom fields, and manual reminders integrated into Customer 360 and the Timeline projection. It adds owner-granted `tenant_crm.manage`; all reads and writes also retain effective feature gating and tenant scoping. Two forward migrations create CRM-owned tables with tenant-composite foreign keys. Phase 4 Segmentation is implemented in code. Its dynamic criteria, persistence, field definitions, endpoints, and verification status are documented in SEGMENTATION.md. Client-facing CRM data, reminder delivery, and CRM analytics remain outside earlier phases.
 
 ## Phase 4 contract
 
@@ -63,4 +63,12 @@ Implemented Offers link saved active Segments to existing Promotions, snapshot t
 
 ## Phase 8 status
 
-Customer Communications and Campaigns are not implemented by Phase 7. Their future requirements include approved delivery providers, consent/suppression, communication scheduling, delivery state, and privacy-safe metrics; none are prerequisites for using Offers today.
+**Deferred.** Tenant-funded SMS billing, wallet, or quota must exist before high-volume customer messaging is enabled. Phase 8 covers communications and Campaigns; SMS, WhatsApp, email, message delivery, and communication journeys are not prerequisites for Phase 9.
+
+Phase 9 proceeds independently and is limited to internal Tenant CRM lifecycle actions. Communication actions are intentionally excluded. Phase numbers remain unchanged.
+
+## Phase 9 contract
+
+Phase 9 adds tenant-scoped durable lifecycle definitions, immutable execution snapshots, ordered actions, retry/stale recovery, event dispatch, and café-local birthday/lapsed scans. Supported sources are Order delivered and Feedback created/resolved; supported actions are Tag add/remove, internal Note, and staff Reminder. Event fields and current-state criteria reuse Phase 4's typed compiler. Execution history records safe error codes and action outcomes. Existing runs finish after pause, and activation does not backfill events created before activation.
+
+Phase 9 does not require Phase 8, send communications, grant Offers, mutate Loyalty, infer Segment enter/exit, or invent Client/Reservation events that have no durable source. See [AUTOMATION.md](AUTOMATION.md). The focused PostgreSQL recovery/idempotency/concurrency checks, migration state, workspace checks, and authenticated UI acceptance are recorded in [TESTING.md](TESTING.md).

@@ -7,9 +7,9 @@ import { TenantPermission, useAdminSession } from "../admin-session";
 type Api = <T>(path: string, init?: RequestInit) => Promise<T>;
 type Operator = string;
 type Option = { value: string; label: string };
-type FilterField = { key: string; label: string; dataType: string; source: string; operators: Operator[]; options: Option[] };
-type Condition = { type: "condition"; field: string; operator: Operator; value?: unknown };
-type Group = { type: "group"; version?: number; operator: "AND" | "OR"; conditions: Array<Group | Condition> };
+export type FilterField = { key: string; label: string; dataType: string; source: string; operators: Operator[]; options: Option[] };
+export type Condition = { type: "condition"; field: string; operator: Operator; value?: unknown };
+export type Group = { type: "group"; version?: number; operator: "AND" | "OR"; conditions: Array<Group | Condition> };
 type Segment = { id: string; name: string; description: string | null; criteria: Group; isActive: boolean; criteriaValid: boolean; criteriaIssue?: string };
 type SmartGroup = { key: string; name: string; description: string; criteria: Group };
 type Client = { id: string; firstName: string; lastName: string; phone: string; status: string; createdAt: string };
@@ -21,7 +21,7 @@ type ViewState = { key: string; kind: "segment" | "smart"; preview: Preview; cli
 const number = new Intl.NumberFormat("fa-IR");
 const date = (value: string) => new Intl.DateTimeFormat("fa-IR", { dateStyle: "medium" }).format(new Date(value));
 const json = (method: string, body?: unknown): RequestInit => ({ method, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-const sourceLabels: Record<string, string> = { client: "مشتری", crm: "ترجیحات CRM", tags: "برچسب‌ها", orders: "سفارش‌ها", reservations: "رزروها", custom: "فیلدهای اختصاصی" };
+const sourceLabels: Record<string, string> = { client: "مشتری", crm: "ترجیحات CRM", tags: "برچسب‌ها", orders: "سفارش‌ها", reservations: "رزروها", custom: "فیلدهای اختصاصی", event: "رویداد" };
 const operatorLabels: Record<string, string> = {
   equals: "برابر باشد با", contains: "شامل باشد", starts_with: "شروع شود با", is_empty: "خالی باشد", is_not_empty: "خالی نباشد",
   greater_than: "بزرگ‌تر از", greater_or_equal: "بزرگ‌تر یا برابر", less_than: "کوچک‌تر از", less_or_equal: "کوچک‌تر یا برابر",
@@ -32,7 +32,7 @@ const operatorLabels: Record<string, string> = {
 };
 
 function blankFor(field: FilterField, operator: string): unknown {
-  if (["is_empty", "is_not_empty", "is_true", "is_false", "this_month"].includes(operator)) return undefined;
+  if (["is_empty", "is_not_empty", "is_true", "is_false", "this_month", "today"].includes(operator)) return undefined;
   if (operator === "between") return field.dataType === "NUMBER" ? [0, 0] : ["", ""];
   if (operator === "within_last" || operator === "older_than") return 30;
   if (operator === "in" || operator === "not_in" || operator.startsWith("contains_")) return [];
@@ -118,7 +118,7 @@ function ValueEditor({ field, condition, onChange }: { field: FilterField; condi
   return <input aria-label="مقدار شرط" type="text" maxLength={500} value={String(condition.value ?? "")} onChange={(event) => onChange(event.target.value)} />;
 }
 
-function CriteriaEditor({ fields, criteria, onChange, disabled = false }: { fields: FilterField[]; criteria: Group; onChange: (value: Group) => void; disabled?: boolean }) {
+export function CriteriaEditor({ fields, criteria, onChange, disabled = false }: { fields: FilterField[]; criteria: Group; onChange: (value: Group) => void; disabled?: boolean }) {
   const fieldByKey = new Map(fields.map((field) => [field.key, field]));
   const canAddCondition = conditionCount(criteria) < 20;
   const render = (node: Group | Condition, path: number[], depth: number) => {

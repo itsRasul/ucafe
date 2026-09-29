@@ -49,3 +49,7 @@ Customer 360 may show per-Client Feedback count, one-decimal average rating, cou
 ## Phase 7 Offer measures
 
 Offer audience count comes from activation-time membership rows. Recorded redemption count comes from applied promotion_redemptions after activation. Applied-order count is separately derived from positive order/order-item Promotion snapshots within the Offer lifecycle. The latter is an application measure, not a coupon redemption measure; the two counts can overlap and have distinct source records.
+
+## Phase 9 boundary
+
+Automation executions are operational workflow history, not customer analytics or causal attribution. Their counts/statuses are available only in each automation's bounded history view. No aggregate retention, conversion, lift, or campaign-effectiveness metric is inferred from trigger/action records.

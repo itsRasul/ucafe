@@ -46,3 +46,7 @@ Feedback inbox, detail, Customer 360 summary/recent items, and Timeline projecti
 ## Phase 7 Offer access
 
 Offer reads, Segment previews, audience lists, and Customer 360 Offer summaries require tenant_crm.read and menu.read plus the tenant_crm feature. Draft changes, activation, and ending also require tenant_crm.manage. Existing Promotion management permissions continue to govern discount edits; no new permission is introduced.
+
+## Phase 9 Automation access
+
+Automation definitions, execution history, action history, and trigger metadata require `tenant_crm.read` plus effective `tenant_crm`; definition creation/edit, activation/pause/archive, builder metadata, and time-trigger preview also require `tenant_crm.manage`. Every route uses the access-token, tenant-context, and permission guards. Background workers recheck the effective CRM feature before dispatch and before action application. No Platform CRM permission or separate automation feature flag is used.

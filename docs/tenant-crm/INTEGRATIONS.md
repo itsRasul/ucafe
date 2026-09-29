@@ -65,3 +65,7 @@ Feedback is the source of truth only for the customer's response and small recov
 ## Phase 7 Offers and Discounts
 
 Offers link a saved CRM Segment to an existing Promotion. PromotionPricingService applies the frozen Offer audience as an additional eligibility condition and still applies the Promotion's existing rules, coupon limits, schedule, dates, customer conditions, and price calculation. The tenant_crm subscription feature gates Offer APIs and linked Promotion eligibility. Order snapshots record discount applications; promotion_redemptions remains the source for recorded coupon/first-order redemption rows.
+
+## Phase 9 lifecycle automation
+
+Orders writes its delivered outbox event in the Order transaction. Tenant CRM Feedback creation/resolution writes minimal lifecycle events in the Feedback transaction. Automation uses its own dispatch status on the shared outbox, independent of the Loyalty consumer. Client birthday/lapsed checks read current Client/profile/Order facts in café-local time. Only Notes, Tags, and Reminders are mutated by actions; there is no source-module callback to CRM and no message delivery or Promotion/Loyalty integration. See [AUTOMATION.md](AUTOMATION.md).

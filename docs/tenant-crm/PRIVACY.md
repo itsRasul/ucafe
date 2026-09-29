@@ -39,3 +39,7 @@ Customer comments may include personal information and remain visible only to au
 ## Phase 7 Offers
 
 Audience preview samples and paginated Offer member rows mask phone numbers. Tenant predicates and composite foreign keys scope records to the owning café. Activation stores the Segment criteria/name snapshot and Client membership needed to explain targeting; audience data is not exported or messaged in this phase. CRM feature state gates Offer reads and pricing eligibility.
+
+## Phase 9 Automation
+
+Automation event payloads contain tenant/source IDs and only the numeric/enumerated trigger values required by supported conditions. They exclude phone, free-text Feedback comments, CRM Note bodies, and full customer details. Execution snapshots repeat only this minimal data; history returns safe allowlisted failure codes/messages, not database or provider errors. Notes and Reminders created by actions remain private to the owning café and are explicitly marked as automation-created. No action sends customer communications or exposes internal CRM records to a Client endpoint.

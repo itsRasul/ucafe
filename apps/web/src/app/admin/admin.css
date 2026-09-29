@@ -3706,10 +3706,47 @@
 .tenant-crm-offers-client dt { color: #64748b; font-size: .72rem; line-height: 1.5; }
 .tenant-crm-offers-client dd { margin: .2rem 0 0; color: #1f2937; font-size: .9rem; font-weight: 800; }
 .tenant-crm-offer-notice { padding: .65rem .8rem; border: 1px solid #a7f3d0; border-radius: .6rem; background: #ecfdf5; color: #047857; font-size: .84rem; }
+.tenant-crm-automation-builder { display: grid; gap: .8rem; margin-bottom: .85rem; }
+.tenant-crm-automation-filters { display: grid; grid-template-columns: minmax(0,1fr) minmax(9rem,.45fr) minmax(10rem,.6fr) auto auto; align-items: end; gap: .65rem; margin-bottom: .8rem; }
+.tenant-crm-automation-filters label { display: grid; gap: .3rem; color: #475569; font-size: .78rem; font-weight: 700; }
+.tenant-crm-automation-filters input, .tenant-crm-automation-filters select { width: 100%; min-width: 0; min-height: 2.65rem; padding: .55rem .7rem; border: 1px solid #d1d5db; border-radius: .6rem; background: #fff; color: #111827; font: inherit; }
+.tenant-crm-automation-form { display: grid; gap: .8rem; }
+.tenant-crm-automation-form input, .tenant-crm-automation-form select, .tenant-crm-automation-form textarea { width: 100%; min-width: 0; min-height: 2.5rem; padding: .5rem .6rem; border: 1px solid #cbd5e1; border-radius: .55rem; background: #fff; color: #172033; font: inherit; font-size: .85rem; }
+.tenant-crm-automation-form textarea { min-height: 5rem; resize: vertical; }
+.tenant-crm-automation-form input:focus-visible, .tenant-crm-automation-form select:focus-visible, .tenant-crm-automation-form textarea:focus-visible { outline: 3px solid #0284c7; outline-offset: 2px; }
+.tenant-crm-automation-form section { display: grid; gap: .55rem; }
+.tenant-crm-automation-form .tenant-crm-criteria { display: grid; gap: .65rem; }
+.tenant-crm-automation-form .tenant-crm-criteria-rule { display: grid; grid-template-columns: minmax(0,1.2fr) minmax(0,1fr) minmax(0,1.2fr) auto; align-items: end; gap: .55rem; min-width: 0; padding: .65rem; border: 1px solid #edf1f5; border-radius: .6rem; background: #fafbfc; }
+.tenant-crm-automation-actions, .tenant-crm-automation-history ol { display: grid; gap: .6rem; margin: 0; padding: 0; list-style: none; }
+.tenant-crm-automation-actions>li { display: grid; gap: .55rem; min-width: 0; padding: .75rem; border: 1px solid #e5e7eb; border-radius: .65rem; background: #fafbfc; }
+.tenant-crm-automation-action-heading, .tenant-crm-automation-buttons, .tenant-crm-automation-preview, .tenant-crm-automation-summary { display: flex; align-items: center; flex-wrap: wrap; gap: .45rem; }
+.tenant-crm-automation-action-heading { justify-content: space-between; }
+.tenant-crm-automation-reminder { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .65rem; }
+.tenant-crm-automation-submit { display: flex; justify-content: flex-start; }
+.tenant-crm-automation-preview strong { color: #047857; font-size: .84rem; }
+.tenant-crm-automation-card { display: grid; gap: .5rem; padding: .85rem; border: 1px solid #e5e7eb; border-radius: .7rem; background: #fff; }
+.tenant-crm-automation-card>header { display: flex; align-items: center; justify-content: space-between; gap: .65rem; }
+.tenant-crm-automation-select, .tenant-crm-automation-history>ol>li>button { display: flex; align-items: center; justify-content: space-between; gap: .7rem; width: 100%; min-height: 2.8rem; padding: .25rem; border: 0 !important; background: transparent !important; text-align: right; }
+.tenant-crm-automation-select>span:first-child, .tenant-crm-automation-history>ol>li>button>span:first-child { display: grid; gap: .2rem; min-width: 0; }
+.tenant-crm-automation-select small, .tenant-crm-automation-history small { color: #64748b; font-size: .75rem; }
+.tenant-crm-automation-card>p { margin: 0; color: #475569; font-size: .82rem; line-height: 1.7; }
+.tenant-crm-automation-summary { justify-content: space-between; color: #64748b; font-size: .78rem; }
+.tenant-crm-automation-buttons { padding-top: .25rem; }
+.tenant-crm-automation-history { display: grid; gap: .5rem; margin-top: .3rem; padding-top: .75rem; border-top: 1px solid #e5e7eb; }
+.tenant-crm-automation-history h3, .tenant-crm-automation-form h3 { margin: 0; color: #334155; font-size: .9rem; }
+.tenant-crm-automation-history>ol>li { padding: .4rem 0; border-top: 1px solid #eef2f6; }
+.tenant-crm-automation-history>ol>li>p { color: #9f1239; font-size: .8rem; }
+.tenant-crm-automation-history>ol>li>ul { display: grid; gap: .35rem; margin: .35rem 0 0; padding: .6rem 1.4rem .6rem .6rem; border-radius: .55rem; background: #f8fafc; color: #475569; font-size: .78rem; }
+.tenant-crm-automation-draft, .tenant-crm-automation-pending { background: #f1f5f9; color: #475569; }
+.tenant-crm-automation-active, .tenant-crm-automation-succeeded { background: #ecfdf5; color: #047857; }
+.tenant-crm-automation-paused, .tenant-crm-automation-skipped { background: #fff7ed; color: #9a3412; }
+.tenant-crm-automation-failed, .tenant-crm-automation-loop_blocked { background: #fff1f2; color: #be123c; }
 @media (max-width: 42rem) {
   .tenant-crm-offer-filters { grid-template-columns: 1fr; }
+  .tenant-crm-automation-filters { grid-template-columns: 1fr; }
   .tenant-crm-offer-card dl, .tenant-crm-offer-client-heading+dl { grid-template-columns: 1fr; }
   .tenant-crm-offer-select { align-items: flex-start; flex-direction: column; }
   .tenant-crm-offer-form-actions { align-items: stretch; flex-direction: column; }
   .tenant-crm-offers-client dl { grid-template-columns: 1fr; }
+  .tenant-crm-automation-reminder, .tenant-crm-automation-form .tenant-crm-criteria-rule { grid-template-columns: 1fr; }
 }

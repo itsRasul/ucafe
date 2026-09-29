@@ -32,7 +32,7 @@ The customer panel offers a rating and optional comment on that authenticated Cl
 
 Customer comments may include personal information and are visible only to authorized users of the owning café. Resolution notes are internal staff text. Customer endpoints expose only the authenticated Client's own response fields. Feedback is not exposed through Platform CRM or other tenants. Client deletion currently cascades CRM-owned rows; no separate legal retention/anonymization policy is defined here.
 
-Phase 6 does not add tickets, threads, public replies, attachments, SLA/routing, review invitations, campaigns, offers, automatic SMS, AI sentiment, automatic Loyalty changes, Segment fields, or cross-client satisfaction analytics. Future Offers, Campaigns, Automation, and Phase 10 analytics must define their own eligibility, consent, time windows, and historical semantics before consuming Feedback.
+Phase 6 does not add tickets, threads, public replies, attachments, SLA/routing, review invitations, campaigns, offers, automatic SMS, AI sentiment, automatic Loyalty changes, Segment fields, or cross-client satisfaction analytics. Phase 9 may use durable `FEEDBACK_CREATED` and `FEEDBACK_RESOLVED` triggers with rating/source snapshots. It does not consume comment text or mutate Feedback or Loyalty. Campaigns and Phase 10 analytics still require their own eligibility, consent, time-window, and historical contracts.
 
 
 ## Phase 7 boundary

@@ -54,6 +54,7 @@ test("manual low ratings enter Needs Attention while rating three stays New", as
       statements.push({ sql, parameters });
       if (sql.startsWith("SELECT id FROM clients")) return [{ id: clientId }];
       if (sql.startsWith("INSERT INTO tenant_crm_feedback")) return [{ id: feedbackId }];
+      if (sql.startsWith("INSERT INTO domain_event_outbox")) return [];
       if (sql.includes("FROM tenant_crm_feedback f JOIN clients")) return [feedbackRow({ rating, status, comment: "Staff report" })];
       throw new Error(`Unexpected query: ${sql}`);
     });
@@ -63,6 +64,10 @@ test("manual low ratings enter Needs Attention while rating three stays New", as
     const insert = statements.find(({ sql }) => sql.startsWith("INSERT INTO tenant_crm_feedback"))!;
     assert.match(insert.sql, /coffee_shop_id,client_id,rating,comment,source,order_id,reservation_id,status,created_by_user_id/);
     assert.deepEqual(insert.parameters, [tenantId, clientId, rating, "Staff report", "MANUAL", null, null, status, actorId]);
+    const event = statements.find(({ sql }) => sql.startsWith("INSERT INTO domain_event_outbox"))!;
+    assert.equal(event.parameters[0], `feedback-created:${feedbackId}`);
+    assert.equal(event.parameters[1], "tenant.crm.feedback.created");
+    assert.equal(event.parameters[5], rating);
     assert.equal(result.phone, "+989*****67");
   }
 });
@@ -75,6 +80,7 @@ test("customer submissions require one completed same-client source and hide for
     if (sql.startsWith("SELECT id FROM clients")) return [{ id: clientId }];
     if (sql.startsWith("SELECT status FROM orders")) return [{ status: "DELIVERED" }];
     if (sql.startsWith("INSERT INTO tenant_crm_feedback")) return [{ id: feedbackId }];
+    if (sql.startsWith("INSERT INTO domain_event_outbox")) return [];
     if (sql.includes("FROM tenant_crm_feedback f JOIN clients")) return [feedbackRow({ source: "CUSTOMER_PANEL", status: "NEW", orderId })];
     throw new Error(`Unexpected query: ${sql}`);
   });
@@ -93,6 +99,7 @@ test("customer submissions require one completed same-client source and hide for
     if (sql.startsWith("SELECT id FROM clients")) return [{ id: clientId }];
     if (sql.startsWith("SELECT status FROM reservations")) return [{ status: "COMPLETED" }];
     if (sql.startsWith("INSERT INTO tenant_crm_feedback")) return [{ id: feedbackId }];
+    if (sql.startsWith("INSERT INTO domain_event_outbox")) return [];
     if (sql.includes("FROM tenant_crm_feedback f JOIN clients")) return [feedbackRow({ source: "CUSTOMER_PANEL", status: "NEW", reservationId })];
     throw new Error(`Unexpected query: ${sql} ${JSON.stringify(parameters)}`);
   });
@@ -160,8 +167,10 @@ test("service recovery locks state, records one resolution, and rejects reopenin
   let status = "NEW";
   let resolution: Record<string, unknown> = {};
   const updates: string[] = [];
+  const events: Array<{ sql: string; parameters: unknown[] }> = [];
   const source = transactionalSource(async (sql, parameters) => {
-    if (sql.includes("SELECT status FROM tenant_crm_feedback")) return [{ status }];
+    if (sql.includes("SELECT status,")) return [{ status, clientId, rating: 2, source: "MANUAL" }];
+    if (sql.startsWith("INSERT INTO domain_event_outbox")) { events.push({ sql, parameters }); return []; }
     if (sql.startsWith("UPDATE tenant_crm_feedback")) {
       updates.push(sql);
       if (sql.includes("status='NEEDS_ATTENTION'")) status = "NEEDS_ATTENTION";
@@ -171,6 +180,7 @@ test("service recovery locks state, records one resolution, and rejects reopenin
       }
       return [];
     }
+    if (sql.startsWith("INSERT INTO domain_event_outbox")) return [];
     if (sql.includes("FROM tenant_crm_feedback f JOIN clients")) return [feedbackRow({ status, ...resolution })];
     throw new Error(`Unexpected query: ${sql}`);
   });
@@ -184,6 +194,8 @@ test("service recovery locks state, records one resolution, and rejects reopenin
   assert.equal((resolvedRecord.resolvedAt as Date).toISOString(), "2026-09-02T00:00:00.000Z");
   assert.equal(resolvedRecord.resolvedByUserId, actorId);
   assert.equal(resolvedRecord.resolutionNote, "Called and refunded");
+  assert.equal(events.length, 1);
+  assert.equal(events[0]!.parameters[1], "tenant.crm.feedback.resolved");
   const updateCount = updates.length;
   await service.resolveFeedback(tenantId, actorId, feedbackId, { resolutionNote: "Replacement note" });
   assert.equal(updates.length, updateCount);

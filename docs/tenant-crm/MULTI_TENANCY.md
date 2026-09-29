@@ -56,3 +56,7 @@ Every Program, Account, Reward, Redemption, Ledger entry, and outbox event carri
 ## Phase 7 Offer isolation
 
 Offer, Segment, Promotion, Client, and membership reads carry coffee_shop_id predicates. Composite foreign keys enforce same-tenant references in the database. Activation locks the Draft Offer and active Segment, compiles the shared Segment evaluator with the current tenant catalog, and inserts its audience using one set-based statement in the same transaction as the Offer state and Segment snapshots.
+
+## Phase 9 automation isolation
+
+Definitions, executions, action executions, outbox rows, and action-created CRM records carry the trusted `coffee_shop_id`. Event fanout uses the tenant from the source outbox row and checks the subject Client in that tenant; Tags and assignees are revalidated in the same café. Composite FKs protect definition, source event, Client, causal execution, and action-source relationships. Worker queries never infer tenant from payload data or HTTP context. Foreign definition/execution IDs resolve as not found. See [AUTOMATION.md](AUTOMATION.md).

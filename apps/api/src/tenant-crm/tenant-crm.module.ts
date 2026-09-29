@@ -15,11 +15,14 @@ import { TenantCrmLoyaltyService } from "./tenant-crm-loyalty.service";
 import { TenantCrmClientFeedbackController, TenantCrmFeedbackController } from "./tenant-crm-feedback.controller";
 import { TenantCrmOffersController } from "./tenant-crm-offers.controller";
 import { TenantCrmOffersService } from "./tenant-crm-offers.service";
+import { TenantCrmAutomationController } from "./tenant-crm-automation.controller";
+import { TenantCrmAutomationService } from "./tenant-crm-automation.service";
 
 @Module({
   imports: [AuthModule, AuthorizationModule, SubscriptionsModule, ClientsModule],
   controllers: [TenantCrmController, TenantCrmResourcesController, TenantCrmSegmentsController, TenantCrmLoyaltyController,
-    TenantCrmFeedbackController, TenantCrmClientFeedbackController, TenantCrmOffersController],
-  providers: [TenantContextGuard, TenantPermissionGuard, TenantCrmService, TenantCrmSegmentsService, TenantCrmLoyaltyService, TenantCrmOffersService],
+    TenantCrmFeedbackController, TenantCrmClientFeedbackController, TenantCrmOffersController, TenantCrmAutomationController],
+  providers: [TenantContextGuard, TenantPermissionGuard, TenantCrmService, TenantCrmSegmentsService, TenantCrmLoyaltyService, TenantCrmOffersService,
+    TenantCrmAutomationService],
 })
 export class TenantCrmModule {}

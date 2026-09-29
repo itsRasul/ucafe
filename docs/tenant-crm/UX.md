@@ -46,3 +46,7 @@ Authenticated Clients can submit a 1–5 rating and optional comment from their 
 ## Phase 7 Offers
 
 The CRM navigation links to a Persian RTL Offers workspace for Draft, Active, and Ended records. Managers choose an existing Discount and an active saved Segment, preview its count and masked sample, then save a Draft. Activation explains that it freezes current Segment membership. The client summary distinguishes CRM audience membership, recorded redemptions, and order snapshots with a discount. Existing Discount editing stays in the Promotions workspace.
+
+## Phase 9 Automation
+
+`/admin/crm/automations` is linked from the CRM directory. A guided form selects one supported trigger, optional nested AND/OR conditions from Phase 4 field metadata, and an ordered list of internal Tag, Note, and Reminder actions. Café-local lifecycle triggers offer a count preview. Definition cards expose Draft/Active/Paused/Archived lifecycle actions and expand into paginated execution history with safe errors and ordered action results. Labels, native validation, visible focus, busy/error/success/empty states, and narrow-screen layouts use the existing Persian RTL CRM shell. Communication actions and arbitrary workflow canvases are excluded. Authenticated desktop/mobile acceptance remains pending until a tenant-admin session is available.

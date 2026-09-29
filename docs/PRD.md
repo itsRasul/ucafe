@@ -107,4 +107,4 @@ Tenant CRM is a separate Tenant Admin capability for a café to manage its own C
 
 ### Tenant CRM Offers
 
-Tenant CRM includes Offer targeting: a café manager can connect an existing Promotion to an active saved Segment, preview the audience, snapshot membership on activation, and inspect targeting and recorded discount applications in Customer 360. Pricing and coupon behavior remain in Discounts. Campaign messaging, SMS scheduling, and CRM automation are not included.
+Tenant CRM includes Offer targeting: a café manager can connect an existing Promotion to an active saved Segment, preview the audience, snapshot membership on activation, and inspect targeting and recorded discount applications in Customer 360. Pricing and coupon behavior remain in Discounts. Phase 8 customer communications remain deferred; Phase 9 internal lifecycle automation is specified in [AUTOMATION.md](tenant-crm/AUTOMATION.md) and does not send messages or grant Offers.

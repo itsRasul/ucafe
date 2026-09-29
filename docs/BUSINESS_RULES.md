@@ -105,5 +105,13 @@ See [docs/tenant-crm/README.md](tenant-crm/README.md). Phases 1–2 provide a re
 - Each Offer links one existing Promotion and one saved active tenant Segment.
 - Draft Offers do not affect checkout. Activation snapshots the current matching Clients; later Segment edits do not rewrite the snapshot.
 - An active Offer is an extra eligibility requirement in the existing Promotion pricing path. Discount terms and redemption limits remain controlled by Discounts.
+
+## Tenant CRM automation
+
+- Only durable Order delivered and Feedback created/resolved events plus café-local birthday and lapsed-customer scans trigger Tenant CRM Phase 9 automation.
+- Current state conditions use the typed Tenant CRM Segment criteria compiler. Dynamic Segment entry/exit events are not inferred.
+- Actions run in order and may add/remove a tenant Tag, create an internal Note, or create a staff Reminder. Actions do not send customer messages, grant Offers, or change Loyalty.
+- Definition and event snapshots, occurrence deduplication, bounded retries, stale recovery, tenant scope, and feature rechecks apply. Pausing stops new intake while existing execution snapshots finish.
+- Phase 8 communications remain deferred pending tenant-funded messaging billing, wallet, or quota. See `docs/tenant-crm/AUTOMATION.md`.
 - Ending an Offer stops its linked Promotion from applying through that Offer; it does not alter the Promotion or turn it back into a general discount.
 - Recorded promotion redemptions and positive discount values in Order snapshots are reported separately.

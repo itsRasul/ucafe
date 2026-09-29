@@ -50,3 +50,7 @@ Feedback does not award, debit, or otherwise mutate points. A manager may use ex
 ## Phase 7 boundary
 
 Commercial Offers use the existing Discounts/Promotion engine and do not read, grant, or redeem Loyalty points. Promotion eligibility may target CRM Segments through the separate Offer audience snapshot. Loyalty balances, reward inventory, and redemption accounting remain owned by this document's existing Loyalty model.
+
+## Phase 9 independence
+
+The automation consumer has a separate dispatch state on the shared Order outbox; it cannot complete or claim Loyalty work. Phase 9 actions do not award, adjust, or redeem points. Order delivery remains the only automatic Loyalty earning source.

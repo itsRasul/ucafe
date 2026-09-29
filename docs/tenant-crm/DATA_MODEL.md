@@ -69,3 +69,7 @@ Unique `(coffee_shop_id,id,client_id)` keys on Orders and Reservations support t
 ## Phase 7 Offer persistence
 
 The Phase 7 migration adds tenant-scoped tenant_crm_offers and tenant_crm_offer_audience_members. Offers retain Promotion and Segment references, lifecycle status, activation/end timestamps, and Segment name/criteria snapshots. Audience rows record the activation-time Client set and grant time. Composite tenant foreign keys prevent cross-tenant references; deleting a Client cascades its audience rows. Promotion and Segment deletion is restricted while referenced.
+
+## Phase 9 automation persistence
+
+Migration `1790660000000-TenantCrmAutomation` adds tenant-owned definitions, execution snapshots, and ordered action executions with composite `(coffee_shop_id,id)` keys, occurrence deduplication, bounded attempt/state fields, and tenant-safe Client/automation/source-event references. The shared domain outbox gains a separate automation dispatch channel, correlation, causal execution, and depth fields; existing rows are backfilled as already dispatched. Tag assignment, Note, and Reminder records may be attributed to an automation action execution. Actor checks require either a tenant User or an automation action, never both or neither. Partial dispatch and stale-claim indexes support bounded worker selection and recovery.

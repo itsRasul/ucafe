@@ -212,11 +212,11 @@ export class TenantCrmLoyaltyService implements OnModuleInit, OnModuleDestroy {
         const [events] = await this.dataSource.query(`
           UPDATE domain_event_outbox SET status='PROCESSING',attempts=attempts+1,claimed_at=clock_timestamp(),error_code=NULL
           WHERE id=(SELECT id FROM domain_event_outbox
-            WHERE attempts<5 AND ((status='PENDING' AND next_attempt_at<=clock_timestamp())
+            WHERE event_type=$1 AND attempts<5 AND ((status='PENDING' AND next_attempt_at<=clock_timestamp())
               OR (status='PROCESSING' AND claimed_at<clock_timestamp()-interval '5 minutes'))
             ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 1)
           RETURNING id,event_type AS "eventType",coffee_shop_id AS "coffeeShopId",aggregate_id AS "aggregateId",created_at AS "createdAt",attempts`,
-        []) as [OutboxRow[], number];
+        [DomainEventTypes.OrderDelivered]) as [OutboxRow[], number];
         const event = events[0];
         if (!event) break;
         await this.processOutboxEvent(event);

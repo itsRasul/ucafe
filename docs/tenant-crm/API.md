@@ -115,3 +115,21 @@ All Loyalty reads require `tenant_crm.read` plus effective `tenant_crm`; mutatio
 - POST /tenant/crm/offers/:offerId/activate snapshots the current audience; POST /tenant/crm/offers/:offerId/end ends an active Offer.
 - GET /tenant/crm/offers/:offerId/clients and GET /tenant/crm/clients/:clientId/offers return bounded pages.
 - Access requires tenant_crm.read, menu.read, and the tenant_crm feature. Mutations also require tenant_crm.manage.
+
+## Phase 9 Automation routes
+
+All routes use the trusted café context and effective `tenant_crm`; reads require `tenant_crm.read`, while definition mutations, trigger metadata and time-trigger previews also require `tenant_crm.manage`.
+
+| Method and route | Behavior |
+| --- | --- |
+| `GET /tenant/crm/automations` | Filtered, paginated tenant definitions (`q`, `status`, `triggerType`, `page`, `pageSize`). |
+| `GET /tenant/crm/automations/metadata?triggerType=...` | Trigger field catalog, active Tags, active staff assignees, and supported action catalog. |
+| `POST /tenant/crm/automations` / `PATCH /tenant/crm/automations/:automationId` | Create Draft or update a non-archived definition; updates increment version. |
+| `GET /tenant/crm/automations/:automationId` | Tenant-owned current definition. |
+| `POST /tenant/crm/automations/:automationId/activate` | Revalidate fields/actions and activate from now; no historical event replay. |
+| `POST /tenant/crm/automations/:automationId/pause` / `archive` | Stop intake or archive Draft/Paused definitions. Existing runs finish from snapshots. |
+| `POST /tenant/crm/automations/preview` | Count current matches for `CLIENT_LAPSED` or `CLIENT_BIRTHDAY`. |
+| `GET /tenant/crm/automations/:automationId/executions` | Paginated execution history, optionally filtered by status. |
+| `GET /tenant/crm/automations/executions/:executionId` | Execution snapshot and ordered action statuses. |
+
+Trigger configurations and action configs are allowlisted and DTO validated. Conditions use the Phase 4 version-1 AST and limits; event fields are available only for their corresponding trigger. No manual run/retry endpoint or communication action exists. See [AUTOMATION.md](AUTOMATION.md) for event and lifecycle semantics.

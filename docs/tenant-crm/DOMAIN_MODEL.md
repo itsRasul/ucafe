@@ -63,3 +63,7 @@ Feedback belongs to one café and one existing Client. It stores the customer's 
 ## Phase 7 Offers
 
 An Offer is a CRM targeting record linked one-to-one with an existing tenant Promotion and to one saved CRM Segment. Draft Offers do not change pricing. Activation records the current Segment audience; the existing Promotion remains the sole source of discount terms and redemption behavior. Ending an Offer disables its targeting link without changing or reopening the Promotion.
+
+## Phase 9 lifecycle automation
+
+An Automation is a café-owned versioned trigger, optional typed conditions, and ordered internal actions. An Execution captures the definition version, minimal event/time snapshot, and occurrence identity; Action Executions track each idempotent Note, Tag, or Reminder effect. Client, Order, Feedback, CRM profile, and Tag remain authoritative in their existing domains. Automation does not own customer identity, pricing, Loyalty, communications, or Segment membership history. See [AUTOMATION.md](AUTOMATION.md).

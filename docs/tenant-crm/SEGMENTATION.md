@@ -124,3 +124,7 @@ Feedback count, average rating, negative count, latest Feedback time, and Needs 
 ## Phase 7 Offer targeting
 
 Offer preview and activation reuse the saved Segment criteria compiler and the tenant's current field catalog. Preview is a current estimate. Activation takes a one-time snapshot of matching Clients and records the Segment name and criteria used. Later Segment or Client changes do not recalculate that Offer's audience; a new Draft and activation are required for a new audience.
+
+## Phase 9 Automation conditions
+
+Automation definitions validate their criteria through this same typed, bounded compiler. At execution start, current Client, CRM profile, Tag, Custom Field, Order, and Reservation values are queried for the execution's tenant and Client; no member list is copied. Supported event conditions come from a separate trigger-specific event-field allowlist and use the immutable source-event snapshot. This does not create Segment enter/exit events, saved membership, or historical membership analytics.
