@@ -24,6 +24,7 @@ test("tenant and platform Ticket controllers enforce the existing guards and sco
   assert.deepEqual(Reflect.getMetadata(TENANT_PERMISSIONS_METADATA, TenantSupportTicketsController), [TenantPermissions.SupportTicketsUse]);
   assert.deepEqual(Reflect.getMetadata(PLATFORM_PERMISSIONS_METADATA, PlatformSupportTicketsController), [PlatformPermissions.SupportTicketsView]);
   assert.deepEqual(Reflect.getMetadata(PLATFORM_PERMISSIONS_METADATA, PlatformSupportTicketsController.prototype.reply), [PlatformPermissions.SupportTicketsView, PlatformPermissions.SupportTicketsReply]);
+  assert.equal(Reflect.getMetadata(PLATFORM_PERMISSIONS_METADATA, PlatformSupportTicketsController.prototype.attachment), undefined);
   assert.deepEqual(Reflect.getMetadata(PLATFORM_PERMISSIONS_METADATA, PlatformSupportTicketsController.prototype.manage), [PlatformPermissions.SupportTicketsView, PlatformPermissions.SupportTicketsManage]);
 });
 
@@ -79,12 +80,14 @@ test("direct Platform list, reply, and manage requests are rejected without thei
 
   for (const handler of [
     PlatformSupportTicketsController.prototype.list,
+    PlatformSupportTicketsController.prototype.attachment,
     PlatformSupportTicketsController.prototype.reply,
     PlatformSupportTicketsController.prototype.manage,
   ]) {
     await assert.rejects(() => guard.canActivate(context(handler)), ForbiddenException);
   }
   assert.deepEqual(calls, [
+    [PlatformPermissions.SupportTicketsView],
     [PlatformPermissions.SupportTicketsView],
     [PlatformPermissions.SupportTicketsView, PlatformPermissions.SupportTicketsReply],
     [PlatformPermissions.SupportTicketsView, PlatformPermissions.SupportTicketsManage],

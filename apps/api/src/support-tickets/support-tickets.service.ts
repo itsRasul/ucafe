@@ -1,12 +1,19 @@
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 import { DataSource, EntityManager } from "typeorm";
 import { PlatformAuditService } from "../audit/platform-audit.service";
+import { MediaStorageService } from "../media/media-storage.service";
+import { SupportTicketNotificationsService } from "./support-ticket-notifications.service";
 import { CreateSupportTicketDto, CreateSupportTicketMessageDto, PlatformSupportTicketListQueryDto, TenantSupportTicketListQueryDto, UpdateSupportTicketDto } from "./dto/support-ticket.dto";
 import { SupportTicketCloseReason, SupportTicketDepartment, SupportTicketSenderType, SupportTicketStatus } from "./entities";
+import { inspectSupportTicketAttachments, SupportTicketAttachmentMimeType } from "./support-ticket-attachment.util";
+
+type StoredTicketAttachment = { storageKey: string; originalFilename: string; detectedMimeType: SupportTicketAttachmentMimeType; sizeBytes: number };
+type TicketMessageRow = { id: string; senderType: SupportTicketSenderType; body: string; createdAt: Date };
 
 type TicketRow = {
   id: string; referenceNumber: string; coffeeShopId: string; createdByUserId: string; subject: string;
-  department: string; status: SupportTicketStatus; closeReason: SupportTicketCloseReason | null;
+  department: SupportTicketDepartment; status: SupportTicketStatus; closeReason: SupportTicketCloseReason | null;
   closedAt: Date | null; closedByUserId: string | null; lastMessageAt: Date; lastMessageSenderType: SupportTicketSenderType;
   lastPlatformReplyAt: Date | null; createdAt: Date; updatedAt: Date;
 };
@@ -19,26 +26,38 @@ const ticketColumns = `t.id, t.reference_number AS "referenceNumber", t.coffee_s
 
 @Injectable()
 export class SupportTicketsService {
-  constructor(private readonly db: DataSource, private readonly audit: PlatformAuditService) {}
+  private readonly logger = new Logger(SupportTicketsService.name);
 
-  async create(coffeeShopId: string, userId: string, input: CreateSupportTicketDto) {
-    return this.db.transaction(async (manager) => {
-      const [ticket] = await manager.query<Array<{ id: string }>>(
-        `INSERT INTO support_tickets (coffee_shop_id, created_by_user_id, subject, department)
-         VALUES ($1,$2,$3,$4) RETURNING id`,
-        [coffeeShopId, userId, input.subject, input.department],
+  constructor(
+    private readonly db: DataSource,
+    private readonly audit: PlatformAuditService,
+    private readonly storage: MediaStorageService,
+    private readonly notifications: SupportTicketNotificationsService,
+  ) {}
+
+  async create(coffeeShopId: string, userId: string, input: CreateSupportTicketDto, files: Express.Multer.File[] = []) {
+    const ticketId = randomUUID();
+    const messageId = randomUUID();
+    const attachments = await this.storeAttachments(coffeeShopId, ticketId, messageId, files);
+    return this.withStorageCompensation(attachments, ticketId, "create", () => this.db.transaction(async (manager) => {
+      const [ticket] = await manager.query<Array<{ referenceNumber: string }>>(
+        `INSERT INTO support_tickets (id,coffee_shop_id,created_by_user_id,subject,department)
+         VALUES ($1,$2,$3,$4,$5) RETURNING reference_number AS "referenceNumber"`,
+        [ticketId, coffeeShopId, userId, input.subject, input.department],
       );
       const [message] = await manager.query<Array<{ createdAt: Date }>>(
-        `INSERT INTO support_ticket_messages (coffee_shop_id, ticket_id, sender_user_id, sender_type, body)
-         VALUES ($1,$2,$3,'TENANT_USER',$4) RETURNING created_at AS "createdAt"`,
-        [coffeeShopId, ticket!.id, userId, input.message],
+        `INSERT INTO support_ticket_messages (id,coffee_shop_id,ticket_id,sender_user_id,sender_type,body)
+         VALUES ($1,$2,$3,$4,'TENANT_USER',$5) RETURNING created_at AS "createdAt"`,
+        [messageId, coffeeShopId, ticketId, userId, input.message],
       );
+      await this.persistAttachments(manager, coffeeShopId, messageId, attachments);
       await manager.query(
-        `UPDATE support_tickets SET last_message_at=$2, last_message_sender_type='TENANT_USER', updated_at=$2 WHERE id=$1`,
-        [ticket!.id, message!.createdAt],
+        `UPDATE support_tickets SET last_message_at=$2,last_message_sender_type='TENANT_USER',updated_at=$2 WHERE id=$1`,
+        [ticketId, message!.createdAt],
       );
-      return this.tenantDetail(manager, coffeeShopId, ticket!.id);
-    });
+      await this.notifications.created(manager, { id: ticketId, coffeeShopId, referenceNumber: ticket!.referenceNumber, department: input.department });
+      return this.tenantDetail(manager, coffeeShopId, ticketId);
+    }));
   }
 
   async listTenant(coffeeShopId: string, query: TenantSupportTicketListQueryDto) {
@@ -61,24 +80,29 @@ export class SupportTicketsService {
     return this.tenantDetail(this.db.manager, coffeeShopId, ticketId);
   }
 
-  async replyTenant(coffeeShopId: string, ticketId: string, userId: string, input: CreateSupportTicketMessageDto) {
-    return this.db.transaction(async (manager) => {
+  async replyTenant(coffeeShopId: string, ticketId: string, userId: string, input: CreateSupportTicketMessageDto, files: Express.Multer.File[] = []) {
+    const messageId = randomUUID();
+    if (files.length) await this.assertTicketExists(ticketId, coffeeShopId);
+    const attachments = await this.storeAttachments(coffeeShopId, ticketId, messageId, files);
+    return this.withStorageCompensation(attachments, ticketId, "tenant reply", () => this.db.transaction(async (manager) => {
       const ticket = await this.lockTicket(manager, ticketId, coffeeShopId);
       if (!ticket) throw new NotFoundException("Support ticket not found");
       if (ticket.status === SupportTicketStatus.Closed && ticket.closeReason !== SupportTicketCloseReason.Inactivity) {
         throw new ConflictException("This support ticket is closed");
       }
       const [message] = await manager.query<Array<{ createdAt: Date }>>(
-        `INSERT INTO support_ticket_messages (coffee_shop_id,ticket_id,sender_user_id,sender_type,body)
-         VALUES ($1,$2,$3,'TENANT_USER',$4) RETURNING created_at AS "createdAt"`,
-        [coffeeShopId, ticketId, userId, input.message],
+        `INSERT INTO support_ticket_messages (id,coffee_shop_id,ticket_id,sender_user_id,sender_type,body)
+         VALUES ($1,$2,$3,$4,'TENANT_USER',$5) RETURNING created_at AS "createdAt"`,
+        [messageId, coffeeShopId, ticketId, userId, input.message],
       );
+      await this.persistAttachments(manager, coffeeShopId, messageId, attachments);
       await manager.query(
         `UPDATE support_tickets SET status='WAITING_FOR_PLATFORM',last_message_at=$2,last_message_sender_type='TENANT_USER',updated_at=$2 WHERE id=$1`,
         [ticketId, message!.createdAt],
       );
+      await this.notifications.tenantReplied(manager, ticket, messageId);
       return this.tenantDetail(manager, coffeeShopId, ticketId);
-    });
+    }));
   }
 
   async listPlatform(query: PlatformSupportTicketListQueryDto) {
@@ -122,23 +146,37 @@ export class SupportTicketsService {
     return this.platformDetail(this.db.manager, ticketId);
   }
 
-  async replyPlatform(ticketId: string, userId: string, input: CreateSupportTicketMessageDto) {
-    return this.db.transaction(async (manager) => {
+  async replyPlatform(ticketId: string, userId: string, input: CreateSupportTicketMessageDto, files: Express.Multer.File[] = []) {
+    const messageId = randomUUID();
+    const ticket = files.length ? await this.assertTicketExists(ticketId) : undefined;
+    const coffeeShopId = ticket?.coffeeShopId;
+    const attachments = coffeeShopId ? await this.storeAttachments(coffeeShopId, ticketId, messageId, files) : [];
+    return this.withStorageCompensation(attachments, ticketId, "Platform reply", () => this.db.transaction(async (manager) => {
       const ticket = await this.lockTicket(manager, ticketId);
       if (!ticket) throw new NotFoundException("Support ticket not found");
       if (ticket.status === SupportTicketStatus.Closed) throw new ConflictException("Reopen this support ticket before replying");
       const [message] = await manager.query<Array<{ createdAt: Date }>>(
-        `INSERT INTO support_ticket_messages (coffee_shop_id,ticket_id,sender_user_id,sender_type,body)
-         VALUES ($1,$2,$3,'PLATFORM_USER',$4) RETURNING created_at AS "createdAt"`,
-        [ticket.coffeeShopId, ticketId, userId, input.message],
+        `INSERT INTO support_ticket_messages (id,coffee_shop_id,ticket_id,sender_user_id,sender_type,body)
+         VALUES ($1,$2,$3,$4,'PLATFORM_USER',$5) RETURNING created_at AS "createdAt"`,
+        [messageId, ticket.coffeeShopId, ticketId, userId, input.message],
       );
+      await this.persistAttachments(manager, ticket.coffeeShopId, messageId, attachments);
       await manager.query(
         `UPDATE support_tickets SET status='WAITING_FOR_TENANT',last_message_at=$2,last_message_sender_type='PLATFORM_USER',
            last_platform_reply_at=$2,updated_at=$2 WHERE id=$1`,
         [ticketId, message!.createdAt],
       );
+      await this.notifications.platformReplied(manager, ticket, messageId);
       return this.platformDetail(manager, ticketId);
-    });
+    }));
+  }
+
+  async streamTenantAttachment(coffeeShopId: string, ticketId: string, attachmentId: string) {
+    return this.streamAttachment(ticketId, attachmentId, coffeeShopId);
+  }
+
+  async streamPlatformAttachment(ticketId: string, attachmentId: string) {
+    return this.streamAttachment(ticketId, attachmentId);
   }
 
   async manage(ticketId: string, userId: string, input: UpdateSupportTicketDto) {
@@ -180,7 +218,7 @@ export class SupportTicketsService {
     const rows = await manager.query<TicketRow[]>(`SELECT ${ticketColumns} FROM support_tickets t WHERE t.id=$1 AND t.coffee_shop_id=$2`, [ticketId, coffeeShopId]);
     const ticket = rows[0];
     if (!ticket) throw new NotFoundException("Support ticket not found");
-    const messages = await this.messages(manager, ticketId, coffeeShopId);
+    const messages = await this.messages(manager, ticketId, coffeeShopId, "tenant");
     return { ...this.project(ticket), messages };
   }
 
@@ -190,14 +228,98 @@ export class SupportTicketsService {
        FROM support_tickets t JOIN coffee_shops cs ON cs.id=t.coffee_shop_id WHERE t.id=$1`, [ticketId]);
     const ticket = rows[0];
     if (!ticket) throw new NotFoundException("Support ticket not found");
-    const messages = await this.messages(manager, ticketId, ticket.coffeeShopId);
+    const messages = await this.messages(manager, ticketId, ticket.coffeeShopId, "platform");
     return { ...this.project(ticket), tenant: { id: ticket.coffeeShopId, name: ticket.tenantName, slug: ticket.tenantSlug, status: ticket.tenantStatus }, messages };
   }
 
-  private async messages(manager: EntityManager, ticketId: string, coffeeShopId: string) {
-    return manager.query<Array<Record<string, unknown>>>(
+  private async messages(manager: EntityManager, ticketId: string, coffeeShopId: string, surface: "tenant" | "platform") {
+    const messages = await manager.query<TicketMessageRow[]>(
       `SELECT id, sender_type AS "senderType", body, created_at AS "createdAt"
        FROM support_ticket_messages WHERE coffee_shop_id=$1 AND ticket_id=$2 ORDER BY created_at,id`, [coffeeShopId, ticketId]);
+    if (!messages.length) return [];
+    const attachments = await manager.query<Array<{ id: string; ticketMessageId: string; originalFilename: string; detectedMimeType: string; sizeBytes: number }>>(
+      `SELECT id,ticket_message_id AS "ticketMessageId",original_filename AS "originalFilename",
+              detected_mime_type AS "detectedMimeType",size_bytes AS "sizeBytes"
+       FROM support_ticket_attachments WHERE coffee_shop_id=$1 AND ticket_message_id=ANY($2::uuid[])
+       ORDER BY created_at,id`, [coffeeShopId, messages.map((message) => message.id)]);
+    const byMessage = new Map<string, typeof attachments>();
+    for (const attachment of attachments) {
+      const rows = byMessage.get(attachment.ticketMessageId) ?? [];
+      rows.push(attachment);
+      byMessage.set(attachment.ticketMessageId, rows);
+    }
+    const ticketPath = surface === "tenant" ? "/tenant/support/tickets" : "/platform/support/tickets";
+    return messages.map((message) => ({
+      ...message,
+      attachments: (byMessage.get(message.id) ?? []).map(({ id, originalFilename, detectedMimeType, sizeBytes }) => ({
+        id, originalFilename, detectedMimeType, sizeBytes: Number(sizeBytes),
+        contentUrl: `${ticketPath}/${ticketId}/attachments/${id}/content`,
+      })),
+    }));
+  }
+
+  private async assertTicketExists(ticketId: string, coffeeShopId?: string) {
+    const tenantClause = coffeeShopId ? " AND coffee_shop_id=$2" : "";
+    const values = coffeeShopId ? [ticketId, coffeeShopId] : [ticketId];
+    const rows = await this.db.query<Array<{ coffeeShopId: string }>>(
+      `SELECT coffee_shop_id AS "coffeeShopId" FROM support_tickets WHERE id=$1${tenantClause}`, values);
+    if (!rows[0]) throw new NotFoundException("Support ticket not found");
+    return rows[0];
+  }
+
+  private async storeAttachments(coffeeShopId: string, ticketId: string, messageId: string, files: Express.Multer.File[]): Promise<StoredTicketAttachment[]> {
+    const inspected = await inspectSupportTicketAttachments(files);
+    if (!files.length) return [];
+    const stored = inspected.map((attachment) => ({ ...attachment, storageKey: `tenants/${coffeeShopId}/support-tickets/${ticketId}/${messageId}/${randomUUID()}` }));
+    const results = await Promise.allSettled(stored.map((attachment, index) =>
+      this.storage.putObject(attachment.storageKey, files[index]!.buffer, attachment.detectedMimeType)));
+    if (results.some((result) => result.status === "rejected")) {
+      await this.cleanupAttachments(stored, ticketId, "upload");
+      this.logger.warn(`Ticket attachment upload failed for ${ticketId}`);
+      throw new ServiceUnavailableException("Ticket attachment storage is unavailable");
+    }
+    return stored;
+  }
+
+  private async persistAttachments(manager: EntityManager, coffeeShopId: string, messageId: string, attachments: StoredTicketAttachment[]) {
+    for (const attachment of attachments) {
+      await manager.query(
+        `INSERT INTO support_ticket_attachments (coffee_shop_id,ticket_message_id,storage_key,original_filename,detected_mime_type,size_bytes)
+         VALUES ($1,$2,$3,$4,$5,$6)`,
+        [coffeeShopId, messageId, attachment.storageKey, attachment.originalFilename, attachment.detectedMimeType, attachment.sizeBytes],
+      );
+    }
+  }
+
+  private async withStorageCompensation<T>(attachments: StoredTicketAttachment[], ticketId: string, operation: string, action: () => Promise<T>) {
+    try { return await action(); }
+    catch (error) { await this.cleanupAttachments(attachments, ticketId, operation); throw error; }
+  }
+
+  private async cleanupAttachments(attachments: StoredTicketAttachment[], ticketId: string, operation: string) {
+    const results = await Promise.allSettled(attachments.map((attachment) => this.storage.removeObject(attachment.storageKey)));
+    if (results.some((result) => result.status === "rejected")) this.logger.warn(`Ticket attachment cleanup failed after ${operation} for ${ticketId}`);
+  }
+
+  private async streamAttachment(ticketId: string, attachmentId: string, coffeeShopId?: string) {
+    const tenantClause = coffeeShopId ? " AND t.coffee_shop_id=$3" : "";
+    const values = coffeeShopId ? [attachmentId, ticketId, coffeeShopId] : [attachmentId, ticketId];
+    const rows = await this.db.query<Array<{ storageKey: string; originalFilename: string; detectedMimeType: SupportTicketAttachmentMimeType; sizeBytes: number }>>(
+      `SELECT a.storage_key AS "storageKey",a.original_filename AS "originalFilename",
+              a.detected_mime_type AS "detectedMimeType",a.size_bytes AS "sizeBytes"
+       FROM support_ticket_attachments a
+       JOIN support_ticket_messages m ON m.coffee_shop_id=a.coffee_shop_id AND m.id=a.ticket_message_id
+       JOIN support_tickets t ON t.coffee_shop_id=m.coffee_shop_id AND t.id=m.ticket_id
+       WHERE a.id=$1 AND t.id=$2${tenantClause}`, values);
+    const attachment = rows[0];
+    if (!attachment) throw new NotFoundException("Ticket attachment not found");
+    try {
+      const object = await this.storage.getObject(attachment.storageKey);
+      return { ...object, originalFilename: attachment.originalFilename, contentType: attachment.detectedMimeType, contentLength: Number(attachment.sizeBytes) };
+    } catch {
+      this.logger.warn(`Ticket attachment download failed for ${ticketId}`);
+      throw new ServiceUnavailableException("Ticket attachment is unavailable");
+    }
   }
 
   private project(ticket: TicketRow) {

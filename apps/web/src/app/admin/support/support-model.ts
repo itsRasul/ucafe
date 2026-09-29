@@ -1,9 +1,13 @@
+import { supportMessageBody } from "../../support-attachment-model";
+import type { SupportAttachment } from "../../support-attachment-model";
+
 export type TicketDepartment = "TECHNICAL" | "SALES";
 export type TicketStatus = "WAITING_FOR_PLATFORM" | "WAITING_FOR_TENANT" | "CLOSED";
 export type TicketCloseReason = "MANUAL" | "INACTIVITY";
 export type TicketSender = "TENANT_USER" | "PLATFORM_USER";
+export type TicketAttachment = SupportAttachment;
 
-export type TicketMessage = { id: string; senderType: TicketSender; body: string; createdAt: string };
+export type TicketMessage = { id: string; senderType: TicketSender; body: string; createdAt: string; attachments?: TicketAttachment[] };
 export type TicketSummary = {
   id: string;
   referenceNumber: string;
@@ -86,15 +90,15 @@ export function validateReply(message: string) {
   return "";
 }
 
-export async function createTicket(api: TenantApi, input: NewTicket) {
+export async function createTicket(api: TenantApi, input: NewTicket, files: File[] = []) {
   const payload = { department: input.department as TicketDepartment, subject: input.subject.trim(), message: input.message.trim() };
-  return api<TicketDetail>("/tenant/support/tickets", { method: "POST", body: JSON.stringify(payload) });
+  return api<TicketDetail>("/tenant/support/tickets", { method: "POST", body: supportMessageBody(payload, files) });
 }
 
-export async function replyToTicket(api: TenantApi, ticketId: string, message: string) {
+export async function replyToTicket(api: TenantApi, ticketId: string, message: string, files: File[] = []) {
   return api<TicketDetail>(`/tenant/support/tickets/${encodeURIComponent(ticketId)}/messages`, {
     method: "POST",
-    body: JSON.stringify({ message: message.trim() }),
+    body: supportMessageBody({ message: message.trim() }, files),
   });
 }
 
@@ -109,6 +113,8 @@ export function supportErrorMessage(error: unknown) {
   const status = typeof error === "object" && error !== null && "status" in error ? Number(error.status) : 0;
   if (status === 401) return "برای ادامه دوباره وارد شوید.";
   if (status === 403) return "نقش شما اجازه استفاده از بخش پشتیبانی را ندارد.";
+  if (status === 413) return "حجم هر فایل نباید بیشتر از ۸ مگابایت باشد.";
+  if (status === 503) return "ذخیره پیوست‌ها موقتاً در دسترس نیست. دوباره تلاش کنید.";
   if (status === 404) return "این تیکت پیدا نشد یا دیگر در دسترس شما نیست.";
   if (status === 409) return "این تیکت بسته شده و امکان ارسال پیام ندارد.";
   if (status === 400 || status === 422) return "اطلاعات واردشده معتبر نیست. آن‌ها را بررسی و دوباره تلاش کنید.";

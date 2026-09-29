@@ -79,7 +79,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
             await repository.update(job.id, { status: NotificationStatus.Sent, sentAt: new Date(), lastErrorCode: "NO_LONGER_ELIGIBLE" });
             continue;
           }
-          const templateId = Number(this.config.get<string>(job.type) ?? (this.config.get("SMS_PROVIDER") === "development" ? "1" : ""));
+          const templateId = Number(this.config.get<string>(job.type) || (this.config.get("SMS_PROVIDER") === "development" ? "1" : ""));
           if (!Number.isSafeInteger(templateId) || templateId <= 0) throw new Error("SMS template is not configured");
           const result = await this.sms.sendTemplate({ phone: this.crypto.decryptPhone(job.recipientCiphertext), templateId, parameters: Object.entries(job.payload).map(([name, value]) => ({ name, value })) });
           await repository.update(job.id, { status: NotificationStatus.Sent, providerMessageId: result.providerMessageId, sentAt: new Date(), lastErrorCode: null });

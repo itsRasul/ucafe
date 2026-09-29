@@ -47,6 +47,7 @@ test("support errors are mapped to safe user-facing copy", () => {
   assert.match(supportErrorMessage({ status: 403 }), /اجازه دسترسی/);
   assert.match(supportErrorMessage({ status: 404 }), /پیدا نشد/);
   assert.match(supportErrorMessage({ status: 409 }), /وضعیت تیکت تغییر کرده/);
+  assert.match(supportErrorMessage({ status: 503 }), /ذخیره پیوست‌ها/);
   assert.match(supportErrorMessage(new Error("SQL details")), /ارتباط با سرور/);
   assert.match(formatTicketDate("not-a-date"), /—/);
 });

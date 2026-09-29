@@ -1,4 +1,4 @@
-import { CreateBucketCommand, DeleteObjectsCommand, GetObjectCommand, HeadBucketCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { CreateBucketCommand, DeleteObjectCommand, DeleteObjectsCommand, GetObjectCommand, HeadBucketCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { Injectable, OnModuleInit, ServiceUnavailableException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Readable } from "node:stream";
@@ -33,6 +33,19 @@ export class MediaStorageService implements OnModuleInit {
 
   async putVariants(prefix: string, variants: Record<MediaVariant, Buffer>) {
     await Promise.all(MEDIA_VARIANTS.map((variant) => this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: this.key(prefix, variant), Body: variants[variant], ContentType: variant.endsWith("avif") ? "image/avif" : "image/webp", CacheControl: "public, max-age=31536000, immutable" }))));
+  }
+
+  async putObject(key: string, body: Buffer, contentType: string) {
+    await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType, CacheControl: "private, no-store" }));
+  }
+
+  async getObject(key: string) {
+    const result = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+    return { body: result.Body as Readable, contentLength: result.ContentLength };
+  }
+
+  async removeObject(key: string) {
+    await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
   }
 
   async get(prefix: string, variant: MediaVariant) {

@@ -11,6 +11,7 @@ const {
   statusLabel, statusMessage, supportErrorMessage, ticketListPresentation,
   validateReply, validateTicketForm,
 } = require("./support-model.ts");
+const { addSupportFiles, removeSupportFile, supportAttachmentMaxBytes } = require("../../support-attachment-model.ts");
 
 const ticket = {
   id: "ticket-id",
@@ -71,6 +72,30 @@ test("create uses the tenant endpoint and sends only trimmed user fields", async
   assert.equal(calls[0].init.method, "POST");
   assert.deepEqual(JSON.parse(calls[0].init.body), { department: "SALES", subject: "پرسش فروش", message: "شرح درخواست" });
   assert.equal("tenantId" in JSON.parse(calls[0].init.body), false);
+});
+
+test("create and reply carry selected files in the existing multipart request", async () => {
+  const file = new File(["%PDF-1.7"], "report.pdf", { type: "application/pdf" });
+  const calls = [];
+  const api = async (path, init) => { calls.push({ path, init }); return ticket; };
+  await createTicket(api, { department: "TECHNICAL", subject: " Report ", message: " Details " }, [file]);
+  assert.ok(calls[0].init.body instanceof FormData);
+  assert.equal(calls[0].init.body.get("subject"), "Report");
+  assert.equal(calls[0].init.body.getAll("files")[0].name, "report.pdf");
+  await replyToTicket(api, "ticket-id", " follow up ", [file]);
+  assert.equal(calls[1].path, "/tenant/support/tickets/ticket-id/messages");
+  assert.equal(calls[1].init.body.get("message"), "follow up");
+  assert.equal(calls[1].init.body.getAll("files").length, 1);
+});
+
+test("file selection validates type, size, and message file count, and supports removal", () => {
+  const accepted = Array.from({ length: 5 }, (_, index) => new File(["%PDF-1.7"], `file-${index}.pdf`, { type: "application/pdf" }));
+  const selected = addSupportFiles([], accepted);
+  assert.equal(selected.files.length, 5);
+  assert.equal(addSupportFiles(selected.files, [accepted[0]]).error, "حداکثر ۵ فایل می‌توانید ارسال کنید.");
+  assert.equal(addSupportFiles([], [new File([new Uint8Array(supportAttachmentMaxBytes + 1)], "large.pdf", { type: "application/pdf" })]).error, "حجم هر فایل نباید بیشتر از ۸ مگابایت باشد.");
+  assert.equal(addSupportFiles([], [new File(["<svg/>"] , "active.svg", { type: "image/svg+xml" })]).error, "این نوع فایل پشتیبانی نمی‌شود.");
+  assert.deepEqual(removeSupportFile(selected.files, 2), [...selected.files.slice(0, 2), ...selected.files.slice(3)]);
 });
 
 test("pending submission guard drops a second create/reply while the first request is unresolved", async () => {

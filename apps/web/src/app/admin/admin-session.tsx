@@ -25,9 +25,12 @@ async function request<T>(path: string, token?: string, init?: RequestInit): Pro
   if (!(init?.body instanceof FormData) && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
   const response = await fetch(`/api/backend${path}`, { ...init, cache: "no-store", credentials: "same-origin", headers });
-  const body = response.status === 204 ? {} : await response.json().catch(() => ({})) as ApiError;
-  if (!response.ok) throw Object.assign(new Error(messageFor(response, body)), { status: response.status, code: body.code, feature: body.feature });
-  return body as T;
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({})) as ApiError;
+    throw Object.assign(new Error(messageFor(response, body)), { status: response.status, code: body.code, feature: body.feature });
+  }
+  if (response.status === 204) return {} as T;
+  return response.headers.get("content-type")?.includes("json") ? await response.json() as T : await response.blob() as T;
 }
 
 export function AdminSessionProvider({ children }: { children: React.ReactNode }) {

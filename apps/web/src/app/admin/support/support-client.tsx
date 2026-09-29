@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useAdminSession } from "../admin-session";
+import { SupportFilePicker, SupportMessageAttachments } from "../../support-attachments";
+import type { AttachmentLoader } from "../../support-attachment-model";
 import {
   canReply, createTicket, departmentLabel, departments, emptyTicketDescription,
   emptyTicketTitle, formatTicketDate, NewTicket, replyToTicket, runWhilePending,
@@ -52,11 +54,12 @@ export function SupportTicketCards({ tickets, timeZone }: { tickets: TicketPage[
   </ul>;
 }
 
-export function SupportTicketMessages({ messages, timeZone }: { messages: TicketDetail["messages"]; timeZone: string }) {
+export function SupportTicketMessages({ messages, timeZone, loadAttachment }: { messages: TicketDetail["messages"]; timeZone: string; loadAttachment?: AttachmentLoader }) {
   return <ol className="support-messages">
     {messages.map((item) => <li key={item.id} className={`support-message support-message--${senderSide(item.senderType)}`}>
       <div className="support-message-meta"><strong>{senderLabel(item.senderType)}</strong><time dateTime={item.createdAt}>{formatTicketDate(item.createdAt, timeZone)}</time></div>
       <p>{item.body}</p>
+      {loadAttachment && <SupportMessageAttachments attachments={item.attachments} loadBlob={loadAttachment} />}
     </li>)}
   </ol>;
 }
@@ -144,6 +147,7 @@ export function NewSupportTicket() {
   const lock = useRef(false);
   const errorSummary = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState<NewTicket>({ department: "", subject: "", message: "" });
+  const [files, setFiles] = useState<File[]>([]);
   const [errors, setErrors] = useState<TicketErrors>({});
   const [focusSummary, setFocusSummary] = useState(false);
   const [apiError, setApiError] = useState("");
@@ -176,7 +180,8 @@ export function NewSupportTicket() {
       setBusy(true);
       setApiError("");
       try {
-        const ticket = await createTicket(api, input);
+        const ticket = await createTicket(api, input, files);
+        setFiles([]);
         router.push(`/admin/support/${encodeURIComponent(ticket.id)}`);
       } catch (reason) {
         setApiError(supportErrorMessage(reason));
@@ -197,6 +202,7 @@ export function NewSupportTicket() {
       </div>}
       {apiError && <p className="admin-message error" role="alert">{apiError}</p>}
       <SupportTicketFields input={input} errors={errors} onChange={change} onBlur={blur} />
+      <SupportFilePicker files={files} onChange={setFiles} disabled={busy} />
       <footer className="support-form-actions"><Link href="/admin/support">انصراف</Link><button type="submit" disabled={busy}>{busy && <span className="admin-spinner" aria-hidden="true" />}{busy ? "در حال ثبت…" : "ارسال تیکت"}</button></footer>
     </form>
   </section>;
@@ -211,6 +217,7 @@ export function SupportTicketDetail({ ticketId }: { ticketId: string }) {
   const [refresh, setRefresh] = useState(0);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
   const [replyError, setReplyError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -239,8 +246,9 @@ export function SupportTicketDetail({ ticketId }: { ticketId: string }) {
       setError("");
       setNotice("");
       try {
-        setTicket(await replyToTicket(api, ticket.id, message));
+        setTicket(await replyToTicket(api, ticket.id, message, files));
         setMessage("");
+        setFiles([]);
         setNotice("پاسخ شما ارسال شد.");
       } catch (reason) {
         setReplyError(supportErrorMessage(reason));
@@ -265,11 +273,12 @@ export function SupportTicketDetail({ ticketId }: { ticketId: string }) {
     {error && <p className="admin-message error" role="alert">{error}<button type="button" onClick={() => setRefresh((value) => value + 1)}>تلاش دوباره</button></p>}
     <section className="support-conversation" aria-labelledby="support-conversation-title">
       <h2 id="support-conversation-title">گفت‌وگو</h2>
-      <SupportTicketMessages messages={ticket.messages} timeZone={access.tenant.timezone} />
+      <SupportTicketMessages messages={ticket.messages} timeZone={access.tenant.timezone} loadAttachment={(path) => api<Blob>(path)} />
     </section>
     {notice && <p className="admin-message success" role="status">{notice}</p>}
     {replyable ? <form className="support-reply" onSubmit={submitReply} aria-busy={busy}>
       <label className="support-field" htmlFor="ticket-reply"><span>پاسخ شما</span><textarea id="ticket-reply" required maxLength={10000} rows={5} value={message} onChange={(event) => { setMessage(event.target.value); setReplyError(""); }} aria-invalid={Boolean(replyError)} aria-describedby={replyError ? "ticket-reply-error" : "ticket-reply-help"} /></label>
+      <SupportFilePicker files={files} onChange={setFiles} disabled={busy} />
       {replyError && <p className="support-field-error" id="ticket-reply-error" role="alert">{replyError}</p>}
       {!replyError && <small id="ticket-reply-help" className="support-reply-help">پاسخ شما به گفت‌وگوی این تیکت اضافه می‌شود.</small>}
       <button type="submit" disabled={busy}>{busy && <span className="admin-spinner" aria-hidden="true" />}{busy ? "در حال ارسال…" : "ارسال پاسخ"}</button>

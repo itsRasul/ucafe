@@ -1,12 +1,12 @@
 # Support Ticketing architecture
 
-**Status:** Phase 1 core backend and Phase 2 Tenant Support UI implemented on 2026-09-29. Ticket persistence, tenant/platform APIs, permissions, lifecycle transitions, and the Tenant-facing admin screens are in place. Platform Support UI, attachment storage, SMS delivery, and auto-close scheduling remain deferred. Product status remains in [PRD.md](PRD.md).
+**Status:** Phases 1–5 are implemented as of 2026-09-29. Ticket persistence, tenant/platform APIs and UIs, permissions, lifecycle transitions, private message attachments, and asynchronous SMS notifications are in place. Inactivity auto-close remains deferred. Product status remains in [PRD.md](PRD.md).
 
 ## Goals and non-goals
 
 Ticketing will provide a durable support conversation between tenant administrators and authorized UCafe platform staff. It reuses the existing administrative User identity, tenant context, Platform RBAC, PostgreSQL, private S3-compatible storage, and SMS outbox.
 
-Phase 0 recorded the design only. Phase 1 implements tenant and Platform ticket APIs, manual close/reopen, and transactional message persistence. Phase 2 adds the Tenant-facing admin UI. Ticketing is available across subscription plans and is not a plan feature. Phase 1 does not queue or send SMS; NotificationsService integration belongs to Phase 5 so this core phase cannot trigger delivery early.
+Phase 0 recorded the design only. Phase 1 implements tenant and Platform ticket APIs, manual close/reopen, and transactional message persistence. Phase 2 adds the Tenant-facing admin UI; Phase 3 adds the Platform Support Center; Phase 4 adds private message attachments; Phase 5 queues conversation SMS through the existing NotificationsService. Ticketing is available across subscription plans and is not a plan feature.
 
 ## Existing infrastructure to reuse
 
@@ -56,9 +56,9 @@ Duplicate coffee_shop_id on TicketMessage permits tenant-scoped reads and a comp
 
 ### TicketAttachment
 
-When attachment upload is scheduled, metadata belongs to TicketMessage: id, coffee_shop_id, ticket_message_id, storage_key, original_filename, detected_mime_type, size_bytes, and created_at. Use a composite foreign key to TicketMessage (coffee_shop_id, id); the Ticket relationship is inherited through the message. Generate keys below tenants/{coffeeShopId}/support-tickets/{ticketId}/{messageId}/{uuid}. Never accept the key from or return it to a client. Retain attachment metadata and objects with their message.
+`support_ticket_attachments` stores id, coffee_shop_id, ticket_message_id, storage_key, original_filename, detected_mime_type, size_bytes, and created_at. A composite restrictive foreign key ties `(coffee_shop_id,ticket_message_id)` to `(coffee_shop_id,id)` on TicketMessage; the Ticket relationship is inherited through the message. A unique storage-key constraint and message lookup index support this relationship. Retain attachment metadata and objects with their message; there is no post-send deletion operation.
 
-Start with at most five files per message, up to 8 MiB each, from a short allowlist of raster image types and PDF. Check file signatures and size, sanitize filename metadata, and reject SVG, archives, and executables. Revisit limits when product needs and operational capacity are known.
+At most five files may be included in one message, up to 8 MiB each. The allowlist is JPEG, PNG, WebP, and PDF. The API detects types from file signatures; images are additionally inspected by Sharp with the existing 24-megapixel ceiling. It ignores browser MIME as an authority, sanitizes display filenames, and rejects SVG, archives, text/HTML, and executables. Tenant creation, Tenant replies, and authorized Platform replies use the same limits. The message body remains required by the Phase 0 contract.
 
 ## Ticket lifecycle
 
@@ -99,15 +99,19 @@ Controllers require the permissions listed for each operation. In the effective 
 
 ## Attachments and private storage
 
-MediaStorageService currently supports fixed image variants only and has no signed-URL workflow. Reuse its S3 client, private bucket, configuration, and tenant key discipline; add the smallest generic object put/get/delete operations needed. Do not run arbitrary files through Sharp or publish them through public media routes.
+`MediaStorageService` owns the existing S3 client, private bucket, and configuration. It now exposes generic private object put/get/delete operations for Ticket files; attachments do not enter the image-variant pipeline and are not exposed by public media routes. Multipart requests are capped by Multer at five in-memory files of 8 MiB each. Object keys are generated below `tenants/{coffeeShopId}/support-tickets/{ticketId}/{messageId}/{uuid}`; user filenames never form keys.
 
-Verify Ticket/message authorization before upload. For download, resolve the attachment by ID joined to TicketMessage and Ticket, verify tenant scope or Platform permission, then stream the private object through the API. Knowing an attachment UUID or key is never sufficient. Hide storage_key and provider metadata from response DTOs. Compensate object writes if metadata persistence fails, following MediaService cleanup.
+The Next.js catch-all API Route Handler forwards multipart request bodies as streams, so the web tier does not buffer the combined upload in memory. No Nginx/Caddy ingress configuration is tracked in this repository; a production ingress must allow at least 40 MiB plus multipart overhead for a maximum-size message.
+
+Tenant create/reply routes run Tenant context and `support.tickets.use` guards before the upload interceptor. Platform reply uses the existing `support.tickets.view` plus `support.tickets.reply` guards. For download, the service joins attachment → message → ticket and scopes the ticket ID and, for Tenant access, the resolved coffeeShopId before reading the private object. Platform downloads require ticket view permission. The API streams content from `GET .../:ticketId/attachments/:attachmentId/content` with `private, no-store`, `nosniff`, and attachment disposition headers. No signed-URL workflow exists or is added; knowing an attachment UUID or key is never sufficient. Response projections include safe metadata and an authenticated content path, never the storage key or bucket.
+
+The selected approach is one multipart message request, avoiding temporary-upload tokens. The service validates every file before storage, uploads objects, then writes the message, attachment metadata, and Ticket transition in one PostgreSQL transaction. If an upload partially fails, every generated key is deleted; if database persistence fails, newly uploaded objects are deleted. Cleanup errors are logged with only the Ticket ID and operation for operational follow-up. PostgreSQL and S3 are not atomic: a delete outage during compensation or process termination between upload and commit can leave an unreferenced private object for later cleanup; there is no orphan-object sweeper in this phase, while Ticket state and metadata still roll back on database errors.
 
 ## SMS integration and failure behavior
 
-Add notification types for ticket creation and replies. Enqueue after the Ticket/message change in the same transaction through encrypted notification_deliveries. The current API dispatcher, sms.ir adapter, numeric template configuration, stable deduplication keys, and bounded retries remain the only delivery path. Remote failure occurs after commit and cannot undo a conversation. Current enqueue behavior is fail-open if outbox insertion fails; log only safe event metadata.
+Ticket creation (`SUPPORT_TICKET_CREATED`), Tenant replies (`SUPPORT_TICKET_TENANT_REPLIED`), and Platform replies (`SUPPORT_TICKET_PLATFORM_REPLIED`) enqueue one event per intended recipient in the same transaction as the Ticket/message update. Delivery uses only the existing encrypted `notification_deliveries` outbox, API dispatcher, sms.ir adapter, numeric template configuration, and bounded retries. sms.ir runs after commit; provider failure cannot undo a conversation. Outbox insertion follows NotificationsService's existing fail-open behavior.
 
-Resolve Platform recipients from active users with a phone and support.tickets.reply permission, deduplicated per user. Notify the ticket creator on a Platform reply only while that user has an active account, membership, and support.tickets.use access in the Ticket's tenant; use the current admin contact and do not copy phones into Ticket or Message. If no eligible active recipient exists, persist the conversation and skip SMS. Deduplicate by notification type, message, and recipient. Keep SMS payloads generic and include the human reference only; never send message bodies, attachment keys, or unnecessary personal data.
+Creation and Tenant-reply alerts go to active Platform users with a verified phone and `support.tickets.reply`, deduplicated per recipient. Platform replies go only to the original Ticket creator while the user is active, has a verified phone, and retains an active membership with `support.tickets.use` for that café. Missing or invalid phone recipients are skipped and logged without exposing a number. Payloads contain the UC reference and, for Platform Support alerts, the centralized Persian department label. They never include message bodies, attachment data, UUIDs, or phone numbers. One Ticket action produces one notification per recipient regardless of attachment count. Reads, downloads, metadata changes, department changes, manual close/reopen, and auto-close do not notify. Retries are bounded to three attempts; unique outbox keys deduplicate re-enqueued events, while an ambiguous provider timeout may still result in a duplicate SMS after retry. No notification settings UI is part of this phase.
 
 ## Read/unread
 
@@ -148,8 +152,8 @@ Use existing REST conventions, DTO validation, UUID route pipes, bounded page/pa
 
 | Surface | Direction |
 | --- | --- |
-| Tenant | POST/GET /api/v1/tenant/support/tickets; GET /:ticketId; POST /:ticketId/messages; a small read-state update route |
-| Platform | GET /api/v1/platform/support/tickets; GET /:ticketId; POST /:ticketId/messages; PATCH /:ticketId for permitted management fields |
+| Tenant | POST/GET /api/v1/tenant/support/tickets; GET /:ticketId; POST /:ticketId/messages; multipart `files` accepted on create/reply; scoped attachment content GET |
+| Platform | GET /api/v1/platform/support/tickets; GET /:ticketId; POST /:ticketId/messages; multipart `files` accepted for authorized replies; scoped attachment content GET; PATCH /:ticketId for permitted management fields |
 
 Tenant routes derive coffeeShopId from TenantContext. Platform routes use current Platform RBAC and may query across tenants. Never expose storage keys, actor phone numbers, or unnecessary user IDs. No Ticket route belongs under public/client API groups.
 
@@ -161,7 +165,7 @@ Tenant routes are /admin/support, /admin/support/new, and /admin/support/[ticket
 
 Platform routes belong at /platform/support and /platform/support/[ticketId]. Reuse usePlatformSession, platform API helpers, and the permission-aware navigation pattern used by consultation requests and Platform CRM. Use a paginated queue, state/department badges, and existing Persian RTL loading, empty, error, and mobile patterns. No generic ticket inbox/thread component exists; keep initial UI pieces inside the support routes. UI hiding is convenience; API guards remain authoritative.
 
-Phase 3 adds the permission-filtered Platform navigation link, a queue defaulted to `WAITING_FOR_PLATFORM` with an explicit all-status option, server-side search/filtering/pagination, ticket detail and plain-text conversation, authorized replies, and manage-authorized close/reopen/department actions. Every action is a semantic API operation; lifecycle and audit changes remain in the backend transaction. Assignment and priority remain absent from the core model and are not exposed.
+Phase 3 adds the permission-filtered Platform navigation link, a queue defaulted to `WAITING_FOR_PLATFORM` with an explicit all-status option, server-side search/filtering/pagination, ticket detail and plain-text conversation, authorized replies, and manage-authorized close/reopen/department actions. Phase 4 adds file selection/removal before submission, server-side count/size/type validation, Persian error copy, message attachment cards, lazy-on-demand image preview, and secure authenticated downloads to both Tenant and Platform threads. Every action is a semantic API operation; lifecycle and audit changes remain in the backend transaction. Assignment and priority remain absent from the core model and are not exposed.
 
 ## Security and input contract
 
@@ -169,6 +173,8 @@ Phase 3 adds the permission-filtered Platform navigation link, a queue defaulted
 - DTOs reject unknown fields. Tenant ID, sender side/ID, reference, state, and storage key are server-owned.
 - Tenant checks use resolved context and scoped queries; Platform checks use explicit RBAC. UUIDs and references are identifiers, never secrets.
 - Attachment streaming rechecks Ticket authorization on every request; a private URL or key is not authorization.
+- Attachment body text remains required; uploads are optional. Replies retain the existing lifecycle transition regardless of attached files.
+- Successful attachment metadata and objects remain with the message when a Ticket closes, reopens, or the Tenant is suspended/archived. Tenant/user deactivation does not delete support history.
 - Omit actor phones and storage metadata from client projections. Do not log message bodies, attachment names, full phones, provider payloads, or secrets.
 - No subscription feature check applies. Valid identity, tenant membership, and explicit permissions still apply.
 
@@ -178,12 +184,12 @@ Phase 3 adds the permission-filtered Platform navigation link, a queue defaulted
 | --- | --- |
 | A. Tenant A creates a technical ticket | Host context supplies Tenant A's coffeeShopId; Ticket and initial message commit together in WAITING_FOR_PLATFORM |
 | B. Tenant B obtains Tenant A's UUID/reference | Scoped query finds no row; reply and attachment stream use the same parent scope |
-| C. Platform Support replies | Authorized Platform message and WAITING_FOR_TENANT update commit together; SMS is deferred to Phase 5 |
-| D. Tenant replies | Active tenant membership is checked, message appends, and state becomes WAITING_FOR_PLATFORM; SMS is deferred to Phase 5 |
+| C. Platform Support replies | Authorized Platform message, WAITING_FOR_TENANT update, and one creator notification outbox row commit together |
+| D. Tenant replies | Active tenant membership is checked, message appends, state becomes WAITING_FOR_PLATFORM, and support recipients get one outbox row each |
 | E. Platform reply is unanswered for 48 hours | Sweep checks status and last_platform_reply_at, not updated_at |
 | F. Reply races with auto-close | Shared Ticket row lock and recheck make one transition win; an inactivity-close winner is reopened by the tenant reply |
 | G. Tenant replies after inactivity close | Same Ticket reopens to WAITING_FOR_PLATFORM and earlier messages remain |
-| H. sms.ir is unavailable | Phase 1 is independent of sms.ir; the Phase 5 outbox integration will preserve committed Ticket and Message rows across provider failures |
+| H. sms.ir is unavailable | Ticket and Message rows remain committed; the existing dispatcher records a failed attempt and applies bounded retry behavior |
 | I. Tenant requests another tenant's attachment | Attachment ID is resolved through message and Ticket scope before private object streaming |
 
 ## Phase 1 implementation contract

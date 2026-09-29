@@ -3665,6 +3665,23 @@
 .support-message-meta { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .2rem .6rem; color: #475569; font-size: .73rem; }
 .support-message-meta time { color: #64748b; font-variant-numeric: tabular-nums; }
 .support-message>p { margin: .45rem 0 0; color: #1f2937; font-size: .88rem; line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; }
+.support-attachment-picker { display: grid; justify-items: start; gap: .4rem; min-width: 0; color: #475569; font-size: .78rem; }
+.support-attachment-picker-label { display: grid; gap: .35rem; color: #334155; font-size: .8rem; font-weight: 800; }
+.support-attachment-picker input { max-width: 100%; min-height: 2.75rem; color: #334155; font: inherit; }
+.support-attachment-picker>small,.support-attachment-copy small { color: #64748b; font-size: .73rem; font-weight: 500; line-height: 1.6; }
+.support-attachment-error { color: #b42318; font-size: .76rem; line-height: 1.6; }
+.support-attachment-list { display: grid; gap: .45rem; min-width: 0; margin: .55rem 0 0; padding: 0; list-style: none; }
+.support-attachment-card { display: grid; grid-template-columns: 2.25rem minmax(0,1fr) auto; align-items: center; gap: .6rem; min-width: 0; padding: .55rem .65rem; border: 1px solid #dbe4ee; border-radius: .65rem; background: #fff; }
+.support-attachment-card--pending { background: #f8fafc; }
+.support-attachment-glyph { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: .55rem; color: #0c6b71; background: #e5f4f2; }
+.support-attachment-glyph.is-document { color: #9a3412; background: #fff1e8; }
+.support-attachment-glyph svg { width: 1.25rem; height: 1.25rem; }
+.support-attachment-copy { display: grid; min-width: 0; gap: .1rem; }
+.support-attachment-copy strong { overflow: hidden; color: #1f2937; font-size: .8rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.support-attachment-actions { display: flex; flex-wrap: wrap; gap: .35rem; }
+.support-attachment-action { min-height: 2.75rem; padding: .35rem .65rem; border: 1px solid #cbd5e1; border-radius: .5rem; color: #334155; background: #fff; font: inherit; cursor: pointer; }
+.support-attachment-action:disabled { opacity: .6; cursor: wait; }
+.support-attachment-preview { grid-column: 1 / -1; display: block; width: min(100%, 35rem); max-height: 24rem; justify-self: start; object-fit: contain; border: 1px solid #dbe4ee; border-radius: .55rem; background: #f8fafc; }
 .support-reply { width: min(100%, 48rem); }
 .support-reply .support-field textarea { min-height: 6rem; }
 .support-reply>button { justify-self: start; }

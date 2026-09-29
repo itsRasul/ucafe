@@ -1,3 +1,5 @@
+import type { SupportAttachment } from "../../support-attachment-model";
+
 export const ticketStatuses = [
   { value: "WAITING_FOR_PLATFORM", label: "در انتظار پاسخ پشتیبانی" },
   { value: "WAITING_FOR_TENANT", label: "در انتظار پاسخ کافه" },
@@ -31,6 +33,7 @@ export type SupportTicketListItem = {
   department: TicketDepartment;
   status: TicketStatus;
   createdAt: string;
+  attachments?: SupportAttachment[];
   lastActivityAt: string;
   lastMessageSenderType: "TENANT_USER" | "PLATFORM_USER";
 };
@@ -40,6 +43,7 @@ export type SupportTicketMessage = {
   senderType: "TENANT_USER" | "PLATFORM_USER";
   body: string;
   createdAt: string;
+  attachments?: SupportAttachment[];
 };
 
 export type SupportTicketDetail = SupportTicketListItem & {
@@ -91,6 +95,8 @@ export function supportErrorMessage(error: unknown) {
   const status = (error as { status?: number } | null)?.status;
   if (status === 400) return "اطلاعات فیلتر یا درخواست معتبر نیست.";
   if (status === 403) return "این حساب اجازه دسترسی به تیکت‌ها را ندارد.";
+  if (status === 413) return "حجم هر فایل نباید بیشتر از ۸ مگابایت باشد.";
+  if (status === 503) return "ذخیره پیوست‌ها موقتاً در دسترس نیست. دوباره تلاش کنید.";
   if (status === 404) return "تیکت پیدا نشد یا دیگر در دسترس نیست.";
   if (status === 409) return "وضعیت تیکت تغییر کرده است. اطلاعات تازه شد؛ دوباره بررسی کنید.";
   return "ارتباط با سرور برقرار نشد. دوباره تلاش کنید.";

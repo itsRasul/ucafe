@@ -65,3 +65,16 @@ test("Platform conversation labels each side and safely renders plain-text messa
   assert.doesNotMatch(markup, /<script>/);
   assert.match(markup, /platform-support-message--platform/);
 });
+
+test("Platform conversation renders authorized attachment preview and download actions", () => {
+  const markup = render(React.createElement(TicketConversation, {
+    loadAttachment: async () => new Blob(["image"]),
+    messages: [{
+      id: "platform-message", senderType: "TENANT_USER", body: "گزارش", createdAt: ticket.createdAt,
+      attachments: [{ id: "attachment-id", originalFilename: "receipt.png", detectedMimeType: "image/png", sizeBytes: 4096, contentUrl: "/platform/support/tickets/a-uuid/attachments/attachment-id/content" }],
+    }],
+  }));
+  assert.match(markup, /receipt\.png/);
+  assert.match(markup, /پیش‌نمایش/);
+  assert.match(markup, /دانلود/);
+});

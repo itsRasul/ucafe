@@ -26,6 +26,7 @@ This is not a general event bus. The worker scaffold is unused. Before horizonta
 - orders: placed, confirmed/preparing, pickup-ready, courier-dispatched, completed, canceled, optional new-order owner alert
 - reservations: placed, staff-created confirmed, confirmed, staff-edited, canceled, optional new-reservation owner alert, scheduled reminder
 - subscriptions/payments: 3/2/1-day and last-day reminders, expired, three-day follow-up, successfully paid/activated, failed verification
+- support tickets: created and Tenant-replied alerts to active, verified Platform users with `support.tickets.reply`; Platform replies to the active creator with a verified phone and current `support.tickets.use` membership
 
 Owner recipients are active users with active memberships carrying the tenant `owner` system role. New-order/new-reservation owner alerts are controlled by tenant settings.
 
@@ -36,8 +37,11 @@ Owner recipients are active users with active memberships carrying the tenant `o
 - Duplicate inserts use `ON CONFLICT DO NOTHING`.
 - Reservation reminders recheck confirmed/future state.
 - Subscription scheduled sends recheck the relevant paid-through boundary before delivery, so early renewal invalidates stale reminders.
+- Ticket events use the Ticket ID for creation and message ID plus recipient ID for replies/fan-out; multiple attachments do not create extra events.
 - Successful-payment payloads keep the existing template but make its plan label operation-aware for activation, renewal, reactivation, and upgrade.
 - Ineligible scheduled rows are completed with `NO_LONGER_ELIGIBLE` rather than sent.
+
+Provider retries are at-least-once when the provider accepts a message but the response is lost; the current sms.ir contract has no provider idempotency key to eliminate that ambiguity.
 
 ## Configuration caveat
 

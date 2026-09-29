@@ -1,18 +1,46 @@
 import "reflect-metadata";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { Readable } from "node:stream";
 import test from "node:test";
 import { DataSource, EntityManager } from "typeorm";
+import { ConfigService } from "@nestjs/config";
+import { AuthCryptoService } from "../auth/auth-crypto.service";
 import { PlatformAuditService } from "../audit/platform-audit.service";
 import { Branch, CoffeeShop, Domain } from "../database/entities";
 import { CoffeeShopMembership, MembershipRole, Permission, Role, User, UserPlatformRole } from "../identity/entities";
 import { AuthorizationService } from "../authorization/authorization.service";
 import { PlatformPermissions, TenantPermissions } from "../authorization/permission.constants";
-import { SupportTicket, SupportTicketMessage, SupportTicketDepartment, SupportTicketStatus } from "./entities";
+import { NotificationDelivery } from "../notifications/entities";
+import { NotificationType } from "../notifications/notification-type";
+import { NotificationsService } from "../notifications/notifications.service";
+import { SmsProvider } from "../auth/sms-provider";
+import { SupportTicket, SupportTicketAttachment, SupportTicketMessage, SupportTicketDepartment, SupportTicketStatus } from "./entities";
+import { SupportTicketNotificationsService } from "./support-ticket-notifications.service";
 import { SupportTicketsService } from "./support-tickets.service";
+import { MediaStorageService } from "../media/media-storage.service";
 
 const integrationUrl = process.env.TICKETING_INTEGRATION_DATABASE_URL;
-const entities = [CoffeeShop, Branch, Domain, User, CoffeeShopMembership, MembershipRole, Role, Permission, UserPlatformRole, SupportTicket, SupportTicketMessage];
+const entities = [CoffeeShop, Branch, Domain, User, CoffeeShopMembership, MembershipRole, Role, Permission, UserPlatformRole, SupportTicket, SupportTicketMessage, SupportTicketAttachment, NotificationDelivery];
+
+class MemoryTicketStorage {
+  objects = new Map<string, Buffer>();
+  failPut = false;
+  putCalls = 0;
+  failPutAtCall?: number;
+  async putObject(key: string, body: Buffer) {
+    this.putCalls += 1;
+    if (this.failPut || this.putCalls === this.failPutAtCall) throw new Error("simulated storage outage");
+    this.objects.set(key, body);
+  }
+  async getObject(key: string) { const body = this.objects.get(key); if (!body) throw new Error("missing object"); return { body: Readable.from(body), contentLength: body.length }; }
+  async removeObject(key: string) { this.objects.delete(key); }
+}
+
+const pdfFile = (name = "support.pdf") => {
+  const buffer = Buffer.from("%PDF-1.7\nUCafe test attachment\n");
+  return { originalname: name, mimetype: "application/pdf", size: buffer.length, buffer } as Express.Multer.File;
+};
 
 test("support ticket persistence, tenant isolation, permissions, transactions, replies, closure, and reference concurrency", { skip: !integrationUrl && "Set TICKETING_INTEGRATION_DATABASE_URL to run against PostgreSQL" }, async () => {
   const db = new DataSource({ type: "postgres", url: integrationUrl!, entities, synchronize: false, migrationsRun: false });
@@ -34,7 +62,14 @@ test("support ticket persistence, tenant isolation, permissions, transactions, r
     await db.query(`INSERT INTO user_platform_roles (user_id,role_id) VALUES ($1,$2),($3,$4)`, [ids.viewOnly, ids.viewRole, ids.replyOnly, ids.replyRole]);
 
     const audit = new PlatformAuditService(db);
-    const service = new SupportTicketsService(db, audit);
+    const storage = new MemoryTicketStorage();
+    const config = new ConfigService({ AUTH_PEPPER: "test-only-auth-pepper-with-at-least-32-characters", PII_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString("base64"), SMS_PROVIDER: "development" });
+    const crypto = new AuthCryptoService(config);
+    const notifications = new NotificationsService(db, crypto, config, { sendTemplate: async () => ({ providerMessageId: "test" }) } as unknown as SmsProvider);
+    const ticketNotifications = new SupportTicketNotificationsService(notifications);
+    const service = new SupportTicketsService(db, audit, storage as unknown as MediaStorageService, ticketNotifications);
+    const userPhones = new Map([[ids.tenantUserA, "+989120000001"], [ids.tenantUserB, "+989120000002"], [ids.platformReply, "+989120000003"], [ids.platformOwner, "+989120000004"], [ids.viewOnly, "+989120000005"], [ids.replyOnly, "+989120000006"]]);
+    for (const [userId, phone] of userPhones) await db.query(`UPDATE users SET phone=$2,phone_verified_at=now() WHERE id=$1`, [userId, phone]);
     const authorization = new AuthorizationService(db.getRepository(CoffeeShopMembership), db.getRepository(UserPlatformRole));
     assert.equal((await authorization.authorizeTenant(ids.tenantUserA, ids.tenantA, [TenantPermissions.SupportTicketsUse])).permitted, true);
     assert.equal(await authorization.hasPlatformPermissions(ids.platformReply, [PlatformPermissions.SupportTicketsView, PlatformPermissions.SupportTicketsReply]), true);
@@ -48,12 +83,28 @@ test("support ticket persistence, tenant isolation, permissions, transactions, r
     assert.equal(await authorization.hasPlatformPermissions(ids.replyOnly, [PlatformPermissions.SupportTicketsView, PlatformPermissions.SupportTicketsReply, PlatformPermissions.SupportTicketsManage]), false);
     assert.equal(await authorization.hasPlatformPermissions(ids.platformOwner, [PlatformPermissions.SupportTicketsView, PlatformPermissions.SupportTicketsReply, PlatformPermissions.SupportTicketsManage]), true);
 
-    const initial = await service.create(ids.tenantA, ids.tenantUserA, { department: SupportTicketDepartment.Technical, subject: "Orders unavailable", message: "Checkout fails" });
+    const initial = await service.create(ids.tenantA, ids.tenantUserA, { department: SupportTicketDepartment.Technical, subject: "Orders unavailable", message: "Checkout fails" }, [pdfFile("../../initial.pdf"), pdfFile("second-initial.pdf")]);
     ticketIds.push(initial.id);
     assert.equal(initial.status, SupportTicketStatus.WaitingForPlatform);
     assert.equal(initial.messages.length, 1);
     assert.equal(initial.messages[0]?.senderType, "TENANT_USER");
+    assert.equal(initial.messages[0]?.attachments?.length, 2);
+    assert.equal(initial.messages[0]?.attachments?.[0]?.originalFilename, "initial.pdf");
+    assert.equal("storageKey" in (initial.messages[0]?.attachments?.[0] ?? {}), false);
     assert.match(initial.referenceNumber, /^UC-\d+$/);
+    const createdDeliveries = await db.query<Array<{ type: string; payload: Record<string, string>; recipientCiphertext: string }>>(
+      `SELECT type,payload,recipient_ciphertext AS "recipientCiphertext" FROM notification_deliveries WHERE related_entity_type='support_ticket' AND related_entity_id=$1`, [initial.id]);
+    assert.equal(createdDeliveries.length, 3);
+    assert.ok(createdDeliveries.every((row) => row.type === NotificationType.TicketCreated && row.payload.ticketReference === initial.referenceNumber && row.payload.department === "فنی"));
+    assert.ok(createdDeliveries.every((row) => !JSON.stringify(row.payload).includes("Checkout fails") && !JSON.stringify(row.payload).includes(initial.id)));
+    assert.deepEqual(createdDeliveries.map((row) => crypto.decryptPhone(row.recipientCiphertext)).sort(), [userPhones.get(ids.platformReply), userPhones.get(ids.platformOwner), userPhones.get(ids.replyOnly)].sort());
+    assert.equal(createdDeliveries.some((row) => crypto.decryptPhone(row.recipientCiphertext) === userPhones.get(ids.viewOnly)), false);
+    const initialAttachmentId = initial.messages[0]!.attachments![0]!.id;
+    const initialDownload = await service.streamTenantAttachment(ids.tenantA, initial.id, initialAttachmentId);
+    const chunks: Buffer[] = [];
+    for await (const chunk of initialDownload.body) chunks.push(Buffer.from(chunk));
+    assert.equal(Buffer.concat(chunks).toString(), "%PDF-1.7\nUCafe test attachment\n");
+    await assert.rejects(service.streamTenantAttachment(ids.tenantB, initial.id, initialAttachmentId), { status: 404 });
     const creator = await db.query<Array<{ userId: string }>>(`SELECT created_by_user_id AS "userId" FROM support_tickets WHERE id=$1`, [initial.id]);
     const firstMessage = await db.query<Array<{ userId: string; body: string }>>(`SELECT sender_user_id AS "userId",body FROM support_ticket_messages WHERE ticket_id=$1`, [initial.id]);
     assert.equal(creator[0]?.userId, ids.tenantUserA);
@@ -61,32 +112,77 @@ test("support ticket persistence, tenant isolation, permissions, transactions, r
 
     const other = await service.create(ids.tenantB, ids.tenantUserB, { department: SupportTicketDepartment.Sales, subject: "Pricing question", message: "Need a quote" });
     ticketIds.push(other.id);
+    await assert.rejects(service.streamTenantAttachment(ids.tenantA, other.id, initialAttachmentId), { status: 404 });
     assert.equal((await service.listTenant(ids.tenantA, { page: 1, pageSize: 25 })).items.some((item) => item.id === other.id), false);
     const beforeCrossTenantReply = await db.query<Array<{ status: string; messages: string; updatedAt: Date }>>(
       `SELECT t.status,(SELECT count(*)::text FROM support_ticket_messages m WHERE m.ticket_id=t.id) AS messages,t.updated_at AS "updatedAt" FROM support_tickets t WHERE t.id=$1`, [other.id]);
     await assert.rejects(service.detailTenant(ids.tenantA, other.id), { status: 404 });
     await assert.rejects(service.replyTenant(ids.tenantA, other.id, ids.tenantUserA, { message: "Cross-tenant" }), { status: 404 });
+    const crossTenantNotifications = await db.query<Array<{ total: string }>>(`SELECT count(*)::text AS total FROM notification_deliveries WHERE related_entity_type='support_ticket' AND related_entity_id=$1 AND type=$2`, [other.id, NotificationType.TicketTenantReplied]);
+    assert.equal(crossTenantNotifications[0]?.total, "0");
     const untouched = await db.query<Array<{ status: string; messages: string; updatedAt: Date }>>(
       `SELECT t.status,(SELECT count(*)::text FROM support_ticket_messages m WHERE m.ticket_id=t.id) AS messages,t.updated_at AS "updatedAt" FROM support_tickets t WHERE t.id=$1`, [other.id]);
     assert.deepEqual(untouched[0], beforeCrossTenantReply[0]);
 
-    const platformReply = await service.replyPlatform(initial.id, ids.platformReply, { message: "We are checking" });
+    const platformReply = await service.replyPlatform(initial.id, ids.platformReply, { message: "We are checking" }, [pdfFile("platform-reply-1.pdf"), pdfFile("platform-reply-2.pdf")]);
     assert.equal(platformReply.status, SupportTicketStatus.WaitingForTenant);
     assert.ok(platformReply.lastPlatformReplyAt);
-    const tenantReply = await service.replyTenant(ids.tenantA, initial.id, ids.tenantUserA, { message: "Thank you" });
+    assert.equal(platformReply.messages[1]?.attachments?.length, 2);
+    const platformReplyDeliveries = await db.query<Array<{ payload: Record<string, string>; recipientCiphertext: string }>>(
+      `SELECT payload,recipient_ciphertext AS "recipientCiphertext" FROM notification_deliveries WHERE related_entity_type='support_ticket' AND related_entity_id=$1 AND type=$2`,
+      [initial.id, NotificationType.TicketPlatformReplied]);
+    assert.equal(platformReplyDeliveries.length, 1);
+    assert.deepEqual(platformReplyDeliveries[0]?.payload, { ticketReference: initial.referenceNumber });
+    assert.equal(crypto.decryptPhone(platformReplyDeliveries[0]!.recipientCiphertext), userPhones.get(ids.tenantUserA));
+    const platformAttachmentId = platformReply.messages[1]!.attachments![0]!.id;
+    assert.equal((await service.streamPlatformAttachment(initial.id, platformAttachmentId)).contentType, "application/pdf");
+    const tenantReply = await service.replyTenant(ids.tenantA, initial.id, ids.tenantUserA, { message: "Thank you" }, [pdfFile("tenant-reply.pdf")]);
     assert.equal(tenantReply.status, SupportTicketStatus.WaitingForPlatform);
+    assert.equal(tenantReply.messages[2]?.attachments?.length, 1);
+    const tenantReplyDeliveries = await db.query<Array<{ type: string; deduplicationKey: string }>>(
+      `SELECT type,deduplication_key AS "deduplicationKey" FROM notification_deliveries WHERE related_entity_type='support_ticket' AND related_entity_id=$1 AND type=$2`,
+      [initial.id, NotificationType.TicketTenantReplied]);
+    assert.equal(tenantReplyDeliveries.length, 3);
+    assert.equal(new Set(tenantReplyDeliveries.map((row) => row.deduplicationKey)).size, 3);
     const senders = await db.query<Array<{ senderType: string; senderUserId: string }>>(`SELECT sender_type AS "senderType",sender_user_id AS "senderUserId" FROM support_ticket_messages WHERE ticket_id=$1 ORDER BY created_at,id`, [initial.id]);
     assert.deepEqual(senders.map((row) => [row.senderType, row.senderUserId]), [["TENANT_USER", ids.tenantUserA], ["PLATFORM_USER", ids.platformReply], ["TENANT_USER", ids.tenantUserA]]);
 
     const beforeRollback = await db.query<Array<{ count: string; status: string; lastMessageAt: Date }>>(`SELECT (SELECT count(*)::text FROM support_ticket_messages WHERE ticket_id=$1) AS count,status,last_message_at AS "lastMessageAt" FROM support_tickets WHERE id=$1`, [initial.id]);
+    const tenantNoticesBeforeRollback = await db.query<Array<{ total: string }>>(`SELECT count(*)::text AS total FROM notification_deliveries WHERE related_entity_id=$1 AND type=$2`, [initial.id, NotificationType.TicketTenantReplied]);
     const mutableDb = db as unknown as { transaction: (callback: (manager: EntityManager) => Promise<unknown>) => Promise<unknown> };
     const originalTransaction = db.transaction.bind(db);
     mutableDb.transaction = (callback) => originalTransaction(async (manager) => { await callback(manager); throw new Error("injected transaction failure"); });
     try {
-      await assert.rejects(service.replyTenant(ids.tenantA, initial.id, ids.tenantUserA, { message: "Must roll back" }), /injected transaction failure/);
+      await assert.rejects(service.replyTenant(ids.tenantA, initial.id, ids.tenantUserA, { message: "Must roll back" }, [pdfFile("rollback.pdf")]), /injected transaction failure/);
     } finally { mutableDb.transaction = originalTransaction; }
     const afterRollback = await db.query<Array<{ count: string; status: string; lastMessageAt: Date }>>(`SELECT (SELECT count(*)::text FROM support_ticket_messages WHERE ticket_id=$1) AS count,status,last_message_at AS "lastMessageAt" FROM support_tickets WHERE id=$1`, [initial.id]);
     assert.deepEqual(afterRollback[0], beforeRollback[0]);
+    const tenantNoticesAfterRollback = await db.query<Array<{ total: string }>>(`SELECT count(*)::text AS total FROM notification_deliveries WHERE related_entity_id=$1 AND type=$2`, [initial.id, NotificationType.TicketTenantReplied]);
+    assert.deepEqual(tenantNoticesAfterRollback, tenantNoticesBeforeRollback);
+    assert.equal(storage.objects.size, 5);
+
+    const beforeStorageFailure = await db.query<Array<{ count: string; status: string }>>(`SELECT (SELECT count(*)::text FROM support_ticket_messages WHERE ticket_id=$1) AS count,status FROM support_tickets WHERE id=$1`, [initial.id]);
+    storage.failPut = true;
+    await assert.rejects(service.replyPlatform(initial.id, ids.platformReply, { message: "Storage failed" }, [pdfFile("failed.pdf")]), { status: 503 });
+    storage.failPut = false;
+    const afterStorageFailure = await db.query<Array<{ count: string; status: string }>>(`SELECT (SELECT count(*)::text FROM support_ticket_messages WHERE ticket_id=$1) AS count,status FROM support_tickets WHERE id=$1`, [initial.id]);
+    assert.deepEqual(afterStorageFailure[0], beforeStorageFailure[0]);
+    assert.equal(storage.objects.size, 5);
+
+    const beforePartialUploadFailure = await db.query<Array<{ count: string; status: string }>>(`SELECT (SELECT count(*)::text FROM support_ticket_messages WHERE ticket_id=$1) AS count,status FROM support_tickets WHERE id=$1`, [initial.id]);
+    storage.failPutAtCall = storage.putCalls + 3;
+    await assert.rejects(service.replyPlatform(initial.id, ids.platformReply, { message: "Partial storage failure" }, [pdfFile("partial-1.pdf"), pdfFile("partial-2.pdf"), pdfFile("partial-3.pdf")]), { status: 503 });
+    storage.failPutAtCall = undefined;
+    const afterPartialUploadFailure = await db.query<Array<{ count: string; status: string }>>(`SELECT (SELECT count(*)::text FROM support_ticket_messages WHERE ticket_id=$1) AS count,status FROM support_tickets WHERE id=$1`, [initial.id]);
+    assert.deepEqual(afterPartialUploadFailure[0], beforePartialUploadFailure[0]);
+    assert.equal(storage.objects.size, 5);
+
+    await db.query(`UPDATE users SET phone_verified_at=NULL WHERE id=$1`, [ids.tenantUserB]);
+    const replyToTicketWithUnverifiedCreator = await service.replyPlatform(other.id, ids.platformReply, { message: "Ticket update" });
+    assert.equal(replyToTicketWithUnverifiedCreator.status, SupportTicketStatus.WaitingForTenant);
+    const skippedTenantNotice = await db.query<Array<{ total: string }>>(
+      `SELECT count(*)::text AS total FROM notification_deliveries WHERE related_entity_id=$1 AND type=$2`, [other.id, NotificationType.TicketPlatformReplied]);
+    assert.equal(skippedTenantNotice[0]?.total, "0");
 
     const closed = await service.manage(initial.id, ids.platformOwner, { action: "CLOSE" });
     assert.equal(closed.status, SupportTicketStatus.Closed);
@@ -166,6 +262,7 @@ test("support ticket persistence, tenant isolation, permissions, transactions, r
     if (db.isInitialized) {
       if (ticketIds.length) {
         await db.query(`DELETE FROM platform_audit_events WHERE target_type='support_ticket' AND target_id=ANY($1::text[])`, [ticketIds]);
+        await db.query(`DELETE FROM support_ticket_attachments WHERE ticket_message_id IN (SELECT id FROM support_ticket_messages WHERE ticket_id=ANY($1::uuid[]))`, [ticketIds]);
         await db.query(`DELETE FROM support_ticket_messages WHERE ticket_id=ANY($1::uuid[])`, [ticketIds]);
         await db.query(`DELETE FROM support_tickets WHERE id=ANY($1::uuid[])`, [ticketIds]);
       }

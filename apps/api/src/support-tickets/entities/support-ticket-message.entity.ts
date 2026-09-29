@@ -1,7 +1,8 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, Unique } from "typeorm";
 import { SupportTicketSenderType } from "./support-ticket.entity";
 
 @Entity({ name: "support_ticket_messages" })
+@Unique("UQ_support_ticket_messages_tenant_id", ["coffeeShopId", "id"])
 @Index("IDX_support_ticket_messages_thread", ["coffeeShopId", "ticketId", "createdAt", "id"])
 export class SupportTicketMessage {
   @PrimaryGeneratedColumn("uuid") id!: string;

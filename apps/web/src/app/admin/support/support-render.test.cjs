@@ -8,6 +8,7 @@ require("ts-node").register({
   compilerOptions: { module: "CommonJS", moduleResolution: "Node10", target: "ES2022", jsx: "react-jsx", esModuleInterop: true },
 });
 const { ClosedTicketNotice, EmptySupportTickets, SupportTicketCards, SupportTicketMessages, SupportTicketFields } = require("./support-client.tsx");
+const { SupportFilePicker } = require("../../support-attachments.tsx");
 
 const render = (element) => renderToStaticMarkup(element);
 const ticket = {
@@ -47,6 +48,15 @@ test("create controls have visible labels, required state, backend limits, and l
   assert.match(markup, /موضوع را وارد کنید/);
 });
 
+test("file picker renders selected names, removal controls, restrictions, and disabled upload state", () => {
+  const file = new File(["%PDF-1.7"], "report.pdf", { type: "application/pdf" });
+  const markup = render(React.createElement(SupportFilePicker, { files: [file], onChange() {}, disabled: true }));
+  assert.match(markup, /type="file"[^>]+multiple=""[^>]+accept="image\/jpeg,image\/png,image\/webp,application\/pdf"[^>]+disabled=""/);
+  assert.match(markup, /report\.pdf/);
+  assert.match(markup, /حذف پیوست report\.pdf/);
+  assert.match(markup, /حداکثر ۵ فایل/);
+});
+
 test("conversation messages show the sender role and render untrusted bodies as plain text", () => {
   const markup = render(React.createElement(SupportTicketMessages, {
     timeZone: "Asia/Tehran",
@@ -61,6 +71,20 @@ test("conversation messages show the sender role and render untrusted bodies as 
   assert.match(markup, /پشتیبانی یوکافه/);
   assert.match(markup, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
   assert.doesNotMatch(markup, /<script>/);
+});
+
+test("conversation attachment metadata renders safe preview and download actions", () => {
+  const markup = render(React.createElement(SupportTicketMessages, {
+    timeZone: "Asia/Tehran",
+    loadAttachment: async () => new Blob(["image"]),
+    messages: [{ id: "file-message", senderType: "PLATFORM_USER", body: "بررسی شد", createdAt: ticket.lastActivityAt, attachments: [
+      { id: "image-id", originalFilename: "screenshot.png", detectedMimeType: "image/png", sizeBytes: 2048, contentUrl: "/tenant/support/tickets/ticket-id/attachments/image-id/content" },
+    ] }],
+  }));
+  assert.match(markup, /screenshot\.png/);
+  assert.match(markup, /پیش‌نمایش/);
+  assert.match(markup, /دانلود/);
+  assert.match(markup, /تصویر/);
 });
 
 test("manual closed state renders an explanation and a new-ticket action", () => {

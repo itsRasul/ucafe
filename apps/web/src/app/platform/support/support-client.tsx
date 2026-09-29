@@ -4,6 +4,9 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { usePlatformSession } from "../use-platform-session";
+import { SupportFilePicker, SupportMessageAttachments } from "../../support-attachments";
+import { supportMessageBody } from "../../support-attachment-model";
+import type { AttachmentLoader } from "../../support-attachment-model";
 import {
   canViewSupport, departmentLabel, formatTicketDate, QueueFilters, queueQuery, queueReturnPath,
   senderLabel, statusLabel, SupportTicketDetail, SupportTicketListItem, SupportTicketMessage,
@@ -78,6 +81,7 @@ export function PlatformSupportTicket({ ticketId, returnTo }: { ticketId: string
   const [reloadKey, setReloadKey] = useState(0);
   const [notice, setNotice] = useState("");
   const [reply, setReply] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
   const [replyError, setReplyError] = useState("");
   const [replyPending, setReplyPending] = useState(false);
   const [pendingAction, setPendingAction] = useState("");
@@ -120,11 +124,12 @@ export function PlatformSupportTicket({ ticketId, returnTo }: { ticketId: string
     try {
       const updated = await api<SupportTicketDetail>(`/platform/support/tickets/${encodeURIComponent(ticketId)}/messages`, {
         method: "POST",
-        body: JSON.stringify({ message }),
+        body: supportMessageBody({ message }, files),
       });
       setTicket(updated);
       setDepartment(updated.department);
       setReply("");
+      setFiles([]);
       setNotice("پاسخ برای کافه ثبت شد.");
     } catch (reason) {
       setReplyError(supportErrorMessage(reason));
@@ -212,12 +217,13 @@ export function PlatformSupportTicket({ ticketId, returnTo }: { ticketId: string
               : <button type="button" className="danger" onClick={() => confirmLifecycle("CLOSE")} disabled={Boolean(pendingAction)}>{pendingAction === "CLOSE" ? "در حال بستن…" : "بستن تیکت"}</button>}
           </div>
         </section>}
-        <TicketConversation messages={ticket.messages} />
+        <TicketConversation messages={ticket.messages} loadAttachment={(path) => api<Blob>(path)} />
         {ticket.status === "CLOSED"
           ? <p className="platform-support-closed-note">برای ادامه گفتگو، تیکت را با دسترسی مدیریت بازگشایی کنید.</p>
           : canReply ? <form className="platform-support-reply" onSubmit={submitReply}>
             <label htmlFor="support-reply">پاسخ برای کافه</label>
             <textarea id="support-reply" value={reply} maxLength={10000} required onChange={(event) => { setReply(event.target.value); setReplyError(""); }} />
+            <SupportFilePicker files={files} onChange={setFiles} disabled={replyPending} />
             {replyError && <p className="message error" role="alert">{replyError}</p>}
             <button type="submit" disabled={replyPending || !reply.trim()}>{replyPending ? "در حال ارسال پاسخ…" : "ارسال پاسخ"}</button>
           </form> : <p className="platform-support-readonly">این حساب فقط اجازه مشاهده گفتگو را دارد.</p>}
@@ -261,12 +267,13 @@ export function SupportQueueBody({
   </div>;
 }
 
-export function TicketConversation({ messages }: { messages: SupportTicketMessage[] }) {
+export function TicketConversation({ messages, loadAttachment }: { messages: SupportTicketMessage[]; loadAttachment?: AttachmentLoader }) {
   return <section className="platform-support-conversation" aria-labelledby="support-conversation-heading">
     <h3 id="support-conversation-heading">گفتگو <span>({new Intl.NumberFormat("fa-IR").format(messages.length)} پیام)</span></h3>
     {messages.length ? <ol className="platform-support-messages">{messages.map((message) => <li key={message.id} className={`platform-support-message platform-support-message--${message.senderType === "PLATFORM_USER" ? "platform" : "tenant"}`}>
       <header><strong>{senderLabel(message.senderType)}</strong><time dateTime={message.createdAt}>{formatTicketDate(message.createdAt)}</time></header>
       <p>{message.body}</p>
+      {loadAttachment && <SupportMessageAttachments attachments={message.attachments} loadBlob={loadAttachment} />}
     </li>)}</ol> : <p className="platform-support-readonly">در این گفتگو هنوز پیامی ثبت نشده است.</p>}
   </section>;
 }
