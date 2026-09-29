@@ -28,6 +28,6 @@ export class PlatformSupportTicketsController {
   @Patch(":ticketId")
   @RequirePlatformPermissions(PlatformPermissions.SupportTicketsView, PlatformPermissions.SupportTicketsManage)
   manage(@Req() request: AuthorizedRequest, @Param("ticketId", ParseUUIDPipe) ticketId: string, @Body() input: UpdateSupportTicketDto) {
-    return this.tickets.manage(ticketId, request[AUTH_PRINCIPAL]!.userId, input.action);
+    return this.tickets.manage(ticketId, request[AUTH_PRINCIPAL]!.userId, input);
   }
 }

@@ -1,12 +1,12 @@
 # Support Ticketing architecture
 
-**Status:** Phase 1 core backend implemented on 2026-09-29. Ticket persistence, tenant/platform APIs, permissions, and lifecycle transitions are in place. UI, attachment storage, SMS delivery, and auto-close scheduling remain deferred. Product status remains in [PRD.md](PRD.md).
+**Status:** Phase 1 core backend and Phase 2 Tenant Support UI implemented on 2026-09-29. Ticket persistence, tenant/platform APIs, permissions, lifecycle transitions, and the Tenant-facing admin screens are in place. Platform Support UI, attachment storage, SMS delivery, and auto-close scheduling remain deferred. Product status remains in [PRD.md](PRD.md).
 
 ## Goals and non-goals
 
 Ticketing will provide a durable support conversation between tenant administrators and authorized UCafe platform staff. It reuses the existing administrative User identity, tenant context, Platform RBAC, PostgreSQL, private S3-compatible storage, and SMS outbox.
 
-Phase 0 recorded the design only. Phase 1 implements tenant and Platform ticket CRUD/replies, manual close/reopen, and transactional message persistence. Ticketing is available across subscription plans and is not a plan feature. Phase 1 does not queue or send SMS; NotificationsService integration belongs to Phase 5 so this core phase cannot trigger delivery early.
+Phase 0 recorded the design only. Phase 1 implements tenant and Platform ticket APIs, manual close/reopen, and transactional message persistence. Phase 2 adds the Tenant-facing admin UI. Ticketing is available across subscription plans and is not a plan feature. Phase 1 does not queue or send SMS; NotificationsService integration belongs to Phase 5 so this core phase cannot trigger delivery early.
 
 ## Existing infrastructure to reuse
 
@@ -95,7 +95,7 @@ Use PlatformPermissionGuard and the existing global role catalog:
 | support.tickets.reply | Add a Platform reply; reply operations also require view |
 | support.tickets.manage | Close, reopen, change department, and future assignment/priority; management also requires view |
 
-The guard requires every listed permission; there is no implicit inheritance. Grant view/reply to existing support_operator. Keep manage limited to explicitly authorized supervisors/administrators through the role editor; platform_owner may receive all three through the additive permission migration. Do not add another RBAC system or role-name bypass.
+Controllers require the permissions listed for each operation. In the effective Platform access projection, `support.tickets.reply` and `support.tickets.manage` also grant `support.tickets.view`, so custom roles with either capability can reach the read-only route and ticket they act on. No other permission inheritance or role-name bypass applies. The `support_operator` role receives view/reply; manage stays limited to explicitly authorized supervisors/administrators through the role editor; `platform_owner` receives all three through the Phase 1 permission migration.
 
 ## Attachments and private storage
 
@@ -153,13 +153,15 @@ Use existing REST conventions, DTO validation, UUID route pipes, bounded page/pa
 
 Tenant routes derive coffeeShopId from TenantContext. Platform routes use current Platform RBAC and may query across tenants. Never expose storage keys, actor phone numbers, or unnecessary user IDs. No Ticket route belongs under public/client API groups.
 
-Tenant lists support status and pagination. Platform lists additionally support tenant, status, department, and exact reference filters. Full-text subject search remains deferred until the product chooses matching semantics and representative PostgreSQL plans justify an index.
+Tenant lists support status and pagination. Platform lists support status, department, tenant ID, café name/slug, exact reference, and bounded case-insensitive search across partial ticket reference, subject, and café name. Search values are parameterized and pagination/order remain server-side. The current contains search scans the matching queue; add a trigram index if measured support volume makes it slow.
 
 ## UI direction
 
-Tenant routes belong at /admin/support, /admin/support/new, and /admin/support/[ticketId]. Add an AdminShell item shown only for support.tickets.use; do not make visibility depend on access.features. Reuse useAdminSession, the same-origin API proxy, and existing list/detail/form patterns.
+Tenant routes are /admin/support, /admin/support/new, and /admin/support/[ticketId]. The AdminShell item is shown only for support.tickets.use and does not depend on access.features. The pages reuse useAdminSession, the same-origin API proxy, and existing list/detail/form patterns.
 
 Platform routes belong at /platform/support and /platform/support/[ticketId]. Reuse usePlatformSession, platform API helpers, and the permission-aware navigation pattern used by consultation requests and Platform CRM. Use a paginated queue, state/department badges, and existing Persian RTL loading, empty, error, and mobile patterns. No generic ticket inbox/thread component exists; keep initial UI pieces inside the support routes. UI hiding is convenience; API guards remain authoritative.
+
+Phase 3 adds the permission-filtered Platform navigation link, a queue defaulted to `WAITING_FOR_PLATFORM` with an explicit all-status option, server-side search/filtering/pagination, ticket detail and plain-text conversation, authorized replies, and manage-authorized close/reopen/department actions. Every action is a semantic API operation; lifecycle and audit changes remain in the backend transaction. Assignment and priority remain absent from the core model and are not exposed.
 
 ## Security and input contract
 
@@ -202,10 +204,34 @@ Before adding TypeORM entities, register each in both database.module.ts and dat
 
 Migration `1790640000000-CreateSupportTickets` creates `support_tickets`, `support_ticket_messages`, PostgreSQL enums, the reference sequence, scoped foreign keys, the tenant-sender membership trigger, queue/thread indexes, and the four RBAC permissions. Messages and Ticket ownership retain restrictive user/tenant references. Tenant creator and sender identity comes from the authenticated principal; `coffeeShopId` comes from tenant context.
 
-The API routes are `POST/GET /api/v1/tenant/support/tickets`, `GET /api/v1/tenant/support/tickets/:ticketId`, and `POST /api/v1/tenant/support/tickets/:ticketId/messages`; Platform routes are `GET /api/v1/platform/support/tickets`, `GET /:ticketId`, `POST /:ticketId/messages`, and `PATCH /:ticketId` with `{ "action": "CLOSE" | "REOPEN" }`. Lists use `page`/`pageSize`; tenant lists accept `status`, and Platform lists also accept `status`, `department`, `tenantId`, and exact `referenceNumber` filters.
+The API routes are `POST/GET /api/v1/tenant/support/tickets`, `GET /api/v1/tenant/support/tickets/:ticketId`, and `POST /api/v1/tenant/support/tickets/:ticketId/messages`; Platform routes are `GET /api/v1/platform/support/tickets`, `GET /:ticketId`, `POST /:ticketId/messages`, and `PATCH /:ticketId` for lifecycle or department operations. Lists use `page`/`pageSize`; tenant lists accept `status`, and Platform lists also accept `status`, `department`, `tenantId`, `tenantSearch`, `search`, and exact `referenceNumber`.
 
 Create, reply, close, and reopen operations lock the Ticket row and commit message/state changes together. Tenant UUID lookups include both Ticket ID and coffeeShopId and return 404 for foreign tickets. Manual close/reopen writes a PII-free `platform_audit_events` row in the same transaction. Tenant replies reopen only `INACTIVITY` closures; `MANUAL` closures require Platform reopen. Platform replies to closed tickets require reopen first. The `support_operator` role receives view/reply, `platform_owner` receives view/reply/manage, and the tenant `owner` role receives `support.tickets.use`; no Super Admin bypass was added.
 
-Ticket references are `UC-<sequence>` values and are not used for authorization. Response projections omit user IDs, phone/email, password fields, and storage metadata. Detail responses expose each message's sender type, plain-text body, and timestamp. The Phase 1 API does not implement read cursors, attachment handling, notifications, the 48-hour worker, assignment, priority, or UI.
+Ticket references are `UC-<sequence>` values and are not used for authorization. Response projections omit user IDs, phone/email, password fields, and storage metadata. Detail responses expose each message's sender type, plain-text body, and timestamp. Phase 1 did not implement read cursors, attachment handling, notifications, the 48-hour worker, assignment, priority, or UI; Tenant screens were added in Phase 2 below.
 
 Phase 1 uses normal HTTP `POST` semantics and has no idempotency key: retried ticket or message submissions can create another row. Add request deduplication if client retry behavior produces duplicate conversations in practice.
+
+## Phase 2 Tenant Support UI
+
+Tenant Admin routes are `/admin/support`, `/admin/support/new`, and `/admin/support/[ticketId]`. The `پشتیبانی` navigation entry requires `support.tickets.use` and has no subscription feature gate. All calls go through the existing same-origin admin API wrapper; tenant identity is never sent by the UI.
+
+The list uses server pagination (`page` and `pageSize=25`) and preserves the API's last-activity ordering. Each linked ticket card shows its UC reference, subject, department, Persian status, and last-activity time. The list has an empty state with a create action plus loading, retry, and pagination states. The detail page shows the subject/reference, department, creation time, status guidance, and chronologically ordered plain-text messages. Tenant messages are labeled `شما`; Platform messages are labeled `پشتیبانی یوکافه`. Timestamps use `fa-IR` formatting and the tenant timezone.
+
+Department labels are `TECHNICAL` → `فنی` and `SALES` → `فروش`. Status labels are `WAITING_FOR_PLATFORM` → `در انتظار پاسخ پشتیبانی`, `WAITING_FOR_TENANT` → `در انتظار پاسخ شما`, and `CLOSED` → `بسته شده`. The create form trims subject/message and matches backend bounds (subject 1–160, message 1–10,000 characters). Replies trim and match the 1–10,000 message bound. Pending requests disable the submit action and use an in-flight guard; successful creation navigates to the new detail, while successful replies replace the detail with the API response and clear the input.
+
+Reply availability follows the returned lifecycle state: `CLOSED` with `INACTIVITY` remains replyable and the backend reopens it; `MANUAL` (or another non-inactivity close) is read-only and links to creating a new ticket. Waiting states identify whose response is expected. The UI maps common permission, not-found, closed, and input errors to Persian messages and never renders raw API errors or message HTML. It implements no read markers, real-time updates, Platform Support UI, attachments, SMS, or auto-close scheduling.
+
+The focused frontend suite is `npm test --workspace=@ucafe/web`; it uses Node's built-in test runner and server rendering to check list, form, conversation, and closed-state markup alongside contract/validation helpers. DOM-driven interactions and authenticated live flow need a browser test harness and tenant-admin session.
+
+## Phase 3 Platform Support Center
+
+Platform Admin routes are `/platform/support` and `/platform/support/[ticketId]`. The Platform sidebar and mobile navigation show `پشتیبانی` only when the effective session has `support.tickets.view`; reply or manage grants view through the existing AuthorizationService projection. Platform APIs still enforce the existing view/reply/manage decorators, with no role-name exception.
+
+The queue uses server-side `page`/`pageSize=25`, ordered by most recent ticket activity then ID. Its initial status is explicitly `WAITING_FOR_PLATFORM`; the status control includes all statuses. Filters include status, department, café name/slug, and bounded search over ticket reference, subject, or café name. The API retains tenant ID and exact-reference filters. Search text is trimmed and capped at 120 characters, escaped for literal SQL `LIKE` characters, and parameterized. The contains search has no trigram index yet.
+
+The queue displays reference, café name/slug, subject, department, Persian status, creation time, and last activity. Detail shows café identity, ticket metadata, turn/status guidance, and chronological plain-text messages with separate café/Platform labels. Replies require `support.tickets.reply`, reject closed tickets per the domain lifecycle, and update the page from the reply API response. Submissions are guarded against duplicate clicks while pending.
+
+Users with `support.tickets.manage` can close, reopen, and change a ticket between the existing Technical and Sales departments. Close/reopen retain the existing manual close reason and lifecycle rules. Department changes lock the ticket, change only its department/update timestamp, and write a safe before/after audit record in the same transaction; they do not reset `last_platform_reply_at`. All mutations refetch on lifecycle conflicts. The Platform UI adds no priority/assignment fields because they are absent from the core model. No schema migration was needed.
+
+Focused frontend tests cover permission visibility, mappings, query preservation, and rendered loading/error/empty/list/conversation states. API tests cover DTO validation and permission metadata; the PostgreSQL integration suite covers search, filtering, pagination, department audit, lifecycle, and tenant isolation when `TICKETING_INTEGRATION_DATABASE_URL` is configured. The support workspace uses the existing platform session, API proxy, CSS, and RBAC; it adds no dependency. Browser-authenticated flow and responsive viewport interaction require running local services and a Platform user.

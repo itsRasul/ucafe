@@ -14,19 +14,21 @@ Tenant roles may be global system roles (`coffee_shop_id` null) or cafe-specific
 ## Guards
 
 - `AccessTokenGuard` validates an active administrative user session.
-- `PlatformPermissionGuard` requires explicit decorator metadata and all requested platform permission keys. It never considers memberships.
+- `PlatformPermissionGuard` requires explicit decorator metadata and all requested platform permission keys. It never considers memberships. For Ticketing only, effective `support.tickets.reply` and `support.tickets.manage` also satisfy `support.tickets.view`, so users assigned an action permission can reach the ticket they act on.
 - `TenantPermissionGuard` requires access token, resolved tenant context, active user, active membership for that cafe, compatible role scope, and all requested tenant permission keys.
 - Client routes use `ClientAccessTokenGuard` plus resource ownership checks rather than administrative RBAC.
 
 ## Permission catalog
 
-Platform permissions:
+Platform permissions include `support.tickets.view`, `support.tickets.reply`, and `support.tickets.manage` for the Platform Support Center, alongside:
 
 `tenants.create`, `tenants.read`, `tenants.update`, `tenants.lifecycle.manage`, `subscriptions.read`, `subscriptions.manage`, `audit.read`, `users.read`, `users.manage`, `roles.read`, `roles.manage`, `permissions.read`, `consultation_requests.read`, `crm.read`, `crm.manage`.
 
 Tenant permissions:
 
 `site.manage`, `menu.read`, `menu.manage`, `reservations.read`, `reservations.manage`, `orders.read`, `orders.manage`, `analytics.read`, `staff.manage`, `subscription.read`, `subscription.checkout`.
+
+The Tenant Support Center uses `support.tickets.use`; it is not plan-gated.
 
 Controllers may require more than one permission; platform invoice detail/list requires both subscription management and user-read authority because the detail includes full admin contact data.
 

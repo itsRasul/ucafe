@@ -16,21 +16,22 @@ const entities = [CoffeeShop, Branch, Domain, User, CoffeeShopMembership, Member
 
 test("support ticket persistence, tenant isolation, permissions, transactions, replies, closure, and reference concurrency", { skip: !integrationUrl && "Set TICKETING_INTEGRATION_DATABASE_URL to run against PostgreSQL" }, async () => {
   const db = new DataSource({ type: "postgres", url: integrationUrl!, entities, synchronize: false, migrationsRun: false });
-  const ids = { tenantA: randomUUID(), tenantB: randomUUID(), tenantUserA: randomUUID(), tenantUserB: randomUUID(), platformReply: randomUUID(), platformOwner: randomUUID(), viewOnly: randomUUID(), viewRole: randomUUID() };
+  const ids = { tenantA: randomUUID(), tenantB: randomUUID(), tenantUserA: randomUUID(), tenantUserB: randomUUID(), platformReply: randomUUID(), platformOwner: randomUUID(), viewOnly: randomUUID(), viewRole: randomUUID(), replyOnly: randomUUID(), replyRole: randomUUID() };
   const ticketIds: string[] = [];
   const slug = randomUUID().replaceAll("-", "");
   try {
     await db.initialize();
     await db.query(`INSERT INTO coffee_shops (id,name,slug,status) VALUES ($1,'Ticket fixture A',$3,'ACTIVE'),($2,'Ticket fixture B',$4,'ACTIVE')`, [ids.tenantA, ids.tenantB, `ticket-a-${slug}`, `ticket-b-${slug}`]);
-    await db.query(`INSERT INTO users (id,email,status) VALUES ($1,$3,'ACTIVE'),($2,$4,'ACTIVE'),($5,$6,'ACTIVE'),($7,$8,'ACTIVE'),($9,$10,'ACTIVE')`,
-      [ids.tenantUserA, ids.tenantUserB, `tenant-a-${slug}@example.invalid`, `tenant-b-${slug}@example.invalid`, ids.platformReply, `support-${slug}@example.invalid`, ids.platformOwner, `owner-${slug}@example.invalid`, ids.viewOnly, `viewer-${slug}@example.invalid`]);
+    await db.query(`INSERT INTO users (id,email,status) VALUES ($1,$3,'ACTIVE'),($2,$4,'ACTIVE'),($5,$6,'ACTIVE'),($7,$8,'ACTIVE'),($9,$10,'ACTIVE'),($11,$12,'ACTIVE')`,
+      [ids.tenantUserA, ids.tenantUserB, `tenant-a-${slug}@example.invalid`, `tenant-b-${slug}@example.invalid`, ids.platformReply, `support-${slug}@example.invalid`, ids.platformOwner, `owner-${slug}@example.invalid`, ids.viewOnly, `viewer-${slug}@example.invalid`, ids.replyOnly, `reply-only-${slug}@example.invalid`]);
     await db.query(`INSERT INTO coffee_shop_memberships (coffee_shop_id,user_id,status) VALUES ($1,$3,'ACTIVE'),($2,$4,'ACTIVE')`, [ids.tenantA, ids.tenantB, ids.tenantUserA, ids.tenantUserB]);
     await db.query(`INSERT INTO membership_roles (membership_id,role_id) SELECT m.id,r.id FROM coffee_shop_memberships m JOIN roles r ON r.key='owner' AND r.scope='TENANT' AND r.coffee_shop_id IS NULL WHERE (m.coffee_shop_id,m.user_id) IN (($1,$3),($2,$4))`, [ids.tenantA, ids.tenantB, ids.tenantUserA, ids.tenantUserB]);
     await db.query(`INSERT INTO user_platform_roles (user_id,role_id) SELECT $1,id FROM roles WHERE scope='PLATFORM' AND key='support_operator'`, [ids.platformReply]);
     await db.query(`INSERT INTO user_platform_roles (user_id,role_id) SELECT $1,id FROM roles WHERE scope='PLATFORM' AND key='platform_owner'`, [ids.platformOwner]);
-    await db.query(`INSERT INTO roles (id,scope,key,name,is_system,is_protected) VALUES ($1,'PLATFORM',$2,'Ticket viewer test',false,false)`, [ids.viewRole, `ticket_viewer_${slug}`]);
+    await db.query(`INSERT INTO roles (id,scope,key,name,is_system,is_protected) VALUES ($1,'PLATFORM',$2,'Ticket viewer test',false,false),($3,'PLATFORM',$4,'Ticket reply-only test',false,false)`, [ids.viewRole, `ticket_viewer_${slug}`, ids.replyRole, `ticket_reply_only_${slug}`]);
     await db.query(`INSERT INTO role_permissions (role_id,permission_id) SELECT $1,id FROM permissions WHERE key='support.tickets.view'`, [ids.viewRole]);
-    await db.query(`INSERT INTO user_platform_roles (user_id,role_id) VALUES ($1,$2)`, [ids.viewOnly, ids.viewRole]);
+    await db.query(`INSERT INTO role_permissions (role_id,permission_id) SELECT $1,id FROM permissions WHERE key='support.tickets.reply'`, [ids.replyRole]);
+    await db.query(`INSERT INTO user_platform_roles (user_id,role_id) VALUES ($1,$2),($3,$4)`, [ids.viewOnly, ids.viewRole, ids.replyOnly, ids.replyRole]);
 
     const audit = new PlatformAuditService(db);
     const service = new SupportTicketsService(db, audit);
@@ -40,6 +41,11 @@ test("support ticket persistence, tenant isolation, permissions, transactions, r
     assert.equal(await authorization.hasPlatformPermissions(ids.platformReply, [PlatformPermissions.SupportTicketsManage]), false);
     assert.equal(await authorization.hasPlatformPermissions(ids.viewOnly, [PlatformPermissions.SupportTicketsView]), true);
     assert.equal(await authorization.hasPlatformPermissions(ids.viewOnly, [PlatformPermissions.SupportTicketsView, PlatformPermissions.SupportTicketsReply]), false);
+    assert.equal(await authorization.hasPlatformPermissions(ids.viewOnly, [PlatformPermissions.SupportTicketsView, PlatformPermissions.SupportTicketsManage]), false);
+    assert.equal(await authorization.hasPlatformPermissions(ids.replyOnly, [PlatformPermissions.SupportTicketsView]), true);
+    assert.equal(await authorization.hasPlatformPermissions(ids.replyOnly, [PlatformPermissions.SupportTicketsView, PlatformPermissions.SupportTicketsReply]), true);
+    assert.ok((await authorization.getPlatformAccess(ids.replyOnly))?.permissions.includes(PlatformPermissions.SupportTicketsView));
+    assert.equal(await authorization.hasPlatformPermissions(ids.replyOnly, [PlatformPermissions.SupportTicketsView, PlatformPermissions.SupportTicketsReply, PlatformPermissions.SupportTicketsManage]), false);
     assert.equal(await authorization.hasPlatformPermissions(ids.platformOwner, [PlatformPermissions.SupportTicketsView, PlatformPermissions.SupportTicketsReply, PlatformPermissions.SupportTicketsManage]), true);
 
     const initial = await service.create(ids.tenantA, ids.tenantUserA, { department: SupportTicketDepartment.Technical, subject: "Orders unavailable", message: "Checkout fails" });
@@ -82,15 +88,23 @@ test("support ticket persistence, tenant isolation, permissions, transactions, r
     const afterRollback = await db.query<Array<{ count: string; status: string; lastMessageAt: Date }>>(`SELECT (SELECT count(*)::text FROM support_ticket_messages WHERE ticket_id=$1) AS count,status,last_message_at AS "lastMessageAt" FROM support_tickets WHERE id=$1`, [initial.id]);
     assert.deepEqual(afterRollback[0], beforeRollback[0]);
 
-    const closed = await service.manage(initial.id, ids.platformOwner, "CLOSE");
+    const closed = await service.manage(initial.id, ids.platformOwner, { action: "CLOSE" });
     assert.equal(closed.status, SupportTicketStatus.Closed);
     assert.equal(closed.closeReason, "MANUAL");
     await assert.rejects(service.replyTenant(ids.tenantA, initial.id, ids.tenantUserA, { message: "Manual close" }), { status: 409 });
-    const reopened = await service.manage(initial.id, ids.platformOwner, "REOPEN");
+    const reopened = await service.manage(initial.id, ids.platformOwner, { action: "REOPEN" });
     assert.equal(reopened.status, SupportTicketStatus.WaitingForPlatform);
     assert.equal(reopened.closeReason, "MANUAL");
+    const lastActivityBeforeMove = reopened.lastActivityAt;
+    const lastReplyBeforeMove = reopened.lastPlatformReplyAt;
+    const moved = await service.manage(initial.id, ids.platformOwner, { action: "CHANGE_DEPARTMENT", department: SupportTicketDepartment.Sales });
+    assert.equal(moved.department, SupportTicketDepartment.Sales);
+    assert.equal(moved.status, reopened.status);
+    assert.equal(moved.lastActivityAt.getTime(), lastActivityBeforeMove.getTime());
+    assert.equal(moved.lastPlatformReplyAt?.getTime(), lastReplyBeforeMove?.getTime());
+    await assert.rejects(service.manage(initial.id, ids.platformOwner, { action: "CHANGE_DEPARTMENT", department: SupportTicketDepartment.Sales }), { status: 409 });
     const auditRows = await db.query<Array<{ action: string; targetId: string }>>(`SELECT action,target_id AS "targetId" FROM platform_audit_events WHERE target_type='support_ticket' AND target_id=$1 ORDER BY created_at`, [initial.id]);
-    assert.deepEqual(auditRows.map((row) => row.action), ["support.ticket.closed", "support.ticket.reopened"]);
+    assert.deepEqual(auditRows.map((row) => row.action), ["support.ticket.closed", "support.ticket.reopened", "support.ticket.department_changed"]);
 
     await db.query(`UPDATE support_tickets SET status='CLOSED',close_reason='INACTIVITY',closed_at=clock_timestamp(),closed_by_user_id=NULL WHERE id=$1`, [initial.id]);
     const inactivityReply = await service.replyTenant(ids.tenantA, initial.id, ids.tenantUserA, { message: "Following up" });
@@ -106,8 +120,24 @@ test("support ticket persistence, tenant isolation, permissions, transactions, r
 
     const queue = await service.listPlatform({ page: 1, pageSize: 100, tenantId: ids.tenantA, department: SupportTicketDepartment.Technical });
     assert.equal(queue.items.every((item) => item.tenantId === ids.tenantA && item.department === "TECHNICAL"), true);
+    const salesQueue = await service.listPlatform({ page: 1, pageSize: 100, tenantId: ids.tenantB, department: SupportTicketDepartment.Sales });
+    assert.equal(salesQueue.items.length > 0 && salesQueue.items.every((item) => item.tenantId === ids.tenantB && item.department === "SALES"), true);
+    const waitingQueue = await service.listPlatform({ page: 1, pageSize: 100, status: SupportTicketStatus.WaitingForPlatform });
+    assert.equal(waitingQueue.items.length > 0 && waitingQueue.items.every((item) => item.status === SupportTicketStatus.WaitingForPlatform), true);
     const byReference = await service.listPlatform({ page: 1, pageSize: 10, referenceNumber: initial.referenceNumber.toLowerCase() });
     assert.equal(byReference.items[0]?.id, initial.id);
+    const bySubject = await service.listPlatform({ page: 1, pageSize: 10, search: "ORDERS" });
+    assert.equal(bySubject.items.some((item) => item.id === initial.id), true);
+    const byTenantName = await service.listPlatform({ page: 1, pageSize: 10, search: "fixture b" });
+    assert.equal(byTenantName.items.some((item) => item.id === other.id), true);
+    const byTenantFilter = await service.listPlatform({ page: 1, pageSize: 100, tenantSearch: "ticket-a-" });
+    assert.equal(byTenantFilter.items.length > 0 && byTenantFilter.items.every((item) => item.tenantId === ids.tenantA), true);
+    const firstPage = await service.listPlatform({ page: 1, pageSize: 5, search: "Concurrent ticket" });
+    const secondPage = await service.listPlatform({ page: 2, pageSize: 5, search: "Concurrent ticket" });
+    assert.equal(Number(firstPage.total), 10);
+    assert.equal(firstPage.items.length, 5);
+    assert.equal(secondPage.items.length, 5);
+    assert.equal(new Set([...firstPage.items, ...secondPage.items].map((item) => item.id)).size, 10);
     assert.equal((await service.detailPlatform(other.id)).tenant.id, ids.tenantB);
 
     const raced = await service.create(ids.tenantA, ids.tenantUserA, { department: SupportTicketDepartment.Technical, subject: "Concurrent replies", message: "Started" });
@@ -124,7 +154,7 @@ test("support ticket persistence, tenant isolation, permissions, transactions, r
     ticketIds.push(closeRace.id);
     const raceResults = await Promise.allSettled([
       service.replyTenant(ids.tenantA, closeRace.id, ids.tenantUserA, { message: "Reply raced with close" }),
-      service.manage(closeRace.id, ids.platformOwner, "CLOSE"),
+      service.manage(closeRace.id, ids.platformOwner, { action: "CLOSE" }),
     ]);
     assert.equal(raceResults[1]?.status, "fulfilled");
     const raceState = await db.query<Array<{ status: string; closeReason: string; messageCount: string }>>(
@@ -139,12 +169,12 @@ test("support ticket persistence, tenant isolation, permissions, transactions, r
         await db.query(`DELETE FROM support_ticket_messages WHERE ticket_id=ANY($1::uuid[])`, [ticketIds]);
         await db.query(`DELETE FROM support_tickets WHERE id=ANY($1::uuid[])`, [ticketIds]);
       }
-      await db.query(`DELETE FROM user_platform_roles WHERE user_id=ANY($1::uuid[])`, [[ids.platformReply, ids.platformOwner, ids.viewOnly]]);
-      await db.query(`DELETE FROM roles WHERE id=$1`, [ids.viewRole]);
+      await db.query(`DELETE FROM user_platform_roles WHERE user_id=ANY($1::uuid[])`, [[ids.platformReply, ids.platformOwner, ids.viewOnly, ids.replyOnly]]);
+      await db.query(`DELETE FROM roles WHERE id=ANY($1::uuid[])`, [[ids.viewRole, ids.replyRole]]);
       await db.query(`DELETE FROM membership_roles WHERE membership_id IN (SELECT id FROM coffee_shop_memberships WHERE coffee_shop_id=ANY($1::uuid[]))`, [[ids.tenantA, ids.tenantB]]);
       await db.query(`DELETE FROM coffee_shop_memberships WHERE coffee_shop_id=ANY($1::uuid[])`, [[ids.tenantA, ids.tenantB]]);
       await db.query(`DELETE FROM platform_audit_events WHERE actor_user_id=ANY($1::uuid[])`, [[ids.platformReply, ids.platformOwner, ids.viewOnly, ids.tenantUserA, ids.tenantUserB]]);
-      await db.query(`DELETE FROM users WHERE id=ANY($1::uuid[])`, [[ids.tenantUserA, ids.tenantUserB, ids.platformReply, ids.platformOwner, ids.viewOnly]]);
+      await db.query(`DELETE FROM users WHERE id=ANY($1::uuid[])`, [[ids.tenantUserA, ids.tenantUserB, ids.platformReply, ids.platformOwner, ids.viewOnly, ids.replyOnly]]);
       await db.query(`DELETE FROM coffee_shops WHERE id=ANY($1::uuid[])`, [[ids.tenantA, ids.tenantB]]);
       await db.destroy();
     }

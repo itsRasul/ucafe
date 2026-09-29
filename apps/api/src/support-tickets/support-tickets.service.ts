@@ -1,8 +1,8 @@
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { DataSource, EntityManager } from "typeorm";
 import { PlatformAuditService } from "../audit/platform-audit.service";
-import { CreateSupportTicketDto, CreateSupportTicketMessageDto, PlatformSupportTicketListQueryDto, TenantSupportTicketListQueryDto } from "./dto/support-ticket.dto";
-import { SupportTicketCloseReason, SupportTicketSenderType, SupportTicketStatus } from "./entities";
+import { CreateSupportTicketDto, CreateSupportTicketMessageDto, PlatformSupportTicketListQueryDto, TenantSupportTicketListQueryDto, UpdateSupportTicketDto } from "./dto/support-ticket.dto";
+import { SupportTicketCloseReason, SupportTicketDepartment, SupportTicketSenderType, SupportTicketStatus } from "./entities";
 
 type TicketRow = {
   id: string; referenceNumber: string; coffeeShopId: string; createdByUserId: string; subject: string;
@@ -89,9 +89,22 @@ export class SupportTicketsService {
     if (query.department) filter("t.department=?", query.department);
     if (query.tenantId) filter("t.coffee_shop_id=?", query.tenantId);
     if (query.referenceNumber) filter("t.reference_number=?", query.referenceNumber.toUpperCase());
+    if (query.search) {
+      const pattern = "%" + query.search.replace(/[!%_]/g, "!$&") + "%";
+      values.push(pattern);
+      const placeholder = "$" + values.length;
+      // ponytail: ILIKE contains scans the bounded queue; add pg_trgm if support volume makes it slow.
+      filters.push("(t.reference_number::text ILIKE " + placeholder + " ESCAPE '!' OR t.subject ILIKE " + placeholder + " ESCAPE '!' OR cs.name ILIKE " + placeholder + " ESCAPE '!')");
+    }
+    if (query.tenantSearch) {
+      const pattern = "%" + query.tenantSearch.replace(/[!%_]/g, "!$&") + "%";
+      values.push(pattern);
+      const placeholder = "$" + values.length;
+      filters.push("(cs.name ILIKE " + placeholder + " ESCAPE '!' OR cs.slug ILIKE " + placeholder + " ESCAPE '!')");
+    }
     const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
     const [countRows, items] = await Promise.all([
-      this.db.query<Array<{ total: string }>>(`SELECT count(*) AS total FROM support_tickets t ${where}`, values),
+      this.db.query<Array<{ total: string }>>(`SELECT count(*) AS total FROM support_tickets t JOIN coffee_shops cs ON cs.id=t.coffee_shop_id ${where}`, values),
       this.db.query<Array<Record<string, unknown>>>(
         `SELECT t.id, t.reference_number AS "referenceNumber", t.coffee_shop_id AS "tenantId",
                 cs.name AS "tenantName", cs.slug AS "tenantSlug", cs.status AS "tenantStatus",
@@ -128,11 +141,17 @@ export class SupportTicketsService {
     });
   }
 
-  async manage(ticketId: string, userId: string, action: "CLOSE" | "REOPEN") {
+  async manage(ticketId: string, userId: string, input: UpdateSupportTicketDto) {
     return this.db.transaction(async (manager) => {
       const ticket = await this.lockTicket(manager, ticketId);
       if (!ticket) throw new NotFoundException("Support ticket not found");
-      if (action === "CLOSE") {
+      if (input.action === "CHANGE_DEPARTMENT") {
+        const department = input.department!;
+        if (ticket.department === department) throw new ConflictException("Support ticket is already in this department");
+        await manager.query("UPDATE support_tickets SET department=$2,updated_at=clock_timestamp() WHERE id=$1", [ticketId, department]);
+        await this.audit.record({ actorUserId: userId, action: "support.ticket.department_changed", targetType: "support_ticket", targetId: ticketId,
+          summary: { fromDepartment: ticket.department, toDepartment: department } }, manager);
+      } else if (input.action === "CLOSE") {
         if (ticket.status === SupportTicketStatus.Closed) throw new ConflictException("Support ticket is already closed");
         await manager.query(
           `UPDATE support_tickets SET status='CLOSED',close_reason='MANUAL',closed_at=clock_timestamp(),closed_by_user_id=$2,updated_at=clock_timestamp() WHERE id=$1`,

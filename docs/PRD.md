@@ -69,6 +69,8 @@ Platform CRM manages UCafe's commercial relationships with café businesses as i
 
 Tenant CRM is a separate Tenant Admin capability for a café to manage its own Clients' relationships. Phases 1–2 provide the read-only `/admin/crm` directory and Customer 360 source projections; Phase 3 adds explicit preferences, internal notes, tenant-defined tags, typed custom fields, and manual reminders; Phase 4 adds dynamic Segments and Smart Groups; Phase 5 adds tenant-scoped spend-based Loyalty, an authoritative points ledger, Rewards, and staff-recorded redemption around the existing Client identity. The configurable `tenant_crm` feature gates every CRM API; reads require `tenant_crm.read`, and mutations additionally require `tenant_crm.manage`. Client remains the identity and all source domains remain authoritative; the CRM-only projection does not grant full Orders/Reservations module access. Known UCafe Spend and Loyalty earning use current `DELIVERED` Orders' stored `total_amount_toman` (the offline payable amount after recorded discounts, not proof of collection or all-café spend). Timeline cannot reconstruct overwritten intermediate source status history and never includes note bodies. Loyalty uses floor division by each café's versioned spend threshold and does not integrate checkout, Discounts, Campaigns, or analytics. Promotions customer search and manual customer segments retain their current access and ownership. Phases 6–10 remain planned. See [docs/tenant-crm/README.md](tenant-crm/README.md) and [LOYALTY.md](tenant-crm/LOYALTY.md).
 
+Tenant administrators with `support.tickets.use` can list, create, and reply to paginated support conversations in the Admin panel. Platform operators with the relevant support ticket permissions can search and manage the cross-tenant queue through the Platform Support Center. Ticketing is independent of subscription features; attachments, SMS notifications, and auto-close scheduling remain planned. See [TICKETING.md](TICKETING.md).
+
 ## Product constraints
 
 - One shared database and codebase; tenant isolation is mandatory.
@@ -85,7 +87,7 @@ Tenant CRM is a separate Tenant Admin capability for a café to manage its own C
 - customer self-service reservation cancellation
 - physical table/floor assignment and overnight opening-hour ranges
 - an operational custom-domain onboarding/verification workflow
-- Tenant/Platform Support Ticketing Phase 1 core backend (ticket conversations, tenant/platform APIs, RBAC, manual lifecycle, and persistence); UI, attachments, SMS, and auto-close scheduling remain planned; see [TICKETING.md](TICKETING.md)
+- Platform Support operations UI, attachments, SMS notifications, and automatic ticket closing; Tenant Admin support conversations are available; see [TICKETING.md](TICKETING.md)
 - full multi-branch public/customer UX, multiple storefront templates, page building, advanced analytics, reviews, social ingestion, and marketing campaigns
 - horizontally coordinated notification workers or general background queues
 

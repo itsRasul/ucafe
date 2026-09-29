@@ -6,6 +6,7 @@
         "dev": "next dev --webpack",
         "build": "next build --webpack",
         "start": "next start",
+        "test": "node --test src/app/admin/support/support.test.cjs src/app/admin/support/support-render.test.cjs src/app/platform/support/support.test.cjs src/app/platform/support/support-render.test.cjs",
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {

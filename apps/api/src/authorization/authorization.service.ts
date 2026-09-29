@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { CoffeeShopMembership, MembershipStatus, UserPlatformRole } from "../identity/entities";
-import { PlatformPermissionKey, TenantPermissionKey } from "./permission.constants";
+import { PlatformPermissionKey, PlatformPermissions, TenantPermissionKey } from "./permission.constants";
 
 interface PermissionRow {
   permission_key: string;
@@ -18,6 +18,14 @@ export interface TenantAccess {
 }
 export interface PlatformAccess { permissions: PlatformPermissionKey[] }
 
+export function effectivePlatformPermissions(granted: Iterable<string>): Set<string> {
+  const effective = new Set(granted);
+  if (effective.has(PlatformPermissions.SupportTicketsReply) || effective.has(PlatformPermissions.SupportTicketsManage)) {
+    effective.add(PlatformPermissions.SupportTicketsView);
+  }
+  return effective;
+}
+
 @Injectable()
 export class AuthorizationService {
   constructor(
@@ -30,6 +38,11 @@ export class AuthorizationService {
   async hasPlatformPermissions(userId: string, required: PlatformPermissionKey[]): Promise<boolean> {
     const permissions = [...new Set(required)];
     if (permissions.length === 0) return false;
+    const queriedPermissions = new Set(permissions);
+    if (permissions.includes(PlatformPermissions.SupportTicketsView)) {
+      queriedPermissions.add(PlatformPermissions.SupportTicketsReply);
+      queriedPermissions.add(PlatformPermissions.SupportTicketsManage);
+    }
 
     const rows = await this.platformRoles
       .createQueryBuilder("assignment")
@@ -38,12 +51,13 @@ export class AuthorizationService {
       .innerJoin("role_permissions", "role_permission", "role_permission.role_id = role.id")
       .innerJoin("permissions", "permission", "permission.id = role_permission.permission_id AND permission.scope = 'PLATFORM'")
       .where("assignment.user_id = :userId", { userId })
-      .andWhere("permission.key IN (:...permissions)", { permissions })
+      .andWhere("permission.key IN (:...permissions)", { permissions: [...queriedPermissions] })
       .select("permission.key", "permission_key")
       .distinct(true)
       .getRawMany<PermissionRow>();
 
-    return new Set(rows.map((row) => row.permission_key)).size === permissions.length;
+    const effective = effectivePlatformPermissions(rows.map((row) => row.permission_key));
+    return permissions.every((permission) => effective.has(permission));
   }
 
   async authorizeTenant(
@@ -83,7 +97,7 @@ export class AuthorizationService {
       .innerJoin("role_permissions", "role_permission", "role_permission.role_id = role.id")
       .innerJoin("permissions", "permission", "permission.id = role_permission.permission_id AND permission.scope = 'PLATFORM'")
       .where("assignment.user_id = :userId", { userId }).select("permission.key", "permission_key").distinct(true).getRawMany<PermissionRow>();
-    const permissions = [...new Set(rows.map((row) => row.permission_key as PlatformPermissionKey))].sort();
+    const permissions = [...effectivePlatformPermissions(rows.map((row) => row.permission_key)) as Set<PlatformPermissionKey>].sort();
     return permissions.length ? { permissions } : null;
   }
 
