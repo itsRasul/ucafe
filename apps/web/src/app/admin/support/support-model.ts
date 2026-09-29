@@ -17,6 +17,7 @@ export type TicketSummary = {
   createdAt: string;
   lastActivityAt: string;
   lastMessageSenderType: TicketSender;
+  hasUnread: boolean;
 };
 export type TicketDetail = TicketSummary & {
   closeReason: TicketCloseReason | null;
@@ -116,7 +117,7 @@ export function supportErrorMessage(error: unknown) {
   if (status === 413) return "حجم هر فایل نباید بیشتر از ۸ مگابایت باشد.";
   if (status === 503) return "ذخیره پیوست‌ها موقتاً در دسترس نیست. دوباره تلاش کنید.";
   if (status === 404) return "این تیکت پیدا نشد یا دیگر در دسترس شما نیست.";
-  if (status === 409) return "این تیکت بسته شده و امکان ارسال پیام ندارد.";
+  if (status === 409) return "وضعیت تیکت تغییر کرده است؛ گفت‌وگو را بررسی کنید.";
   if (status === 400 || status === 422) return "اطلاعات واردشده معتبر نیست. آن‌ها را بررسی و دوباره تلاش کنید.";
   return "ارتباط با سرور برقرار نشد. دوباره تلاش کنید.";
 }

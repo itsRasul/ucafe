@@ -1,4 +1,4 @@
-import { CreateBucketCommand, DeleteObjectCommand, DeleteObjectsCommand, GetObjectCommand, HeadBucketCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { CreateBucketCommand, DeleteObjectCommand, DeleteObjectsCommand, GetObjectCommand, HeadBucketCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { Injectable, OnModuleInit, ServiceUnavailableException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Readable } from "node:stream";
@@ -46,6 +46,23 @@ export class MediaStorageService implements OnModuleInit {
 
   async removeObject(key: string) {
     await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
+  }
+
+  async listSupportTicketObjects(coffeeShopId: string, continuationToken?: string) {
+    const prefix = `tenants/${coffeeShopId}/support-tickets/`;
+    const result = await this.client.send(new ListObjectsV2Command({ Bucket: this.bucket, Prefix: prefix, MaxKeys: 100, ContinuationToken: continuationToken }));
+    return {
+      objects: (result.Contents ?? []).flatMap((object) => object.Key && object.LastModified ? [{ key: object.Key, lastModified: object.LastModified }] : []),
+      continuationToken: result.NextContinuationToken,
+    };
+  }
+
+  async removeSupportTicketObjects(coffeeShopId: string, keys: string[]) {
+    if (!keys.length) return 0;
+    const prefix = `tenants/${coffeeShopId}/support-tickets/`;
+    if (keys.some((key) => !key.startsWith(prefix))) throw new Error("Ticket object is outside its tenant namespace");
+    const result = await this.client.send(new DeleteObjectsCommand({ Bucket: this.bucket, Delete: { Objects: keys.map((Key) => ({ Key })), Quiet: true } }));
+    return result.Errors?.length ?? 0;
   }
 
   async get(prefix: string, variant: MediaVariant) {

@@ -2,7 +2,7 @@ import "reflect-metadata";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ForbiddenException } from "@nestjs/common";
-import { GUARDS_METADATA } from "@nestjs/common/constants";
+import { GUARDS_METADATA, HEADERS_METADATA } from "@nestjs/common/constants";
 import { Reflector } from "@nestjs/core";
 import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
@@ -26,6 +26,18 @@ test("tenant and platform Ticket controllers enforce the existing guards and sco
   assert.deepEqual(Reflect.getMetadata(PLATFORM_PERMISSIONS_METADATA, PlatformSupportTicketsController.prototype.reply), [PlatformPermissions.SupportTicketsView, PlatformPermissions.SupportTicketsReply]);
   assert.equal(Reflect.getMetadata(PLATFORM_PERMISSIONS_METADATA, PlatformSupportTicketsController.prototype.attachment), undefined);
   assert.deepEqual(Reflect.getMetadata(PLATFORM_PERMISSIONS_METADATA, PlatformSupportTicketsController.prototype.manage), [PlatformPermissions.SupportTicketsView, PlatformPermissions.SupportTicketsManage]);
+  for (const handler of [
+    TenantSupportTicketsController.prototype.list,
+    TenantSupportTicketsController.prototype.detail,
+    TenantSupportTicketsController.prototype.create,
+    TenantSupportTicketsController.prototype.reply,
+    PlatformSupportTicketsController.prototype.list,
+    PlatformSupportTicketsController.prototype.detail,
+    PlatformSupportTicketsController.prototype.reply,
+    PlatformSupportTicketsController.prototype.manage,
+  ]) {
+    assert.deepEqual(Reflect.getMetadata(HEADERS_METADATA, handler), [{ name: "Cache-Control", value: "private, no-store" }]);
+  }
 });
 
 test("Ticket DTOs trim and bound user text and reject caller-owned scope fields", async () => {

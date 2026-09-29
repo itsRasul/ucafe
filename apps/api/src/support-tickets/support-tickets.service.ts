@@ -15,21 +15,33 @@ type TicketRow = {
   id: string; referenceNumber: string; coffeeShopId: string; createdByUserId: string; subject: string;
   department: SupportTicketDepartment; status: SupportTicketStatus; closeReason: SupportTicketCloseReason | null;
   closedAt: Date | null; closedByUserId: string | null; lastMessageAt: Date; lastMessageSenderType: SupportTicketSenderType;
-  lastPlatformReplyAt: Date | null; createdAt: Date; updatedAt: Date;
+  lastPlatformReplyAt: Date | null; tenantLastReadAt: Date | null; platformLastReadAt: Date | null; createdAt: Date; updatedAt: Date;
 };
 
 export const SUPPORT_TICKET_INACTIVITY_MS = 48 * 60 * 60 * 1_000;
 export const SUPPORT_TICKET_AUTO_CLOSE_BATCH_SIZE = 100;
+export const SUPPORT_TICKET_ORPHAN_GRACE_MS = 24 * 60 * 60 * 1_000;
+const SUPPORT_TICKET_ORPHAN_TENANTS_PER_SWEEP = 25;
+
+function storageFailureCode(error: unknown) {
+  const value = error && typeof error === "object" ? error as { name?: unknown; $metadata?: { httpStatusCode?: unknown } } : {};
+  const name = (typeof value.name === "string" ? value.name : "StorageError").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 48) || "StorageError";
+  const status = value.$metadata?.httpStatusCode;
+  return Number.isInteger(status) ? `${name}_HTTP_${status}` : name;
+}
 
 const ticketColumns = `t.id, t.reference_number AS "referenceNumber", t.coffee_shop_id AS "coffeeShopId",
   t.created_by_user_id AS "createdByUserId", t.subject, t.department, t.status, t.close_reason AS "closeReason",
   t.closed_at AS "closedAt", t.closed_by_user_id AS "closedByUserId", t.last_message_at AS "lastMessageAt",
   t.last_message_sender_type AS "lastMessageSenderType", t.last_platform_reply_at AS "lastPlatformReplyAt",
+  t.tenant_last_read_at AS "tenantLastReadAt", t.platform_last_read_at AS "platformLastReadAt",
   t.created_at AS "createdAt", t.updated_at AS "updatedAt"`;
 
 @Injectable()
 export class SupportTicketsService {
   private readonly logger = new Logger(SupportTicketsService.name);
+  // ponytail: process-local cursor can rescan after restarts; persist it if object volume makes cleanup lag.
+  private orphanSweepCursor: { afterCoffeeShopId?: string; coffeeShopId?: string; continuationToken?: string } = {};
 
   constructor(
     private readonly db: DataSource,
@@ -55,7 +67,7 @@ export class SupportTicketsService {
       );
       await this.persistAttachments(manager, coffeeShopId, messageId, attachments);
       await manager.query(
-        `UPDATE support_tickets SET last_message_at=$2,last_message_sender_type='TENANT_USER',updated_at=$2 WHERE id=$1`,
+        `UPDATE support_tickets SET last_message_at=$2,last_message_sender_type='TENANT_USER',tenant_last_read_at=$2,updated_at=$2 WHERE id=$1`,
         [ticketId, message!.createdAt],
       );
       await this.notifications.created(manager, { id: ticketId, coffeeShopId, referenceNumber: ticket!.referenceNumber, department: input.department });
@@ -70,7 +82,8 @@ export class SupportTicketsService {
       this.db.query<Array<{ total: string }>>(`SELECT count(*) AS total FROM support_tickets t WHERE t.coffee_shop_id=$1${statusClause}`, params),
       this.db.query<Array<Record<string, unknown>>>(
         `SELECT t.id, t.reference_number AS "referenceNumber", t.subject, t.department, t.status,
-                t.created_at AS "createdAt", t.last_message_at AS "lastActivityAt", t.last_message_sender_type AS "lastMessageSenderType"
+                t.created_at AS "createdAt", t.last_message_at AS "lastActivityAt", t.last_message_sender_type AS "lastMessageSenderType",
+                (t.last_message_sender_type='PLATFORM_USER' AND (t.tenant_last_read_at IS NULL OR t.last_message_at>t.tenant_last_read_at)) AS "hasUnread"
          FROM support_tickets t WHERE t.coffee_shop_id=$1${statusClause}
          ORDER BY t.last_message_at DESC,t.id DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
         [...params, query.pageSize, (query.page - 1) * query.pageSize],
@@ -80,6 +93,7 @@ export class SupportTicketsService {
   }
 
   async detailTenant(coffeeShopId: string, ticketId: string) {
+    await this.markRead(ticketId, coffeeShopId, "tenant");
     return this.tenantDetail(this.db.manager, coffeeShopId, ticketId);
   }
 
@@ -100,7 +114,7 @@ export class SupportTicketsService {
       );
       await this.persistAttachments(manager, coffeeShopId, messageId, attachments);
       await manager.query(
-        `UPDATE support_tickets SET status='WAITING_FOR_PLATFORM',last_message_at=$2,last_message_sender_type='TENANT_USER',updated_at=$2 WHERE id=$1`,
+        `UPDATE support_tickets SET status='WAITING_FOR_PLATFORM',last_message_at=$2,last_message_sender_type='TENANT_USER',tenant_last_read_at=$2,updated_at=$2 WHERE id=$1`,
         [ticketId, message!.createdAt],
       );
       await this.notifications.tenantReplied(manager, ticket, messageId);
@@ -136,7 +150,8 @@ export class SupportTicketsService {
         `SELECT t.id, t.reference_number AS "referenceNumber", t.coffee_shop_id AS "tenantId",
                 cs.name AS "tenantName", cs.slug AS "tenantSlug", cs.status AS "tenantStatus",
                 t.subject, t.department, t.status, t.created_at AS "createdAt", t.last_message_at AS "lastActivityAt",
-                t.last_message_sender_type AS "lastMessageSenderType"
+                t.last_message_sender_type AS "lastMessageSenderType",
+                (t.last_message_sender_type='TENANT_USER' AND (t.platform_last_read_at IS NULL OR t.last_message_at>t.platform_last_read_at)) AS "hasUnread"
          FROM support_tickets t JOIN coffee_shops cs ON cs.id=t.coffee_shop_id ${where}
          ORDER BY t.last_message_at DESC,t.id DESC LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
         [...values, query.pageSize, (query.page - 1) * query.pageSize],
@@ -146,6 +161,7 @@ export class SupportTicketsService {
   }
 
   async detailPlatform(ticketId: string) {
+    await this.markRead(ticketId, undefined, "platform");
     return this.platformDetail(this.db.manager, ticketId);
   }
 
@@ -166,7 +182,7 @@ export class SupportTicketsService {
       await this.persistAttachments(manager, ticket.coffeeShopId, messageId, attachments);
       await manager.query(
         `UPDATE support_tickets SET status='WAITING_FOR_TENANT',last_message_at=$2,last_message_sender_type='PLATFORM_USER',
-           last_platform_reply_at=$2,updated_at=$2 WHERE id=$1`,
+           last_platform_reply_at=$2,platform_last_read_at=$2,updated_at=$2 WHERE id=$1`,
         [ticketId, message!.createdAt],
       );
       await this.notifications.platformReplied(manager, ticket, messageId);
@@ -211,12 +227,65 @@ export class SupportTicketsService {
     return { candidates: candidates.length, closed, skipped, failed };
   }
 
+  async cleanupOrphanTicketAttachments(now = new Date()) {
+    const result = { tenantsChecked: 0, scanned: 0, stale: 0, deleted: 0, failed: 0 };
+    const cutoff = new Date(now.getTime() - SUPPORT_TICKET_ORPHAN_GRACE_MS);
+    for (let checked = 0; checked < SUPPORT_TICKET_ORPHAN_TENANTS_PER_SWEEP; checked += 1) {
+      let { afterCoffeeShopId, coffeeShopId, continuationToken } = this.orphanSweepCursor;
+      if (!coffeeShopId) {
+        const shops = await this.db.query<Array<{ id: string }>>(
+          `SELECT id FROM coffee_shops WHERE ($1::uuid IS NULL OR id>$1::uuid) ORDER BY id LIMIT 1`, [afterCoffeeShopId ?? null]);
+        if (!shops.length && afterCoffeeShopId) {
+          this.orphanSweepCursor = {};
+          return result;
+        }
+        if (!shops.length) return result;
+        coffeeShopId = shops[0]!.id;
+        continuationToken = undefined;
+      }
+
+      const page = await this.storage.listSupportTicketObjects(coffeeShopId, continuationToken);
+      result.tenantsChecked += 1;
+      result.scanned += page.objects.length;
+      const prefix = `tenants/${coffeeShopId}/support-tickets/`;
+      const stale = page.objects.filter((object) => object.key.startsWith(prefix) && object.lastModified.getTime() <= cutoff.getTime()).map((object) => object.key);
+      result.stale += stale.length;
+      if (stale.length) {
+        const tracked = await this.db.query<Array<{ storageKey: string }>>(
+          `SELECT storage_key AS "storageKey" FROM support_ticket_attachments WHERE coffee_shop_id=$2 AND storage_key=ANY($1::text[])`, [stale, coffeeShopId]);
+        const trackedKeys = new Set(tracked.map((row) => row.storageKey));
+        const orphans = stale.filter((key) => !trackedKeys.has(key));
+        if (orphans.length) {
+          result.failed = await this.storage.removeSupportTicketObjects(coffeeShopId, orphans);
+          result.deleted = orphans.length - result.failed;
+          if (result.failed) this.logger.warn(`Ticket orphan attachment cleanup failed tenant=${coffeeShopId} count=${result.failed}`);
+        }
+      }
+
+      this.orphanSweepCursor = page.continuationToken
+        ? { coffeeShopId, continuationToken: page.continuationToken }
+        : { afterCoffeeShopId: coffeeShopId };
+      if (page.objects.length || page.continuationToken) return result;
+    }
+    return result;
+  }
+
   async streamTenantAttachment(coffeeShopId: string, ticketId: string, attachmentId: string) {
     return this.streamAttachment(ticketId, attachmentId, coffeeShopId);
   }
 
   async streamPlatformAttachment(ticketId: string, attachmentId: string) {
     return this.streamAttachment(ticketId, attachmentId);
+  }
+
+  private async markRead(ticketId: string, coffeeShopId: string | undefined, surface: "tenant" | "platform") {
+    const column = surface === "tenant" ? "tenant_last_read_at" : "platform_last_read_at";
+    const tenantClause = coffeeShopId ? " AND coffee_shop_id=$2" : "";
+    const values = coffeeShopId ? [ticketId, coffeeShopId] : [ticketId];
+    await this.db.query(
+      `UPDATE support_tickets SET ${column}=CASE WHEN ${column} IS NULL OR ${column}<last_message_at THEN last_message_at ELSE ${column} END WHERE id=$1${tenantClause}`,
+      values,
+    );
   }
 
   async manage(ticketId: string, userId: string, input: UpdateSupportTicketDto) {
@@ -259,7 +328,7 @@ export class SupportTicketsService {
     const ticket = rows[0];
     if (!ticket) throw new NotFoundException("Support ticket not found");
     const messages = await this.messages(manager, ticketId, coffeeShopId, "tenant");
-    return { ...this.project(ticket), messages };
+    return { ...this.project(ticket, "tenant"), messages };
   }
 
   private async platformDetail(manager: EntityManager, ticketId: string) {
@@ -269,7 +338,7 @@ export class SupportTicketsService {
     const ticket = rows[0];
     if (!ticket) throw new NotFoundException("Support ticket not found");
     const messages = await this.messages(manager, ticketId, ticket.coffeeShopId, "platform");
-    return { ...this.project(ticket), tenant: { id: ticket.coffeeShopId, name: ticket.tenantName, slug: ticket.tenantSlug, status: ticket.tenantStatus }, messages };
+    return { ...this.project(ticket, "platform"), tenant: { id: ticket.coffeeShopId, name: ticket.tenantName, slug: ticket.tenantSlug, status: ticket.tenantStatus }, messages };
   }
 
   private async messages(manager: EntityManager, ticketId: string, coffeeShopId: string, surface: "tenant" | "platform") {
@@ -313,9 +382,10 @@ export class SupportTicketsService {
     const stored = inspected.map((attachment) => ({ ...attachment, storageKey: `tenants/${coffeeShopId}/support-tickets/${ticketId}/${messageId}/${randomUUID()}` }));
     const results = await Promise.allSettled(stored.map((attachment, index) =>
       this.storage.putObject(attachment.storageKey, files[index]!.buffer, attachment.detectedMimeType)));
-    if (results.some((result) => result.status === "rejected")) {
+    const failure = results.find((result) => result.status === "rejected");
+    if (failure?.status === "rejected") {
       await this.cleanupAttachments(stored, ticketId, "upload");
-      this.logger.warn(`Ticket attachment upload failed for ${ticketId}`);
+      this.logger.warn(`Ticket attachment upload failed for ${ticketId} error=${storageFailureCode(failure.reason)}`);
       throw new ServiceUnavailableException("Ticket attachment storage is unavailable");
     }
     return stored;
@@ -338,7 +408,8 @@ export class SupportTicketsService {
 
   private async cleanupAttachments(attachments: StoredTicketAttachment[], ticketId: string, operation: string) {
     const results = await Promise.allSettled(attachments.map((attachment) => this.storage.removeObject(attachment.storageKey)));
-    if (results.some((result) => result.status === "rejected")) this.logger.warn(`Ticket attachment cleanup failed after ${operation} for ${ticketId}`);
+    const failure = results.find((result) => result.status === "rejected");
+    if (failure?.status === "rejected") this.logger.warn(`Ticket attachment cleanup failed after ${operation} for ${ticketId} error=${storageFailureCode(failure.reason)}`);
   }
 
   private async streamAttachment(ticketId: string, attachmentId: string, coffeeShopId?: string) {
@@ -356,14 +427,17 @@ export class SupportTicketsService {
     try {
       const object = await this.storage.getObject(attachment.storageKey);
       return { ...object, originalFilename: attachment.originalFilename, contentType: attachment.detectedMimeType, contentLength: Number(attachment.sizeBytes) };
-    } catch {
-      this.logger.warn(`Ticket attachment download failed for ${ticketId}`);
+    } catch (error) {
+      this.logger.warn(`Ticket attachment download failed for ${ticketId} error=${storageFailureCode(error)}`);
       throw new ServiceUnavailableException("Ticket attachment is unavailable");
     }
   }
 
-  private project(ticket: TicketRow) {
+  private project(ticket: TicketRow, surface: "tenant" | "platform") {
     const { id, referenceNumber, subject, department, status, closeReason, closedAt, lastMessageAt, lastMessageSenderType, lastPlatformReplyAt, createdAt, updatedAt } = ticket;
-    return { id, referenceNumber, subject, department, status, closeReason, closedAt, lastActivityAt: lastMessageAt, lastMessageSenderType, lastPlatformReplyAt, createdAt, updatedAt };
+    const readAt = surface === "tenant" ? ticket.tenantLastReadAt : ticket.platformLastReadAt;
+    const opposingSender = surface === "tenant" ? SupportTicketSenderType.PlatformUser : SupportTicketSenderType.TenantUser;
+    const hasUnread = lastMessageSenderType === opposingSender && (!readAt || lastMessageAt > readAt);
+    return { id, referenceNumber, subject, department, status, closeReason, closedAt, lastActivityAt: lastMessageAt, lastMessageSenderType, lastPlatformReplyAt, hasUnread, createdAt, updatedAt };
   }
 }

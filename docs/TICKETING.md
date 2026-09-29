@@ -1,6 +1,6 @@
 # Support Ticketing architecture
 
-**Status:** Phases 1–6 are implemented as of 2026-09-29. Ticket persistence, tenant/platform APIs and UIs, permissions, lifecycle transitions, private message attachments, asynchronous SMS notifications, and inactivity auto-close are in place. Product status remains in [PRD.md](PRD.md).
+**Status:** Phases 1–7 are implemented as of 2026-09-29. Ticket persistence, tenant/platform APIs and UIs, permissions, lifecycle transitions, private message attachments, asynchronous SMS notifications, inactivity auto-close, shared unread markers, and bounded orphan-object cleanup are in place. Product status remains in [PRD.md](PRD.md).
 
 ## Goals and non-goals
 
@@ -18,12 +18,12 @@ Phase 0 recorded the design only. Phase 1 implements tenant and Platform ticket 
 | RBAC | Database-backed scope-separated permissions and guards | Add support permissions to the existing catalog and role assignments |
 | SMS | sms.ir provider; encrypted notification_deliveries outbox, deduplication, bounded retries | Enqueue typed events through NotificationsService; never send SMS in a Ticket transaction |
 | Storage | Private MinIO/S3 bucket and MediaStorageService; generated tenant object keys; API streaming | Extend the existing S3 client with private arbitrary-object operations; do not use the image-only processing pipeline |
-| Jobs | Notifications has a bounded API timer; CRM has domain-specific PostgreSQL outboxes; worker is an empty Nest context | Use a bounded API-hosted sweep and PostgreSQL row locks; duplicate scans across API instances are safe, and a worker move is only needed for measured load or operational isolation |
+| Jobs | Notifications has a bounded API timer; CRM has domain-specific PostgreSQL outboxes; worker is an empty Nest context | Use bounded API-hosted lifecycle and object-cleanup sweeps; row locks protect lifecycle transitions, and a worker move is only needed for measured load or operational isolation |
 | Audit | platform_audit_events records actor-attributed Platform operations | Reuse it for Platform ticket-management actions; do not add event sourcing |
 | UI | Separate permission-aware Admin and Platform shells, session hooks, same-origin proxy, Persian RTL pages | Add routes to these shells and reuse their session/API patterns |
 | Subscription | Registered plan features gate selected tenant modules | Do not register a Ticketing feature or call a plan-feature check |
 
-The repo has no reusable read/unread marker. Its CRM outboxes are bounded domain integrations, not a general event bus. Ticket SMS belongs in the existing notification outbox.
+Ticket unread state uses the shared side-level cursors chosen in D-089. CRM outboxes remain bounded domain integrations, not a general event bus. Ticket SMS belongs in the existing notification outbox.
 
 ## Domain model
 
@@ -43,7 +43,7 @@ Ticket stores current queue/lifecycle state. TicketMessage stores the conversati
 | close_reason, closed_at, closed_by_user_id | Latest closure: MANUAL or INACTIVITY; actor is null for automatic close |
 | last_message_at, last_message_sender_type | Conversation ordering and group unread calculation; changed only by a human reply |
 | last_platform_reply_at | Authoritative inactivity-close clock; changed only by Platform Support replies |
-| tenant_last_read_at, platform_last_read_at | Shared last-read cursors for each side; add with unread support, not required in Phase 1 |
+| tenant_last_read_at, platform_last_read_at | Shared last-read cursors for each side; advanced by the side's replies and detail reads |
 | created_at, updated_at | Record timestamps; updated_at is not an auto-close input |
 
 Use PostgreSQL enums for the small fixed status and department sets. Adding a department later is an additive code/catalog migration, not a data-model redesign. Do not create dynamic department administration.
@@ -111,17 +111,19 @@ The Next.js catch-all API Route Handler forwards multipart request bodies as str
 
 Tenant create/reply routes run Tenant context and `support.tickets.use` guards before the upload interceptor. Platform reply uses the existing `support.tickets.view` plus `support.tickets.reply` guards. For download, the service joins attachment → message → ticket and scopes the ticket ID and, for Tenant access, the resolved coffeeShopId before reading the private object. Platform downloads require ticket view permission. The API streams content from `GET .../:ticketId/attachments/:attachmentId/content` with `private, no-store`, `nosniff`, and attachment disposition headers. No signed-URL workflow exists or is added; knowing an attachment UUID or key is never sufficient. Response projections include safe metadata and an authenticated content path, never the storage key or bucket.
 
-The selected approach is one multipart message request, avoiding temporary-upload tokens. The service validates every file before storage, uploads objects, then writes the message, attachment metadata, and Ticket transition in one PostgreSQL transaction. If an upload partially fails, every generated key is deleted; if database persistence fails, newly uploaded objects are deleted. Cleanup errors are logged with only the Ticket ID and operation for operational follow-up. PostgreSQL and S3 are not atomic: a delete outage during compensation or process termination between upload and commit can leave an unreferenced private object for later cleanup; there is no orphan-object sweeper in this phase, while Ticket state and metadata still roll back on database errors.
+The selected approach is one multipart message request, avoiding temporary-upload tokens. The service validates every file before storage, uploads objects, then writes the message, attachment metadata, and Ticket transition in one PostgreSQL transaction. If an upload partially fails, every generated key is deleted; if database persistence fails, newly uploaded objects are deleted. Cleanup errors are logged with only the Ticket ID and a safe storage error category. PostgreSQL and S3 are not atomic: a delete outage during compensation or process termination between upload and commit can leave an unreferenced private object; the Phase 7 sweep handles stale objects after a 24-hour grace period.
+
+The Next catch-all streams multipart requests, and the API limits each request to five files at 8 MiB each. Configure the production ingress for at least 40 MiB plus multipart overhead. The existing S3 credentials need list access for the exact ticket prefix and delete access there. The bucket remains private. Storage is checked at API startup and in readiness; if it becomes unavailable after startup, text-only tickets continue while attachment operations and readiness report the dependency failure.
 
 ## SMS integration and failure behavior
 
-Ticket creation (`SUPPORT_TICKET_CREATED`), Tenant replies (`SUPPORT_TICKET_TENANT_REPLIED`), and Platform replies (`SUPPORT_TICKET_PLATFORM_REPLIED`) enqueue one event per intended recipient in the same transaction as the Ticket/message update. Delivery uses only the existing encrypted `notification_deliveries` outbox, API dispatcher, sms.ir adapter, numeric template configuration, and bounded retries. sms.ir runs after commit; provider failure cannot undo a conversation. Outbox insertion follows NotificationsService's existing fail-open behavior.
+Ticket creation (`SUPPORT_TICKET_CREATED`), Tenant replies (`SUPPORT_TICKET_TENANT_REPLIED`), and Platform replies (`SUPPORT_TICKET_PLATFORM_REPLIED`) enqueue one event per intended recipient in the same transaction as the Ticket/message update. Delivery uses only the existing encrypted `notification_deliveries` outbox, API dispatcher, sms.ir adapter, numeric template configuration, and bounded retries. sms.ir runs after commit; provider failure cannot undo a conversation. Safe provider status codes (HTTP or sms.ir status) are persisted and logged without response bodies, phone numbers, or credentials. Outbox insertion follows NotificationsService's existing fail-open behavior.
 
 Creation and Tenant-reply alerts go to active Platform users with a verified phone and `support.tickets.reply`, deduplicated per recipient. Platform replies go only to the original Ticket creator while the user is active, has a verified phone, and retains an active membership with `support.tickets.use` for that café. Missing or invalid phone recipients are skipped and logged without exposing a number. Payloads contain the UC reference and, for Platform Support alerts, the centralized Persian department label. They never include message bodies, attachment data, UUIDs, or phone numbers. One Ticket action produces one notification per recipient regardless of attachment count. Reads, downloads, metadata changes, department changes, manual close/reopen, and auto-close do not notify. Retries are bounded to three attempts; unique outbox keys deduplicate re-enqueued events, while an ambiguous provider timeout may still result in a duplicate SMS after retry. No notification settings UI is part of this phase.
 
 ## Read/unread
 
-No existing UCafe feature stores read receipts. Use one shared cursor per side on Ticket: tenant_last_read_at and platform_last_read_at. A reply advances its sender side's cursor; viewing a thread advances that side's cursor. This matches the shared café inbox and support queue. An unread reply is an opposing-side last message newer than that side's cursor; waiting status separately indicates who acts next. Add per-user receipts only if support teams need independent inbox state.
+Ticket keeps one shared cursor per side: `tenant_last_read_at` and `platform_last_read_at`. A reply advances its sender side's cursor; opening a detail advances that side's cursor without changing Ticket `updated_at`. Lists expose `hasUnread` when the latest message came from the other side after the cursor. Cards show a compact new-reply marker; waiting status separately indicates who acts next. No aggregate unread count, polling, or per-user receipts are implemented. Add per-user receipts only if support teams need independent inbox state.
 
 ## Human-readable reference
 
@@ -197,6 +199,8 @@ Phase 3 adds the permission-filtered Platform navigation link, a queue defaulted
 | G. Tenant replies after inactivity close | Same Ticket reopens to WAITING_FOR_PLATFORM and earlier messages remain |
 | H. sms.ir is unavailable | Ticket and Message rows remain committed; the existing dispatcher records a failed attempt and applies bounded retry behavior |
 | I. Tenant requests another tenant's attachment | Attachment ID is resolved through message and Ticket scope before private object streaming |
+| J. A side reads a reply | Its shared cursor advances without changing activity order; the other side's unread state is independent |
+| K. Upload compensation leaves an orphan object | The 10-minute sweep only deletes untracked objects older than 24 hours within the current tenant's Ticket prefix |
 
 ## Phase 1 implementation contract
 
@@ -232,7 +236,7 @@ The list uses server pagination (`page` and `pageSize=25`) and preserves the API
 
 Department labels are `TECHNICAL` → `فنی` and `SALES` → `فروش`. Status labels are `WAITING_FOR_PLATFORM` → `در انتظار پاسخ پشتیبانی`, `WAITING_FOR_TENANT` → `در انتظار پاسخ شما`, and `CLOSED` → `بسته شده`. The create form trims subject/message and matches backend bounds (subject 1–160, message 1–10,000 characters). Replies trim and match the 1–10,000 message bound. Pending requests disable the submit action and use an in-flight guard; successful creation navigates to the new detail, while successful replies replace the detail with the API response and clear the input.
 
-Reply availability follows the returned lifecycle state: `CLOSED` with `INACTIVITY` remains replyable and the backend reopens it; `MANUAL` (or another non-inactivity close) is read-only and links to creating a new ticket. Waiting states identify whose response is expected. The UI maps common permission, not-found, closed, and input errors to Persian messages and never renders raw API errors or message HTML. It implements no read markers, real-time updates, Platform Support UI, attachments, SMS, or auto-close scheduling.
+At Phase 2, reply availability followed the returned lifecycle state: `CLOSED` with `INACTIVITY` remains replyable and the backend reopens it; `MANUAL` (or another non-inactivity close) is read-only and links to creating a new ticket. Waiting states identify whose response is expected. The UI maps common permission, not-found, closed, and input errors to Persian messages and never renders raw API errors or message HTML. Real-time updates and unread navigation counts remain out of scope.
 
 The focused frontend suite is `npm test --workspace=@ucafe/web`; it uses Node's built-in test runner and server rendering to check list, form, conversation, and closed-state markup alongside contract/validation helpers. DOM-driven interactions and authenticated live flow need a browser test harness and tenant-admin session.
 
@@ -247,3 +251,13 @@ The queue displays reference, café name/slug, subject, department, Persian stat
 Users with `support.tickets.manage` can close, reopen, and change a ticket between the existing Technical and Sales departments. Close/reopen retain the existing manual close reason and lifecycle rules. Department changes lock the ticket, change only its department/update timestamp, and write a safe before/after audit record in the same transaction; they do not reset `last_platform_reply_at`. All mutations refetch on lifecycle conflicts. The Platform UI adds no priority/assignment fields because they are absent from the core model. No schema migration was needed.
 
 Focused frontend tests cover permission visibility, mappings, query preservation, and rendered loading/error/empty/list/conversation states. API tests cover DTO validation and permission metadata; the PostgreSQL integration suite covers search, filtering, pagination, department audit, lifecycle, and tenant isolation when `TICKETING_INTEGRATION_DATABASE_URL` is configured. The support workspace uses the existing platform session, API proxy, CSS, and RBAC; it adds no dependency. Browser-authenticated flow and responsive viewport interaction require running local services and a Platform user.
+
+## Phase 7 production hardening
+
+Migration `1790660000000-SupportTicketReadCursors` adds the shared tenant/platform read timestamps and backfills the sending side as already read. Detail GET advances only the authorized side's cursor; all protected ticket API responses are `private, no-store`. Lists include `hasUnread`, rendered as a small new-reply marker in each UI. Read updates do not affect `updated_at` or inactivity closure.
+
+The existing 10-minute API scheduler now runs inactivity close and a bounded orphan sweep independently, so one failing sweep does not suppress the other. Cleanup inspects up to 100 objects from one tenant page per pass, checks PostgreSQL attachment metadata before deleting, waits 24 hours from S3 `LastModified`, and is limited to 25 empty tenants per pass. Its process-local cursor restarts from the first tenant after API restart; persist cursor state only if measured volume makes rescanning a concern. No tracked attachment object is removed.
+
+Ticket storage logs contain only a safe AWS error name/status. sms.ir errors persist a bounded provider status code in the notification outbox and log delivery type/entity, attempt, status, and code without response text, phone, body, or secrets. The API size ceiling is 40 MiB total plus multipart overhead; production ingress must permit that. Browser form fields are disabled while submissions are pending, and Tenant reply conflicts refresh the detail to show the current lifecycle state.
+
+The S3 bucket remains a startup and readiness dependency. If storage fails after startup, text-only ticket operations remain usable, but readiness and attachment requests fail until storage recovers. There is still no aggregate unread count, polling, distributed sweep cursor, or authenticated browser acceptance in the repository test suite.

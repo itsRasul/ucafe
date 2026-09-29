@@ -36,6 +36,7 @@ export type SupportTicketListItem = {
   attachments?: SupportAttachment[];
   lastActivityAt: string;
   lastMessageSenderType: "TENANT_USER" | "PLATFORM_USER";
+  hasUnread: boolean;
 };
 
 export type SupportTicketMessage = {

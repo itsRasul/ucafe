@@ -79,6 +79,8 @@
 .platform-support-status--waiting_for_platform{border-color:#7dd3fc;background:#e0f2fe;color:#075985}
 .platform-support-status--waiting_for_tenant{border-color:#fed7aa;background:#fff7ed;color:#9a3412}
 .platform-support-status--closed{border-color:#cbd5e1;background:#f1f5f9;color:#475569}
+.platform-support-queue-status{display:grid;justify-items:start;gap:.25rem}
+.platform-support-unread{display:inline-flex;align-items:center;min-height:1.45rem;padding:.1rem .45rem;border:1px solid #86efac;border-radius:99rem;background:#f0fdf4;color:#166534;font-size:.75rem;font-weight:900;white-space:nowrap}
 .platform-support-pagination{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.6rem;color:var(--platform-muted);font-size:.78rem}
 .platform-support-pagination>div{display:flex;align-items:center;gap:.9rem}
 .platform-support-pagination span[aria-disabled=true]{color:#94a3b8}

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Req, Res, StreamableFile, UploadedFiles, UseGuards, UseInterceptors } from "@nestjs/common";
+import { Body, Controller, Get, Header, Param, ParseUUIDPipe, Post, Query, Req, Res, StreamableFile, UploadedFiles, UseGuards, UseInterceptors } from "@nestjs/common";
 import { FilesInterceptor } from "@nestjs/platform-express";
 import { Response } from "express";
 import { AccessTokenGuard } from "../auth/access-token.guard";
@@ -19,22 +19,26 @@ export class TenantSupportTicketsController {
   constructor(private readonly tickets: SupportTicketsService) {}
 
   @Post()
+  @Header("Cache-Control", "private, no-store")
   @UseInterceptors(FilesInterceptor("files", MAX_SUPPORT_TICKET_ATTACHMENTS, { limits: { fileSize: MAX_SUPPORT_TICKET_ATTACHMENT_BYTES, files: MAX_SUPPORT_TICKET_ATTACHMENTS, fields: 3 } }))
   create(@Req() request: AuthorizedRequest, @Body() input: CreateSupportTicketDto, @UploadedFiles() files?: Express.Multer.File[]) {
     return this.tickets.create(request[TENANT_CONTEXT]!.coffeeShopId, request[AUTH_PRINCIPAL]!.userId, input, files);
   }
 
   @Get()
+  @Header("Cache-Control", "private, no-store")
   list(@Req() request: AuthorizedRequest, @Query() query: TenantSupportTicketListQueryDto) {
     return this.tickets.listTenant(request[TENANT_CONTEXT]!.coffeeShopId, query);
   }
 
   @Get(":ticketId")
+  @Header("Cache-Control", "private, no-store")
   detail(@Req() request: AuthorizedRequest, @Param("ticketId", ParseUUIDPipe) ticketId: string) {
     return this.tickets.detailTenant(request[TENANT_CONTEXT]!.coffeeShopId, ticketId);
   }
 
   @Post(":ticketId/messages")
+  @Header("Cache-Control", "private, no-store")
   @UseInterceptors(FilesInterceptor("files", MAX_SUPPORT_TICKET_ATTACHMENTS, { limits: { fileSize: MAX_SUPPORT_TICKET_ATTACHMENT_BYTES, files: MAX_SUPPORT_TICKET_ATTACHMENTS, fields: 1 } }))
   reply(@Req() request: AuthorizedRequest, @Param("ticketId", ParseUUIDPipe) ticketId: string, @Body() input: CreateSupportTicketMessageDto, @UploadedFiles() files?: Express.Multer.File[]) {
     return this.tickets.replyTenant(request[TENANT_CONTEXT]!.coffeeShopId, ticketId, request[AUTH_PRINCIPAL]!.userId, input, files);

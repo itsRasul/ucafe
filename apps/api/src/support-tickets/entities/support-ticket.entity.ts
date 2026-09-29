@@ -24,6 +24,8 @@ export class SupportTicket {
   @Column({ name: "last_message_at", type: "timestamptz" }) lastMessageAt!: Date;
   @Column({ name: "last_message_sender_type", type: "enum", enum: SupportTicketSenderType, enumName: "support_ticket_sender_type" }) lastMessageSenderType!: SupportTicketSenderType;
   @Column({ name: "last_platform_reply_at", type: "timestamptz", nullable: true }) lastPlatformReplyAt!: Date | null;
+  @Column({ name: "tenant_last_read_at", type: "timestamptz", nullable: true }) tenantLastReadAt!: Date | null;
+  @Column({ name: "platform_last_read_at", type: "timestamptz", nullable: true }) platformLastReadAt!: Date | null;
   @CreateDateColumn({ name: "created_at", type: "timestamptz" }) createdAt!: Date;
   @UpdateDateColumn({ name: "updated_at", type: "timestamptz" }) updatedAt!: Date;
 }

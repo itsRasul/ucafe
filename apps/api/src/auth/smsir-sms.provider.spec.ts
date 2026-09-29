@@ -36,6 +36,22 @@ test("sms.ir verify rejects a provider error status", async () => {
   const original = global.fetch;
   global.fetch = async () => new Response(JSON.stringify({ status: 112, message: "قالب یافت نشد" }), { status: 200 });
   try {
-    await assert.rejects(() => provider().sendOtp({ phone: "09120000000", otp: "123456", expiresInSeconds: 120 }));
+    await assert.rejects(() => provider().sendOtp({ phone: "09120000000", otp: "123456", expiresInSeconds: 120 }), (error: unknown) => {
+      assert.equal(error && typeof error === "object" && "providerCode" in error ? error.providerCode : undefined, "SMSIR_STATUS_112");
+      assert.doesNotMatch(JSON.stringify(error), /قالب یافت نشد/);
+      return true;
+    });
+  } finally { global.fetch = original; }
+});
+
+test("sms.ir HTTP failures expose a safe status code without response details", async () => {
+  const original = global.fetch;
+  global.fetch = async () => new Response("sensitive provider detail", { status: 503 });
+  try {
+    await assert.rejects(() => provider().sendOtp({ phone: "09120000000", otp: "123456", expiresInSeconds: 120 }), (error: unknown) => {
+      assert.equal(error && typeof error === "object" && "providerCode" in error ? error.providerCode : undefined, "SMSIR_HTTP_503");
+      assert.doesNotMatch(JSON.stringify(error), /sensitive provider detail/);
+      return true;
+    });
   } finally { global.fetch = original; }
 });

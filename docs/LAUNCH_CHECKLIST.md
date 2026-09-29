@@ -4,10 +4,13 @@ Implemented software capability and external acceptance are deliberately separat
 
 ## Repository gates
 
-- [ ] full `npm test` passes (currently 66/67; stale client-panel test constructor)
+- [ ] full `npm test` passes (latest: API 205 passed with 33 database/environment-gated cases skipped; web 29 passed)
 - [ ] `npm run typecheck` passes for all workspaces
 - [ ] `npm run build` passes for API, web, and worker
 - [ ] all migrations applied; `synchronize` remains disabled
+- [ ] Ticket read-cursor migration applied; authenticated Tenant and Platform ticket list/detail responses are `private, no-store`
+- [ ] private S3 policy permits scoped ticket-prefix list/delete; verify the 24-hour orphan sweep and inactivity sweep logs
+- [ ] production ingress accepts 40 MiB plus multipart overhead and private attachment download is authorized end-to-end
 - [ ] `/api/v1/health/ready` verifies PostgreSQL, Redis, and the private object bucket
 - [ ] smoke checks pass for platform and tenant hosts, security headers, and HTML budget
 - [ ] wrong-tenant IDs, forged internal headers, permission boundaries, and client ownership are rechecked
@@ -18,6 +21,7 @@ Implemented software capability and external acceptance are deliberately separat
 ## Real providers
 
 - [ ] every sms.ir template has an approved numeric ID and exact parameter names
+- [ ] Ticket creation, Tenant-reply, and Platform-reply templates accepted; safe SMS provider failure code and retry exhaustion observed
 - [ ] real admin/client OTP delivery accepted without secret/OTP logging
 - [ ] real order, reservation, reminder, subscription, payment, and consultation messages accepted
 - [ ] retry/error behavior observed for an sms.ir failure

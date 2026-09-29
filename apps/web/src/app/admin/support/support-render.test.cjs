@@ -14,7 +14,7 @@ const render = (element) => renderToStaticMarkup(element);
 const ticket = {
   id: "ticket-id", referenceNumber: "UC-10482", subject: "مشکل در ثبت سفارش آنلاین", department: "TECHNICAL",
   status: "WAITING_FOR_TENANT", createdAt: "2026-09-29T09:00:00.000Z", lastActivityAt: "2026-09-29T09:30:00.000Z",
-  lastMessageSenderType: "PLATFORM_USER",
+  lastMessageSenderType: "PLATFORM_USER", hasUnread: true,
 };
 
 test("empty state renders its create action", () => {
@@ -31,6 +31,7 @@ test("ticket card renders reference, subject, department, status, time, and a fu
   assert.match(markup, /مشکل در ثبت سفارش آنلاین/);
   assert.match(markup, /فنی/);
   assert.match(markup, /در انتظار پاسخ شما/);
+  assert.match(markup, /پاسخ جدید/);
   assert.match(markup, /آخرین فعالیت/);
 });
 
@@ -46,6 +47,17 @@ test("create controls have visible labels, required state, backend limits, and l
   assert.match(markup, /aria-describedby="ticket-subject-error"/);
   assert.match(markup, /aria-describedby="ticket-message-error"/);
   assert.match(markup, /موضوع را وارد کنید/);
+});
+
+test("create controls are disabled while a submission is pending", () => {
+  const markup = render(React.createElement(SupportTicketFields, {
+    input: { department: "TECHNICAL", subject: "موضوع", message: "شرح" },
+    errors: {},
+    onChange() {}, onBlur() {}, disabled: true,
+  }));
+  assert.match(markup, /<select[^>]+disabled=""/);
+  assert.match(markup, /id="ticket-subject"[^>]+disabled=""/);
+  assert.match(markup, /id="ticket-message"[^>]+disabled=""/);
 });
 
 test("file picker renders selected names, removal controls, restrictions, and disabled upload state", () => {

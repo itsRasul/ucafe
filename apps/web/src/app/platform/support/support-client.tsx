@@ -222,7 +222,7 @@ export function PlatformSupportTicket({ ticketId, returnTo }: { ticketId: string
           ? <p className="platform-support-closed-note">برای ادامه گفتگو، تیکت را با دسترسی مدیریت بازگشایی کنید.</p>
           : canReply ? <form className="platform-support-reply" onSubmit={submitReply}>
             <label htmlFor="support-reply">پاسخ برای کافه</label>
-            <textarea id="support-reply" value={reply} maxLength={10000} required onChange={(event) => { setReply(event.target.value); setReplyError(""); }} />
+            <textarea id="support-reply" value={reply} maxLength={10000} required disabled={replyPending} onChange={(event) => { setReply(event.target.value); setReplyError(""); }} />
             <SupportFilePicker files={files} onChange={setFiles} disabled={replyPending} />
             {replyError && <p className="message error" role="alert">{replyError}</p>}
             <button type="submit" disabled={replyPending || !reply.trim()}>{replyPending ? "در حال ارسال پاسخ…" : "ارسال پاسخ"}</button>
@@ -259,7 +259,7 @@ export function SupportQueueBody({
         <td><span className="platform-support-tenant"><strong>{ticket.tenantName}</strong><small dir="ltr"><bdi dir="ltr">{ticket.tenantSlug}</bdi></small></span></td>
         <td><Link className="platform-support-subject" href={`/platform/support/${encodeURIComponent(ticket.id)}?returnTo=${encodeURIComponent(returnTo)}`}>{ticket.subject}</Link></td>
         <td>{departmentLabel(ticket.department)}</td>
-        <td><StatusBadge status={ticket.status} /></td>
+        <td><span className="platform-support-queue-status"><StatusBadge status={ticket.status} />{ticket.hasUnread && <span className="platform-support-unread">پیام تازه کافه</span>}</span></td>
         <td><time dateTime={ticket.lastActivityAt}>{formatTicketDate(ticket.lastActivityAt)}</time></td>
         <td><time dateTime={ticket.createdAt}>{formatTicketDate(ticket.createdAt)}</time></td>
       </tr>)}</tbody>

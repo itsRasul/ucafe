@@ -138,6 +138,6 @@ test("manual closed tickets cannot be replied to; inactivity closures can be reo
 test("known API errors show safe Persian guidance", () => {
   assert.match(supportErrorMessage({ status: 404 }), /پیدا نشد/);
   assert.match(supportErrorMessage({ status: 403 }), /اجازه/);
-  assert.match(supportErrorMessage({ status: 409 }), /بسته/);
+  assert.match(supportErrorMessage({ status: 409 }), /وضعیت تیکت تغییر کرده/);
   assert.match(supportErrorMessage(new Error("database password and stack")), /ارتباط با سرور/);
 });

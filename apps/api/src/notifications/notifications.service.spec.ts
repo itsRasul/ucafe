@@ -32,7 +32,7 @@ test("provider failure retries one recipient and dispatch continues for other re
   const sentPhones: string[] = [];
   const sms = { sendTemplate: async (message: { phone: string }) => {
     sentPhones.push(message.phone);
-    if (message.phone === "+989120000001") throw new Error("simulated sms.ir failure");
+    if (message.phone === "+989120000001") throw Object.assign(new Error("simulated sms.ir failure"), { providerCode: "SMSIR_HTTP_503" });
     return { providerMessageId: "provider-message-2" };
   } };
   const service = new NotificationsService(db, crypto, config, sms as never);
@@ -41,7 +41,7 @@ test("provider failure retries one recipient and dispatch continues for other re
   await service.dispatch();
 
   assert.deepEqual(sentPhones, ["+989120000001", "+989120000002"]);
-  const retry = updates.find((update) => update.lastErrorCode === "PROVIDER_UNAVAILABLE");
+  const retry = updates.find((update) => update.lastErrorCode === "SMSIR_HTTP_503");
   const sent = updates.find((update) => update.providerMessageId === "provider-message-2");
   assert.equal(retry?.attempts, 1);
   assert.equal(retry?.status, NotificationStatus.Pending);

@@ -14,7 +14,7 @@ const ticket = {
   id: "a-uuid", referenceNumber: "UC-10482", tenantId: "tenant-id", tenantName: "کافه دانه",
   tenantSlug: "bean-house", tenantStatus: "ACTIVE", subject: "ثبت سفارش انجام نمی‌شود",
   department: "TECHNICAL", status: "WAITING_FOR_PLATFORM", createdAt: "2026-09-29T09:00:00.000Z",
-  lastActivityAt: "2026-09-29T09:30:00.000Z", lastMessageSenderType: "TENANT_USER",
+  lastActivityAt: "2026-09-29T09:30:00.000Z", lastMessageSenderType: "TENANT_USER", hasUnread: true,
 };
 
 test("Platform queue shows a loading state with live status", () => {
@@ -48,6 +48,7 @@ test("Platform queue shows café, reference, subject, department, status, dates,
   assert.match(markup, /ثبت سفارش انجام نمی‌شود/);
   assert.match(markup, /فنی/);
   assert.match(markup, /در انتظار پاسخ پشتیبانی/);
+  assert.match(markup, /پیام تازه کافه/);
   assert.match(markup, /returnTo=%2Fplatform%2Fsupport%3Fstatus%3DWAITING_FOR_PLATFORM%26page%3D2/);
   assert.doesNotMatch(markup, />a-uuid</);
 });

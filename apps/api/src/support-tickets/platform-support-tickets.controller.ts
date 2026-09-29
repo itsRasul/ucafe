@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, Res, StreamableFile, UploadedFiles, UseGuards, UseInterceptors } from "@nestjs/common";
+import { Body, Controller, Get, Header, Param, ParseUUIDPipe, Patch, Post, Query, Req, Res, StreamableFile, UploadedFiles, UseGuards, UseInterceptors } from "@nestjs/common";
 import { FilesInterceptor } from "@nestjs/platform-express";
 import { Response } from "express";
 import { AccessTokenGuard } from "../auth/access-token.guard";
@@ -17,12 +17,15 @@ export class PlatformSupportTicketsController {
   constructor(private readonly tickets: SupportTicketsService) {}
 
   @Get()
+  @Header("Cache-Control", "private, no-store")
   list(@Query() query: PlatformSupportTicketListQueryDto) { return this.tickets.listPlatform(query); }
 
   @Get(":ticketId")
+  @Header("Cache-Control", "private, no-store")
   detail(@Param("ticketId", ParseUUIDPipe) ticketId: string) { return this.tickets.detailPlatform(ticketId); }
 
   @Post(":ticketId/messages")
+  @Header("Cache-Control", "private, no-store")
   @RequirePlatformPermissions(PlatformPermissions.SupportTicketsView, PlatformPermissions.SupportTicketsReply)
   @UseInterceptors(FilesInterceptor("files", MAX_SUPPORT_TICKET_ATTACHMENTS, { limits: { fileSize: MAX_SUPPORT_TICKET_ATTACHMENT_BYTES, files: MAX_SUPPORT_TICKET_ATTACHMENTS, fields: 1 } }))
   reply(@Req() request: AuthorizedRequest, @Param("ticketId", ParseUUIDPipe) ticketId: string, @Body() input: CreateSupportTicketMessageDto, @UploadedFiles() files?: Express.Multer.File[]) {
@@ -37,6 +40,7 @@ export class PlatformSupportTicketsController {
   }
 
   @Patch(":ticketId")
+  @Header("Cache-Control", "private, no-store")
   @RequirePlatformPermissions(PlatformPermissions.SupportTicketsView, PlatformPermissions.SupportTicketsManage)
   manage(@Req() request: AuthorizedRequest, @Param("ticketId", ParseUUIDPipe) ticketId: string, @Body() input: UpdateSupportTicketDto) {
     return this.tickets.manage(ticketId, request[AUTH_PRINCIPAL]!.userId, input);

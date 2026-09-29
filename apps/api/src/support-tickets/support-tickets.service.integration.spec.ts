@@ -86,12 +86,16 @@ test("support ticket persistence, tenant isolation, permissions, transactions, r
     const initial = await service.create(ids.tenantA, ids.tenantUserA, { department: SupportTicketDepartment.Technical, subject: "Orders unavailable", message: "Checkout fails" }, [pdfFile("../../initial.pdf"), pdfFile("second-initial.pdf")]);
     ticketIds.push(initial.id);
     assert.equal(initial.status, SupportTicketStatus.WaitingForPlatform);
+    assert.equal(initial.hasUnread, false);
     assert.equal(initial.messages.length, 1);
     assert.equal(initial.messages[0]?.senderType, "TENANT_USER");
     assert.equal(initial.messages[0]?.attachments?.length, 2);
-    assert.equal(initial.messages[0]?.attachments?.[0]?.originalFilename, "initial.pdf");
+    assert.deepEqual(initial.messages[0]?.attachments?.map((attachment) => attachment.originalFilename).sort(), ["initial.pdf", "second-initial.pdf"]);
     assert.equal("storageKey" in (initial.messages[0]?.attachments?.[0] ?? {}), false);
     assert.match(initial.referenceNumber, /^UC-\d+$/);
+    assert.equal((await service.listPlatform({ page: 1, pageSize: 25 })).items.find((item) => item.id === initial.id)?.hasUnread, true);
+    assert.equal((await service.detailPlatform(initial.id)).hasUnread, false);
+    assert.equal((await service.listPlatform({ page: 1, pageSize: 25 })).items.find((item) => item.id === initial.id)?.hasUnread, false);
     const createdDeliveries = await db.query<Array<{ type: string; payload: Record<string, string>; recipientCiphertext: string }>>(
       `SELECT type,payload,recipient_ciphertext AS "recipientCiphertext" FROM notification_deliveries WHERE related_entity_type='support_ticket' AND related_entity_id=$1`, [initial.id]);
     assert.equal(createdDeliveries.length, 3);
@@ -99,7 +103,7 @@ test("support ticket persistence, tenant isolation, permissions, transactions, r
     assert.ok(createdDeliveries.every((row) => !JSON.stringify(row.payload).includes("Checkout fails") && !JSON.stringify(row.payload).includes(initial.id)));
     assert.deepEqual(createdDeliveries.map((row) => crypto.decryptPhone(row.recipientCiphertext)).sort(), [userPhones.get(ids.platformReply), userPhones.get(ids.platformOwner), userPhones.get(ids.replyOnly)].sort());
     assert.equal(createdDeliveries.some((row) => crypto.decryptPhone(row.recipientCiphertext) === userPhones.get(ids.viewOnly)), false);
-    const initialAttachmentId = initial.messages[0]!.attachments![0]!.id;
+    const initialAttachmentId = initial.messages[0]!.attachments!.find((attachment) => attachment.originalFilename === "initial.pdf")!.id;
     const initialDownload = await service.streamTenantAttachment(ids.tenantA, initial.id, initialAttachmentId);
     const chunks: Buffer[] = [];
     for await (const chunk of initialDownload.body) chunks.push(Buffer.from(chunk));
@@ -126,8 +130,12 @@ test("support ticket persistence, tenant isolation, permissions, transactions, r
 
     const platformReply = await service.replyPlatform(initial.id, ids.platformReply, { message: "We are checking" }, [pdfFile("platform-reply-1.pdf"), pdfFile("platform-reply-2.pdf")]);
     assert.equal(platformReply.status, SupportTicketStatus.WaitingForTenant);
+    assert.equal(platformReply.hasUnread, false);
     assert.ok(platformReply.lastPlatformReplyAt);
     assert.equal(platformReply.messages[1]?.attachments?.length, 2);
+    assert.equal((await service.listTenant(ids.tenantA, { page: 1, pageSize: 25 })).items.find((item) => item.id === initial.id)?.hasUnread, true);
+    assert.equal((await service.detailTenant(ids.tenantA, initial.id)).hasUnread, false);
+    assert.equal((await service.listTenant(ids.tenantA, { page: 1, pageSize: 25 })).items.find((item) => item.id === initial.id)?.hasUnread, false);
     const platformReplyDeliveries = await db.query<Array<{ payload: Record<string, string>; recipientCiphertext: string }>>(
       `SELECT payload,recipient_ciphertext AS "recipientCiphertext" FROM notification_deliveries WHERE related_entity_type='support_ticket' AND related_entity_id=$1 AND type=$2`,
       [initial.id, NotificationType.TicketPlatformReplied]);
@@ -138,7 +146,11 @@ test("support ticket persistence, tenant isolation, permissions, transactions, r
     assert.equal((await service.streamPlatformAttachment(initial.id, platformAttachmentId)).contentType, "application/pdf");
     const tenantReply = await service.replyTenant(ids.tenantA, initial.id, ids.tenantUserA, { message: "Thank you" }, [pdfFile("tenant-reply.pdf")]);
     assert.equal(tenantReply.status, SupportTicketStatus.WaitingForPlatform);
+    assert.equal(tenantReply.hasUnread, false);
     assert.equal(tenantReply.messages[2]?.attachments?.length, 1);
+    assert.equal((await service.listPlatform({ page: 1, pageSize: 25 })).items.find((item) => item.id === initial.id)?.hasUnread, true);
+    assert.equal((await service.detailPlatform(initial.id)).hasUnread, false);
+    assert.equal((await service.listPlatform({ page: 1, pageSize: 25 })).items.find((item) => item.id === initial.id)?.hasUnread, false);
     const tenantReplyDeliveries = await db.query<Array<{ type: string; deduplicationKey: string }>>(
       `SELECT type,deduplication_key AS "deduplicationKey" FROM notification_deliveries WHERE related_entity_type='support_ticket' AND related_entity_id=$1 AND type=$2`,
       [initial.id, NotificationType.TicketTenantReplied]);
@@ -361,6 +373,7 @@ test("support ticket persistence, tenant isolation, permissions, transactions, r
   } finally {
     if (db.isInitialized) {
       if (ticketIds.length) {
+        await db.query(`DELETE FROM notification_deliveries WHERE related_entity_type='support_ticket' AND related_entity_id=ANY($1::uuid[])`, [ticketIds]);
         await db.query(`DELETE FROM platform_audit_events WHERE target_type='support_ticket' AND target_id=ANY($1::text[])`, [ticketIds]);
         await db.query(`DELETE FROM support_ticket_attachments WHERE ticket_message_id IN (SELECT id FROM support_ticket_messages WHERE ticket_id=ANY($1::uuid[]))`, [ticketIds]);
         await db.query(`DELETE FROM support_ticket_messages WHERE ticket_id=ANY($1::uuid[])`, [ticketIds]);

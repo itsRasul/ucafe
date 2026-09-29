@@ -43,7 +43,7 @@ export function SupportTicketCards({ tickets, timeZone }: { tickets: TicketPage[
       return <li key={ticket.id}>
         <Link className="support-ticket-card" href={`/admin/support/${encodeURIComponent(ticket.id)}`}>
           <span className="support-ticket-main">
-            <span className="support-ticket-topline"><b dir="ltr">{presentation.reference}</b><TicketStatusBadge status={ticket.status} /></span>
+            <span className="support-ticket-topline"><b dir="ltr">{presentation.reference}</b><TicketStatusBadge status={ticket.status} />{ticket.hasUnread && <span className="support-unread">پاسخ جدید</span>}</span>
             <strong>{presentation.subject}</strong>
             <span className="support-ticket-meta"><span>{presentation.department}</span><time dateTime={ticket.lastActivityAt}>{presentation.activity}</time></span>
           </span>
@@ -68,25 +68,26 @@ export function ClosedTicketNotice({ manual }: { manual: boolean }) {
   return <div className="support-closed-note"><strong>{manual ? "این تیکت به‌صورت دستی بسته شده است." : "این تیکت بسته شده است."}</strong><p>برای پیگیری موضوعی تازه، یک تیکت جدید ثبت کنید.</p><Link href="/admin/support/new">ثبت تیکت جدید</Link></div>;
 }
 
-export function SupportTicketFields({ input, errors, onChange, onBlur }: {
+export function SupportTicketFields({ input, errors, onChange, onBlur, disabled = false }: {
   input: NewTicket;
   errors: TicketErrors;
+  disabled?: boolean;
   onChange: (field: TicketField, value: string) => void;
   onBlur: (field: TicketField) => void;
 }) {
   return <>
     <label className="support-field" htmlFor={fieldIds.department}><span>واحد پشتیبانی <b aria-hidden="true">*</b></span>
-      <select id={fieldIds.department} required value={input.department} onChange={(event) => onChange("department", event.target.value)} onBlur={() => onBlur("department")} aria-invalid={Boolean(errors.department)} aria-describedby={errors.department ? "ticket-department-error" : undefined}>
+      <select id={fieldIds.department} required disabled={disabled} value={input.department} onChange={(event) => onChange("department", event.target.value)} onBlur={() => onBlur("department")} aria-invalid={Boolean(errors.department)} aria-describedby={errors.department ? "ticket-department-error" : undefined}>
         <option value="">انتخاب کنید</option>{departments.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
       </select>
       {errors.department && <small id="ticket-department-error" className="support-field-error">{errors.department}</small>}
     </label>
     <label className="support-field" htmlFor={fieldIds.subject}><span>موضوع <b aria-hidden="true">*</b></span>
-      <input id={fieldIds.subject} required maxLength={160} value={input.subject} onChange={(event) => onChange("subject", event.target.value)} onBlur={() => onBlur("subject")} aria-invalid={Boolean(errors.subject)} aria-describedby={errors.subject ? "ticket-subject-error" : "ticket-subject-help"} />
+      <input id={fieldIds.subject} required disabled={disabled} maxLength={160} value={input.subject} onChange={(event) => onChange("subject", event.target.value)} onBlur={() => onBlur("subject")} aria-invalid={Boolean(errors.subject)} aria-describedby={errors.subject ? "ticket-subject-error" : "ticket-subject-help"} />
       {errors.subject ? <small id="ticket-subject-error" className="support-field-error">{errors.subject}</small> : <small id="ticket-subject-help">حداکثر ۱۶۰ نویسه</small>}
     </label>
     <label className="support-field" htmlFor={fieldIds.message}><span>شرح درخواست <b aria-hidden="true">*</b></span>
-      <textarea id={fieldIds.message} required maxLength={10000} rows={7} value={input.message} onChange={(event) => onChange("message", event.target.value)} onBlur={() => onBlur("message")} aria-invalid={Boolean(errors.message)} aria-describedby={errors.message ? "ticket-message-error" : "ticket-message-help"} />
+      <textarea id={fieldIds.message} required disabled={disabled} maxLength={10000} rows={7} value={input.message} onChange={(event) => onChange("message", event.target.value)} onBlur={() => onBlur("message")} aria-invalid={Boolean(errors.message)} aria-describedby={errors.message ? "ticket-message-error" : "ticket-message-help"} />
       {errors.message ? <small id="ticket-message-error" className="support-field-error">{errors.message}</small> : <small id="ticket-message-help">تا ۱۰٬۰۰۰ نویسه · {faNumber.format(input.message.length)}</small>}
     </label>
   </>;
@@ -201,7 +202,7 @@ export function NewSupportTicket() {
         <ul>{invalidFields.map(([field, message]) => <li key={field}><a href={`#${fieldIds[field]}`}>{fieldNames[field]}: {message}</a></li>)}</ul>
       </div>}
       {apiError && <p className="admin-message error" role="alert">{apiError}</p>}
-      <SupportTicketFields input={input} errors={errors} onChange={change} onBlur={blur} />
+      <SupportTicketFields input={input} errors={errors} onChange={change} onBlur={blur} disabled={busy} />
       <SupportFilePicker files={files} onChange={setFiles} disabled={busy} />
       <footer className="support-form-actions"><Link href="/admin/support">انصراف</Link><button type="submit" disabled={busy}>{busy && <span className="admin-spinner" aria-hidden="true" />}{busy ? "در حال ثبت…" : "ارسال تیکت"}</button></footer>
     </form>
@@ -252,6 +253,10 @@ export function SupportTicketDetail({ ticketId }: { ticketId: string }) {
         setNotice("پاسخ شما ارسال شد.");
       } catch (reason) {
         setReplyError(supportErrorMessage(reason));
+        const status = reason && typeof reason === "object" && "status" in reason ? Number(reason.status) : 0;
+        if (status === 409) {
+          try { setTicket(await api<TicketDetail>(`/tenant/support/tickets/${encodeURIComponent(ticket.id)}`)); } catch { /* Keep the mutation error visible. */ }
+        }
       } finally {
         setBusy(false);
       }
@@ -277,7 +282,7 @@ export function SupportTicketDetail({ ticketId }: { ticketId: string }) {
     </section>
     {notice && <p className="admin-message success" role="status">{notice}</p>}
     {replyable ? <form className="support-reply" onSubmit={submitReply} aria-busy={busy}>
-      <label className="support-field" htmlFor="ticket-reply"><span>پاسخ شما</span><textarea id="ticket-reply" required maxLength={10000} rows={5} value={message} onChange={(event) => { setMessage(event.target.value); setReplyError(""); }} aria-invalid={Boolean(replyError)} aria-describedby={replyError ? "ticket-reply-error" : "ticket-reply-help"} /></label>
+      <label className="support-field" htmlFor="ticket-reply"><span>پاسخ شما</span><textarea id="ticket-reply" required disabled={busy} maxLength={10000} rows={5} value={message} onChange={(event) => { setMessage(event.target.value); setReplyError(""); }} aria-invalid={Boolean(replyError)} aria-describedby={replyError ? "ticket-reply-error" : "ticket-reply-help"} /></label>
       <SupportFilePicker files={files} onChange={setFiles} disabled={busy} />
       {replyError && <p className="support-field-error" id="ticket-reply-error" role="alert">{replyError}</p>}
       {!replyError && <small id="ticket-reply-help" className="support-reply-help">پاسخ شما به گفت‌وگوی این تیکت اضافه می‌شود.</small>}
