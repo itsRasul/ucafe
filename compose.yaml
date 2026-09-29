@@ -1,4 +1,4 @@
-name: ucafe
+name: ${COMPOSE_PROJECT_NAME:-ucafe}
 
 services:
   api:
