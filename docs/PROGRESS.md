@@ -2,6 +2,14 @@
 
 Last updated: 2026-09-29
 
+## UCafe Support Ticketing Phase 0: architecture foundation
+
+Inspected tenant context, admin/Platform RBAC, the SMS provider and encrypted notification outbox, private MinIO/S3 storage, audit records, job patterns, and tenant/Platform UI shells. Documented the Ticket/TicketMessage/attachment model, lifecycle and auto-close race contract, permissions, async SMS, attachment authorization, shared-side unread cursors, reference generation, retention, API/UI direction, and Phase 1 Core Ticket Backend boundary in [TICKETING.md](TICKETING.md). Updated the architecture index, PRD current-state list, agent doc map, and decision D-089.
+
+No application code, permission, schema, migration, route, or UI was added. Future work must keep Ticketing outside plan-feature enforcement and use existing RBAC, S3, notification outbox, and Platform audit boundaries.
+
+Validation: inspected source, relevant docs, live Docker services, and PostgreSQL migration state. The latest Tenant CRM migrations are applied and there are no Ticketing permission rows. The host migration CLI could not run because workspace TypeORM binaries are not installed. Internal documentation links resolved, the full diff was reviewed, and git diff --check passed. No code was added, so application tests, typecheck, and build were not applicable.
+
 ## UCafe Tenant CRM Phase 5: Loyalty, Points Ledger, Rewards & Redemption
 
 Implemented the tenant-scoped Loyalty vertical slice around the existing Client identity. Each café can version a spend-per-point program, manage active Rewards, and view/adjust a Client's points and record staff redemption. Integer points use `floor(total_amount_toman / spend_per_point_toman)` for `DELIVERED` Orders; the signed bigint ledger is authoritative and no balance cache is stored. Account-row locks, database idempotency, composite tenant constraints, and immutable redemption snapshots protect accounting and history.

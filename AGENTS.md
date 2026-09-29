@@ -6,6 +6,7 @@ Read only the documents relevant to the current change; do not load the entire s
 
 | Topic | Document |
 | --- | --- |
+| Support Ticketing architecture | `docs/TICKETING.md` |
 | Current product requirements | `docs/PRD.md` |
 | System shape and boundaries | `docs/ARCHITECTURE.md` |
 | Cross-domain behavior | `docs/BUSINESS_RULES.md` |
