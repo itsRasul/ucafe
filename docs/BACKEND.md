@@ -45,7 +45,7 @@ Provider abstractions currently have real and development implementations for SM
 
 The notification service owns a five-second in-process dispatcher and one-minute scheduled sweep. The worker workspace is not wired to database/providers. Do not imply a queue exists.
 
-Use Nest structured logging and the request observability middleware. Request logs contain request ID, method, path, status, and duration only. Never log bodies, bearer/cookie values, full phone numbers, OTPs, PII ciphertext, or provider secrets.
+Use Nest `Logger` and the request observability middleware. Current output mixes plain-text messages with JSON-encoded event strings; it is not a normalized structured logger. Request logs contain request ID, method, path, status, and duration only. Never log bodies, bearer/cookie values, full phone numbers, OTPs, PII ciphertext, or provider secrets. See [OBSERVABILITY.md](OBSERVABILITY.md) for the audit and Sentry capture boundary.
 
 ## Schema changes
 

@@ -1,3 +1,6 @@
+import "dotenv/config";
+import "./instrument";
+
 import { ValidationPipe } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";

@@ -1,0 +1,8 @@
+import * as Sentry from "@sentry/nextjs";
+import { getWebSentryOptions } from "./sentry-options";
+
+Sentry.init(getWebSentryOptions(
+  process.env.NEXT_PUBLIC_SENTRY_DSN,
+  process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT || process.env.NODE_ENV || "development",
+  process.env.NEXT_PUBLIC_SENTRY_RELEASE,
+));

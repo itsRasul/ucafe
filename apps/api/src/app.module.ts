@@ -1,4 +1,6 @@
 import { Module } from "@nestjs/common";
+import { APP_FILTER } from "@nestjs/core";
+import { SentryModule } from "@sentry/nestjs/setup";
 import { AuthorizationModule } from "./authorization/authorization.module";
 import { AuthModule } from "./auth/auth.module";
 import { ConfigModule } from "@nestjs/config";
@@ -23,9 +25,11 @@ import { AnalyticsModule } from "./analytics/analytics.module";
 import { InventoryModule } from "./inventory/inventory.module";
 import { CrmModule } from "./crm/crm.module";
 import { TenantCrmModule } from "./tenant-crm/tenant-crm.module";
+import { UcafeSentryGlobalFilter } from "./observability/sentry-global.filter";
 
 @Module({
   imports: [
+    SentryModule.forRoot(),
     AuthorizationModule,
     AuthModule,
     ConfigModule.forRoot({
@@ -55,5 +59,6 @@ import { TenantCrmModule } from "./tenant-crm/tenant-crm.module";
     TenantCrmModule,
   ],
   controllers: [HealthController],
+  providers: [{ provide: APP_FILTER, useClass: UcafeSentryGlobalFilter }],
 })
 export class AppModule {}

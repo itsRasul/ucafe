@@ -25,7 +25,7 @@ The schema refuses development SMS, simulated payment, or an HTTP payment callba
 3. Run migrations once as a controlled release job. The current API production command also runs migrations at startup, so do not start multiple API replicas concurrently during migration.
 4. Start API and require `/api/v1/health/ready` to return 200; start web and require `/health` to return 200.
 5. Route traffic only after readiness. Run the smoke script against platform and a tenant host, then provider acceptance.
-6. Observe structured request events, error rate/latency, dependency health, notification failures/backlog, and payment verification failures.
+6. Observe request-metadata logs, error rate/latency, dependency health, notification failures/backlog, and payment verification failures.
 
 The reverse proxy must terminate TLS, redirect HTTP, preserve the external host, set trusted forwarded address/protocol, and strip inbound `x-ucafe-tenant-host` plus `x-ucafe-proxy-secret`. Keep API, PostgreSQL, Redis, and object storage private except for the deliberately routed gateway callback/API paths. Review `compose.prod.yaml` loopback publications rather than treating it as a complete production perimeter.
 
@@ -49,6 +49,8 @@ Roll back application images only while the deployed schema is backward-compatib
 Revoke exposed provider/data/object credentials, rotate auth secrets if implicated, preserve redacted logs and audit records, document scope/timeline, and notify owners under the approved incident policy. Rotating `PII_ENCRYPTION_KEY` requires an explicit re-encryption migration because existing encrypted OTP/outbox values depend on it.
 
 ## Minimum alerts
+
+The Sentry project boundary, privacy rules, runtime configuration, and source-map build secret are in [OBSERVABILITY.md](OBSERVABILITY.md). Remote project and event delivery still require account-side validation.
 
 - API/web readiness and repeated restart failures
 - PostgreSQL/Redis/object-store health and capacity

@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const isDevelopment = process.env.NODE_ENV === "development";
 
@@ -54,4 +55,21 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+const hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN);
+const sentryNextConfig = withSentryConfig(nextConfig, {
+  org: "ucafe",
+  project: "ucafe-web",
+  tunnelRoute: "/monitoring",
+  suppressOnRouterTransitionStartWarning: true,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.CI,
+  sourcemaps: {
+    disable: !hasSentryAuthToken,
+    filesToDeleteAfterUpload: ["**/*.map"],
+  },
+});
+
+// Phase 1 is error-only; this SDK-added experiment propagates tracing headers for pageload tracing.
+if (sentryNextConfig.experimental) delete sentryNextConfig.experimental.clientTraceMetadata;
+
+export default sentryNextConfig;

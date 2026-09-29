@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.10
 ARG NODE_IMAGE=node:22-bookworm-slim
 
 # -------------------------
@@ -30,7 +31,14 @@ CMD ["npm", "run", "dev", "--workspace=@ucafe/web", "--", "--hostname", "0.0.0.0
 # -------------------------
 FROM base AS builder
 
-RUN npm run build --workspace=@ucafe/web
+ARG NEXT_PUBLIC_SENTRY_DSN
+ARG NEXT_PUBLIC_SENTRY_ENVIRONMENT
+ARG NEXT_PUBLIC_SENTRY_RELEASE
+ENV NEXT_PUBLIC_SENTRY_DSN=${NEXT_PUBLIC_SENTRY_DSN}
+ENV NEXT_PUBLIC_SENTRY_ENVIRONMENT=${NEXT_PUBLIC_SENTRY_ENVIRONMENT}
+ENV NEXT_PUBLIC_SENTRY_RELEASE=${NEXT_PUBLIC_SENTRY_RELEASE}
+
+RUN --mount=type=secret,id=sentry_auth_token,env=SENTRY_AUTH_TOKEN,required=false npm run build --workspace=@ucafe/web
 
 
 # -------------------------

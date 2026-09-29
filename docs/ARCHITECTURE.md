@@ -87,6 +87,8 @@ Docker images use Node 22 `bookworm-slim` with development, builder, and product
 - Client prices, tenant headers, role visibility, and frontend feature hiding are untrusted.
 - Sensitive request bodies, phones, OTPs, tokens, encryption/provider keys, and object credentials must not enter logs or public responses.
 
+The current logging/request-ID boundary and Phase 1 Sentry integration are documented in [OBSERVABILITY.md](OBSERVABILITY.md). Sentry receives no tenant or request-ID context.
+
 ## Scaling limits
 
 Web/API are structurally stateless around shared stores, but notification polling/scheduling is not designed for efficient horizontal API replication. Conditional claims prevent duplicate delivery while replicas still duplicate scans and scheduled sweeps. Synchronous image transformation and public-access subscription reconciliation also remain API-hosted. Move those to coordinated background work only when production load/topology requires it.
