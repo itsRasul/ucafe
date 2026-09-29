@@ -14,6 +14,9 @@ export const PlatformPermissions = {
   ConsultationRequestsRead: "consultation_requests.read",
   CrmRead: "crm.read",
   CrmManage: "crm.manage",
+  SupportTicketsView: "support.tickets.view",
+  SupportTicketsReply: "support.tickets.reply",
+  SupportTicketsManage: "support.tickets.manage",
 } as const;
 
 export type PlatformPermissionKey = (typeof PlatformPermissions)[keyof typeof PlatformPermissions];
@@ -31,6 +34,7 @@ export const TenantPermissions = {
   InventoryManage: "inventory.manage",
   TenantCrmRead: "tenant_crm.read",
   TenantCrmManage: "tenant_crm.manage",
+  SupportTicketsUse: "support.tickets.use",
   StaffManage: "staff.manage",
   SubscriptionRead: "subscription.read",
   SubscriptionCheckout: "subscription.checkout",

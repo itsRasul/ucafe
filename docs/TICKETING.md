@@ -1,12 +1,12 @@
 # Support Ticketing architecture
 
-**Status:** Phase 0 design only. The current application has no Ticket entities, permissions, APIs, notifications, or UI. This document is the Phase 1 contract. Product status remains in [PRD.md](PRD.md).
+**Status:** Phase 1 core backend implemented on 2026-09-29. Ticket persistence, tenant/platform APIs, permissions, and lifecycle transitions are in place. UI, attachment storage, SMS delivery, and auto-close scheduling remain deferred. Product status remains in [PRD.md](PRD.md).
 
 ## Goals and non-goals
 
 Ticketing will provide a durable support conversation between tenant administrators and authorized UCafe platform staff. It reuses the existing administrative User identity, tenant context, Platform RBAC, PostgreSQL, private S3-compatible storage, and SMS outbox.
 
-Phase 0 records the design only. It does not implement CRUD, messages, attachments, notifications, scheduling, unread counts, search, assignment, priority, or UI. Ticketing is available across subscription plans and is not a plan feature.
+Phase 0 recorded the design only. Phase 1 implements tenant and Platform ticket CRUD/replies, manual close/reopen, and transactional message persistence. Ticketing is available across subscription plans and is not a plan feature. Phase 1 does not queue or send SMS; NotificationsService integration belongs to Phase 5 so this core phase cannot trigger delivery early.
 
 ## Existing infrastructure to reuse
 
@@ -176,12 +176,12 @@ Platform routes belong at /platform/support and /platform/support/[ticketId]. Re
 | --- | --- |
 | A. Tenant A creates a technical ticket | Host context supplies Tenant A's coffeeShopId; Ticket and initial message commit together in WAITING_FOR_PLATFORM |
 | B. Tenant B obtains Tenant A's UUID/reference | Scoped query finds no row; reply and attachment stream use the same parent scope |
-| C. Platform Support replies | Authorized Platform message and WAITING_FOR_TENANT update commit together; notification is queued for later delivery |
-| D. Tenant replies | Active tenant membership is checked, message appends, state becomes WAITING_FOR_PLATFORM, and support notification is queued |
+| C. Platform Support replies | Authorized Platform message and WAITING_FOR_TENANT update commit together; SMS is deferred to Phase 5 |
+| D. Tenant replies | Active tenant membership is checked, message appends, and state becomes WAITING_FOR_PLATFORM; SMS is deferred to Phase 5 |
 | E. Platform reply is unanswered for 48 hours | Sweep checks status and last_platform_reply_at, not updated_at |
 | F. Reply races with auto-close | Shared Ticket row lock and recheck make one transition win; an inactivity-close winner is reopened by the tenant reply |
 | G. Tenant replies after inactivity close | Same Ticket reopens to WAITING_FOR_PLATFORM and earlier messages remain |
-| H. sms.ir is unavailable | Outbox retries/fails; persisted Ticket and Message remain successful |
+| H. sms.ir is unavailable | Phase 1 is independent of sms.ir; the Phase 5 outbox integration will preserve committed Ticket and Message rows across provider failures |
 | I. Tenant requests another tenant's attachment | Attachment ID is resolved through message and Ticket scope before private object streaming |
 
 ## Phase 1 implementation contract
@@ -192,8 +192,20 @@ Phase 1 implements the Core Ticket Backend:
 2. Add tenant support.tickets.use and the three Platform permissions through the existing catalog/migration patterns. Seed owner/support_operator grants as described; preserve custom-role administration.
 3. Implement tenant create/list/detail/reply and Platform list/detail/reply/manage APIs using existing guards, DTO validation, pagination, response projections, and tenant-neutral 404s.
 4. Create the initial Tenant message with its Ticket atomically. Append replies and update side/status/timestamps in a locked transaction. Manual close/reopen is permission-guarded. Reopen automatically only after INACTIVITY closure; reject replies to MANUAL closures.
-5. Enqueue ticket notification types through NotificationsService; provider success is not part of the business transaction.
+5. Do not enqueue or send Ticket SMS in Phase 1; integrate with NotificationsService and its existing outbox in Phase 5.
 6. Add focused tests for tenant isolation, Platform permission combinations, create/reply state changes, manual versus inactivity close, reference uniqueness, and the reply/close lock race.
 7. Exclude UI, attachment upload/download, auto-close scheduling, unread badge surfaces, assignment, priority, SLA, and advanced search. Attachment API/storage work follows this document when scheduled.
 
 Before adding TypeORM entities, register each in both database.module.ts and data-source.ts. Keep Ticket independent of subscription features and Platform CRM. Update this document if implementation choices change.
+
+## Phase 1 implementation
+
+Migration `1790640000000-CreateSupportTickets` creates `support_tickets`, `support_ticket_messages`, PostgreSQL enums, the reference sequence, scoped foreign keys, the tenant-sender membership trigger, queue/thread indexes, and the four RBAC permissions. Messages and Ticket ownership retain restrictive user/tenant references. Tenant creator and sender identity comes from the authenticated principal; `coffeeShopId` comes from tenant context.
+
+The API routes are `POST/GET /api/v1/tenant/support/tickets`, `GET /api/v1/tenant/support/tickets/:ticketId`, and `POST /api/v1/tenant/support/tickets/:ticketId/messages`; Platform routes are `GET /api/v1/platform/support/tickets`, `GET /:ticketId`, `POST /:ticketId/messages`, and `PATCH /:ticketId` with `{ "action": "CLOSE" | "REOPEN" }`. Lists use `page`/`pageSize`; tenant lists accept `status`, and Platform lists also accept `status`, `department`, `tenantId`, and exact `referenceNumber` filters.
+
+Create, reply, close, and reopen operations lock the Ticket row and commit message/state changes together. Tenant UUID lookups include both Ticket ID and coffeeShopId and return 404 for foreign tickets. Manual close/reopen writes a PII-free `platform_audit_events` row in the same transaction. Tenant replies reopen only `INACTIVITY` closures; `MANUAL` closures require Platform reopen. Platform replies to closed tickets require reopen first. The `support_operator` role receives view/reply, `platform_owner` receives view/reply/manage, and the tenant `owner` role receives `support.tickets.use`; no Super Admin bypass was added.
+
+Ticket references are `UC-<sequence>` values and are not used for authorization. Response projections omit user IDs, phone/email, password fields, and storage metadata. Detail responses expose each message's sender type, plain-text body, and timestamp. The Phase 1 API does not implement read cursors, attachment handling, notifications, the 48-hour worker, assignment, priority, or UI.
+
+Phase 1 uses normal HTTP `POST` semantics and has no idempotency key: retried ticket or message submissions can create another row. Add request deduplication if client retry behavior produces duplicate conversations in practice.

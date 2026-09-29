@@ -85,7 +85,7 @@ Tenant CRM is a separate Tenant Admin capability for a café to manage its own C
 - customer self-service reservation cancellation
 - physical table/floor assignment and overnight opening-hour ranges
 - an operational custom-domain onboarding/verification workflow
-- Tenant/Platform Support Ticketing (Phase 0 architecture only; backend, attachments, SMS, scheduling, and UI are not implemented; see [TICKETING.md](TICKETING.md))
+- Tenant/Platform Support Ticketing Phase 1 core backend (ticket conversations, tenant/platform APIs, RBAC, manual lifecycle, and persistence); UI, attachments, SMS, and auto-close scheduling remain planned; see [TICKETING.md](TICKETING.md)
 - full multi-branch public/customer UX, multiple storefront templates, page building, advanced analytics, reviews, social ingestion, and marketing campaigns
 - horizontally coordinated notification workers or general background queues
 

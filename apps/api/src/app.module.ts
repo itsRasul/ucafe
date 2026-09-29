@@ -23,6 +23,7 @@ import { AnalyticsModule } from "./analytics/analytics.module";
 import { InventoryModule } from "./inventory/inventory.module";
 import { CrmModule } from "./crm/crm.module";
 import { TenantCrmModule } from "./tenant-crm/tenant-crm.module";
+import { SupportTicketsModule } from "./support-tickets/support-tickets.module";
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { TenantCrmModule } from "./tenant-crm/tenant-crm.module";
     InventoryModule,
     CrmModule,
     TenantCrmModule,
+    SupportTicketsModule,
   ],
   controllers: [HealthController],
 })
