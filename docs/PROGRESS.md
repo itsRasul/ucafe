@@ -2,6 +2,14 @@
 
 Last updated: 2026-09-29
 
+## UCafe Support Ticketing Phase 6: inactivity auto-close
+
+Added a 10-minute API-hosted sweep that selects at most 100 `WAITING_FOR_TENANT` tickets whose latest Platform reply is at least 48 elapsed hours old and whose latest message side remains Platform. It reuses the existing partial inactivity index and `last_platform_reply_at`; no migration or historical backfill was needed.
+
+Each ticket closes in its own transaction after a row lock and final conditional state/timestamp/sender-side check. This is safe across repeated and multi-instance sweeps. A Tenant reply either wins and makes the ticket ineligible, or follows a successful inactivity close and reopens it through the existing attachment-capable reply transaction. Auto-close adds no message, audit event, or SMS. Per-ticket failures are logged and do not stop other candidates; later sweeps retry failed rows. Manual closes remain distinct.
+
+Verification: API typecheck and production build passed. Focused Ticketing API checks passed (14/14) against the worktree PostgreSQL database, including scheduler cutoff/batch behavior, exact-48-hour and 47h59m eligibility, Tenant reply and two-worker races, metadata updates, manual closure, reopen with an attachment, SMS fan-out, retries, and per-ticket failure isolation. `migration:show` confirms migrations 62–63, including the existing inactivity index, are applied; Phase 6 required no migration. `EXPLAIN` confirmed the partial index exists; PostgreSQL chose a sequential scan on the tiny local fixture database, so production-scale query-plan behavior remains unverified. The live API readiness endpoint returned HTTP 200 and `git diff --check` passed. No repository lint command exists; the full API suite was not rerun.
+
 ## UCafe Support Ticketing Phase 4: Message Attachments
 
 Added `support_ticket_attachments` with a restrictive same-tenant composite foreign key to TicketMessage, a unique object key, size/type/name constraints, and a message lookup index. The migration is applied in the worktree database. Tenant ticket creation/replies and authorized Platform replies accept multipart `files`; each message allows up to five JPEG, PNG, WebP, or PDF files of 8 MiB each. Server-side signature checks and Sharp image inspection enforce the allowlist and existing 24-megapixel ceiling.

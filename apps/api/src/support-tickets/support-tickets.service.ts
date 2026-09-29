@@ -18,6 +18,9 @@ type TicketRow = {
   lastPlatformReplyAt: Date | null; createdAt: Date; updatedAt: Date;
 };
 
+export const SUPPORT_TICKET_INACTIVITY_MS = 48 * 60 * 60 * 1_000;
+export const SUPPORT_TICKET_AUTO_CLOSE_BATCH_SIZE = 100;
+
 const ticketColumns = `t.id, t.reference_number AS "referenceNumber", t.coffee_shop_id AS "coffeeShopId",
   t.created_by_user_id AS "createdByUserId", t.subject, t.department, t.status, t.close_reason AS "closeReason",
   t.closed_at AS "closedAt", t.closed_by_user_id AS "closedByUserId", t.last_message_at AS "lastMessageAt",
@@ -169,6 +172,43 @@ export class SupportTicketsService {
       await this.notifications.platformReplied(manager, ticket, messageId);
       return this.platformDetail(manager, ticketId);
     }));
+  }
+
+  async autoCloseInactiveTickets(now = new Date()) {
+    const cutoff = new Date(now.getTime() - SUPPORT_TICKET_INACTIVITY_MS);
+    const candidates = await this.db.query<Array<{ id: string }>>(
+      `SELECT id FROM support_tickets
+       WHERE status='WAITING_FOR_TENANT' AND last_platform_reply_at <= $1 AND last_message_sender_type='PLATFORM_USER'
+       ORDER BY last_platform_reply_at,id LIMIT $2`,
+      [cutoff, SUPPORT_TICKET_AUTO_CLOSE_BATCH_SIZE],
+    );
+    let closed = 0;
+    let skipped = 0;
+    let failed = 0;
+    for (const candidate of candidates) {
+      try {
+        const didClose = await this.db.transaction(async (manager) => {
+          const ticket = await this.lockTicket(manager, candidate.id);
+          if (!ticket || ticket.status !== SupportTicketStatus.WaitingForTenant ||
+              ticket.lastMessageSenderType !== SupportTicketSenderType.PlatformUser ||
+              !ticket.lastPlatformReplyAt || ticket.lastPlatformReplyAt > cutoff) return false;
+          const updated = await manager.query<Array<{ id: string }>>(
+            `UPDATE support_tickets
+             SET status='CLOSED',close_reason='INACTIVITY',closed_at=clock_timestamp(),closed_by_user_id=NULL,updated_at=clock_timestamp()
+             WHERE id=$1 AND status='WAITING_FOR_TENANT' AND last_platform_reply_at <= $2
+               AND last_message_sender_type='PLATFORM_USER' RETURNING id`,
+            [candidate.id, cutoff],
+          );
+          return updated.length > 0;
+        });
+        if (didClose) closed += 1;
+        else skipped += 1;
+      } catch (error) {
+        failed += 1;
+        this.logger.error(`Support ticket inactivity close failed ticket=${candidate.id}`, error instanceof Error ? error.stack : undefined);
+      }
+    }
+    return { candidates: candidates.length, closed, skipped, failed };
   }
 
   async streamTenantAttachment(coffeeShopId: string, ticketId: string, attachmentId: string) {

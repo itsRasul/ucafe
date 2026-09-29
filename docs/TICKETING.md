@@ -1,12 +1,12 @@
 # Support Ticketing architecture
 
-**Status:** Phases 1–5 are implemented as of 2026-09-29. Ticket persistence, tenant/platform APIs and UIs, permissions, lifecycle transitions, private message attachments, and asynchronous SMS notifications are in place. Inactivity auto-close remains deferred. Product status remains in [PRD.md](PRD.md).
+**Status:** Phases 1–6 are implemented as of 2026-09-29. Ticket persistence, tenant/platform APIs and UIs, permissions, lifecycle transitions, private message attachments, asynchronous SMS notifications, and inactivity auto-close are in place. Product status remains in [PRD.md](PRD.md).
 
 ## Goals and non-goals
 
 Ticketing will provide a durable support conversation between tenant administrators and authorized UCafe platform staff. It reuses the existing administrative User identity, tenant context, Platform RBAC, PostgreSQL, private S3-compatible storage, and SMS outbox.
 
-Phase 0 recorded the design only. Phase 1 implements tenant and Platform ticket APIs, manual close/reopen, and transactional message persistence. Phase 2 adds the Tenant-facing admin UI; Phase 3 adds the Platform Support Center; Phase 4 adds private message attachments; Phase 5 queues conversation SMS through the existing NotificationsService. Ticketing is available across subscription plans and is not a plan feature.
+Phase 0 recorded the design only. Phase 1 implements tenant and Platform ticket APIs, manual close/reopen, and transactional message persistence. Phase 2 adds the Tenant-facing admin UI; Phase 3 adds the Platform Support Center; Phase 4 adds private message attachments; Phase 5 queues conversation SMS through the existing NotificationsService; Phase 6 adds bounded inactivity auto-close. Ticketing is available across subscription plans and is not a plan feature.
 
 ## Existing infrastructure to reuse
 
@@ -18,7 +18,7 @@ Phase 0 recorded the design only. Phase 1 implements tenant and Platform ticket 
 | RBAC | Database-backed scope-separated permissions and guards | Add support permissions to the existing catalog and role assignments |
 | SMS | sms.ir provider; encrypted notification_deliveries outbox, deduplication, bounded retries | Enqueue typed events through NotificationsService; never send SMS in a Ticket transaction |
 | Storage | Private MinIO/S3 bucket and MediaStorageService; generated tenant object keys; API streaming | Extend the existing S3 client with private arbitrary-object operations; do not use the image-only processing pipeline |
-| Jobs | Notifications has a bounded API timer; CRM has domain-specific PostgreSQL outboxes; worker is an empty Nest context | Start with a bounded API-hosted sweep and PostgreSQL row locks; move scanning to the worker scaffold before horizontal API scaling |
+| Jobs | Notifications has a bounded API timer; CRM has domain-specific PostgreSQL outboxes; worker is an empty Nest context | Use a bounded API-hosted sweep and PostgreSQL row locks; duplicate scans across API instances are safe, and a worker move is only needed for measured load or operational isolation |
 | Audit | platform_audit_events records actor-attributed Platform operations | Reuse it for Platform ticket-management actions; do not add event sourcing |
 | UI | Separate permission-aware Admin and Platform shells, session hooks, same-origin proxy, Persian RTL pages | Add routes to these shells and reuse their session/API patterns |
 | Subscription | Registered plan features gate selected tenant modules | Do not register a Ticketing feature or call a plan-feature check |
@@ -79,7 +79,13 @@ There is no OPEN state: it would duplicate WAITING_FOR_PLATFORM. A reply and its
 
 Close only when status is WAITING_FOR_TENANT and last_platform_reply_at is at least 48 hours old. Every new Platform reply advances that timestamp. Department, assignment, reads, and other metadata edits must not reset it. Never use Ticket.updated_at as the clock.
 
-The future sweep selects bounded candidates, locks each Ticket row with FOR UPDATE SKIP LOCKED, then rechecks status, last_platform_reply_at, and the latest message side before closing. Tenant reply takes the same row lock before inserting its message or changing state. If the reply wins, the worker sees WAITING_FOR_PLATFORM and skips it. If the worker wins, the reply sees an INACTIVITY close and reopens in its transaction. Row locks and rechecks keep this safe across API instances; a single-worker assumption is not a correctness boundary. The current API timer pattern is adequate for the first bounded deployment, but duplicates scans across replicas; move the sweep to the existing worker scaffold before horizontal API scaling.
+The API-hosted scheduler runs every 10 minutes after startup and does not run an unbounded startup sweep. Each pass selects at most 100 tickets with `status=WAITING_FOR_TENANT`, an old `last_platform_reply_at`, and `last_message_sender_type=PLATFORM_USER`; the existing partial `IDX_support_tickets_inactivity` index supports the status/timestamp lookup. The 48-hour duration is UTC elapsed time, held in one domain constant. A ticket closes shortly after its threshold according to scheduler cadence.
+
+Each candidate is processed independently. The lifecycle service locks the Ticket row, rechecks status, timestamp, and last-message side, then conditionally updates the still-eligible row to `CLOSED` / `INACTIVITY`, setting `closed_at` from PostgreSQL's clock and leaving `closed_by_user_id` null. Tenant replies take the same row lock before appending a message or changing status. If the reply wins, auto-close skips the ticket; if auto-close wins, a following Tenant reply reopens it through the normal reply transaction. These checks make duplicate scheduler scans safe across API instances without a leader lock. Per-ticket failures are logged and later candidates continue; failed rows are retried on a later sweep. A whole-sweep query failure is logged and retried at the next cadence.
+
+The worker does not add a TicketMessage, audit event, or SMS for automatic closure. Manual closure remains `MANUAL`; automatic closure uses `INACTIVITY`. Existing Tenant reply behavior after `INACTIVITY` closure preserves the conversation and latest closure metadata, accepts attachments through the normal reply path, and emits the normal single Tenant-reply SMS fan-out. Replies to `MANUAL` closures remain a conflict. `last_platform_reply_at` and the latest-message-side field already existed and are maintained by transactional reply writes, so Phase 6 needs no schema migration or data backfill; tickets with a null Platform-reply timestamp are ineligible.
+
+No new UI behavior was needed: Tenant detail already offers reply after inactivity closure and keeps manual closures read-only. The worker processes one bounded set of 100 candidates per 10-minute pass; additional candidates wait for the next pass. No SLA, escalation, immutable Ticket event log, or separate worker infrastructure was added.
 
 ## Tenant isolation and permissions
 

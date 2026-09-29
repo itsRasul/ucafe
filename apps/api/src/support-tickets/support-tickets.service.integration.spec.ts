@@ -17,7 +17,7 @@ import { NotificationsService } from "../notifications/notifications.service";
 import { SmsProvider } from "../auth/sms-provider";
 import { SupportTicket, SupportTicketAttachment, SupportTicketMessage, SupportTicketDepartment, SupportTicketStatus } from "./entities";
 import { SupportTicketNotificationsService } from "./support-ticket-notifications.service";
-import { SupportTicketsService } from "./support-tickets.service";
+import { SupportTicketsService, SUPPORT_TICKET_AUTO_CLOSE_BATCH_SIZE, SUPPORT_TICKET_INACTIVITY_MS } from "./support-tickets.service";
 import { MediaStorageService } from "../media/media-storage.service";
 
 const integrationUrl = process.env.TICKETING_INTEGRATION_DATABASE_URL;
@@ -258,6 +258,106 @@ test("support ticket persistence, tenant isolation, permissions, transactions, r
     assert.equal(raceState[0]?.status, "CLOSED");
     assert.equal(raceState[0]?.closeReason, "MANUAL");
     assert.equal(raceState[0]?.messageCount, raceResults[0]?.status === "fulfilled" ? "2" : "1");
+
+    const sweepNow = new Date();
+    const makeStaleWaitingTicket = async (subject: string, ageMs = SUPPORT_TICKET_INACTIVITY_MS) => {
+      const created = await service.create(ids.tenantA, ids.tenantUserA, { department: SupportTicketDepartment.Technical, subject, message: "Initial" });
+      ticketIds.push(created.id);
+      await service.replyPlatform(created.id, ids.platformReply, { message: "Platform response" });
+      await db.query(`UPDATE support_tickets SET last_platform_reply_at=$2 WHERE id=$1`, [created.id, new Date(sweepNow.getTime() - ageMs)]);
+      return created;
+    };
+    const eligible = await makeStaleWaitingTicket("Eligible for inactivity close");
+    const almostEligible = await makeStaleWaitingTicket("Just under the cutoff", SUPPORT_TICKET_INACTIVITY_MS - 60_000);
+    const tenantReplied = await makeStaleWaitingTicket("Tenant replied after old response");
+    await service.replyTenant(ids.tenantA, tenantReplied.id, ids.tenantUserA, { message: "Tenant replied" });
+    await db.query(`UPDATE support_tickets SET last_platform_reply_at=$2 WHERE id=$1`, [tenantReplied.id, new Date(sweepNow.getTime() - SUPPORT_TICKET_INACTIVITY_MS - 60_000)]);
+    const manuallyClosed = await makeStaleWaitingTicket("Manual closure stays manual");
+    const manualState = await service.manage(manuallyClosed.id, ids.platformOwner, { action: "CLOSE" });
+    const metadataUpdated = await makeStaleWaitingTicket("Metadata does not reset inactivity");
+    await service.manage(metadataUpdated.id, ids.platformOwner, { action: "CHANGE_DEPARTMENT", department: SupportTicketDepartment.Sales });
+    await db.query(`UPDATE support_tickets SET updated_at=clock_timestamp() WHERE id=$1`, [metadataUpdated.id]);
+    const waitingForPlatform = await makeStaleWaitingTicket("Old reply with newer tenant message");
+    await service.replyTenant(ids.tenantA, waitingForPlatform.id, ids.tenantUserA, { message: "Newer tenant reply" });
+    await db.query(`UPDATE support_tickets SET last_platform_reply_at=$2 WHERE id=$1`, [waitingForPlatform.id, new Date(sweepNow.getTime() - SUPPORT_TICKET_INACTIVITY_MS - 60_000)]);
+    const notificationCountBeforeClose = await db.query<Array<{ total: string }>>(
+      `SELECT count(*)::text AS total FROM notification_deliveries WHERE related_entity_type='support_ticket' AND related_entity_id=$1`, [eligible.id]);
+    const beforeAutoCloseMessages = await db.query<Array<{ total: string }>>(`SELECT count(*)::text AS total FROM support_ticket_messages WHERE ticket_id=$1`, [eligible.id]);
+
+    assert.equal(SUPPORT_TICKET_AUTO_CLOSE_BATCH_SIZE, 100);
+    const closeResult = await service.autoCloseInactiveTickets(sweepNow);
+    assert.deepEqual(closeResult, { candidates: 2, closed: 2, skipped: 0, failed: 0 });
+    const autoClosed = await service.detailTenant(ids.tenantA, eligible.id);
+    assert.equal(autoClosed.status, SupportTicketStatus.Closed);
+    assert.equal(autoClosed.closeReason, "INACTIVITY");
+    assert.ok(autoClosed.closedAt);
+    const untouchedStatuses = await db.query<Array<{ id: string; status: string; closeReason: string | null; closedAt: Date | null; lastPlatformReplyAt: Date | null; updatedAt: Date }>>(
+      `SELECT id,status,close_reason AS "closeReason",closed_at AS "closedAt",last_platform_reply_at AS "lastPlatformReplyAt",updated_at AS "updatedAt"
+       FROM support_tickets WHERE id=ANY($1::uuid[])`, [[almostEligible.id, tenantReplied.id, manuallyClosed.id, metadataUpdated.id, waitingForPlatform.id]]);
+    const byId = new Map(untouchedStatuses.map((row) => [row.id, row]));
+    assert.equal(byId.get(almostEligible.id)?.status, SupportTicketStatus.WaitingForTenant);
+    assert.equal(byId.get(tenantReplied.id)?.status, SupportTicketStatus.WaitingForPlatform);
+    assert.equal(byId.get(waitingForPlatform.id)?.status, SupportTicketStatus.WaitingForPlatform);
+    assert.equal(byId.get(manuallyClosed.id)?.closeReason, "MANUAL");
+    assert.equal(byId.get(manuallyClosed.id)?.closedAt?.getTime(), manualState.closedAt?.getTime());
+    assert.equal(byId.get(metadataUpdated.id)?.status, SupportTicketStatus.Closed);
+    assert.ok(byId.get(metadataUpdated.id)?.lastPlatformReplyAt && byId.get(metadataUpdated.id)!.lastPlatformReplyAt! <= new Date(sweepNow.getTime() - SUPPORT_TICKET_INACTIVITY_MS));
+    assert.ok(byId.get(metadataUpdated.id)!.updatedAt > new Date(sweepNow.getTime() - SUPPORT_TICKET_INACTIVITY_MS));
+    const messagesAfterClose = await db.query<Array<{ total: string }>>(`SELECT count(*)::text AS total FROM support_ticket_messages WHERE ticket_id=$1`, [eligible.id]);
+    const notificationsAfterClose = await db.query<Array<{ total: string }>>(
+      `SELECT count(*)::text AS total FROM notification_deliveries WHERE related_entity_type='support_ticket' AND related_entity_id=$1`, [eligible.id]);
+    assert.deepEqual(messagesAfterClose, beforeAutoCloseMessages);
+    assert.deepEqual(notificationsAfterClose, notificationCountBeforeClose);
+    await assert.rejects(service.replyTenant(ids.tenantA, manuallyClosed.id, ids.tenantUserA, { message: "Cannot reply to manual close" }), { status: 409 });
+
+    const firstClosedAt = autoClosed.closedAt;
+    assert.deepEqual(await service.autoCloseInactiveTickets(sweepNow), { candidates: 0, closed: 0, skipped: 0, failed: 0 });
+    assert.equal((await service.detailTenant(ids.tenantA, eligible.id)).closedAt?.getTime(), firstClosedAt?.getTime());
+    const autoReopen = await service.replyTenant(ids.tenantA, eligible.id, ids.tenantUserA, { message: "Continue the conversation" }, [pdfFile("reopened.pdf")]);
+    assert.equal(autoReopen.status, SupportTicketStatus.WaitingForPlatform);
+    assert.equal(autoReopen.closeReason, "INACTIVITY");
+    assert.equal(autoReopen.messages.length, Number(beforeAutoCloseMessages[0]?.total) + 1);
+    assert.equal(autoReopen.messages.at(-1)?.attachments?.length, 1);
+    const reopenedNotices = await db.query<Array<{ deduplicationKey: string }>>(
+      `SELECT deduplication_key AS "deduplicationKey" FROM notification_deliveries WHERE related_entity_type='support_ticket' AND related_entity_id=$1 AND type=$2`,
+      [eligible.id, NotificationType.TicketTenantReplied]);
+    assert.equal(reopenedNotices.length, 3);
+    assert.equal(new Set(reopenedNotices.map((row) => row.deduplicationKey)).size, 3);
+
+    const replyCloseRace = await makeStaleWaitingTicket("Tenant reply races inactivity close");
+    const raceNow = new Date();
+    await db.query(`UPDATE support_tickets SET last_platform_reply_at=$2 WHERE id=$1`, [replyCloseRace.id, new Date(raceNow.getTime() - SUPPORT_TICKET_INACTIVITY_MS - 1_000)]);
+    const [raceSweep] = await Promise.all([
+      service.autoCloseInactiveTickets(raceNow),
+      service.replyTenant(ids.tenantA, replyCloseRace.id, ids.tenantUserA, { message: "Concurrent tenant response" }),
+    ]);
+    const replyRaceFinal = await service.detailTenant(ids.tenantA, replyCloseRace.id);
+    assert.equal(replyRaceFinal.status, SupportTicketStatus.WaitingForPlatform);
+    assert.equal(replyRaceFinal.messages.at(-1)?.senderType, "TENANT_USER");
+    assert.ok(raceSweep!.closed === 0 || raceSweep!.closed === 1);
+
+    const twoWorkerTicket = await makeStaleWaitingTicket("Two workers close once");
+    const workerNow = new Date();
+    await db.query(`UPDATE support_tickets SET last_platform_reply_at=$2 WHERE id=$1`, [twoWorkerTicket.id, new Date(workerNow.getTime() - SUPPORT_TICKET_INACTIVITY_MS - 1_000)]);
+    const workerResults = await Promise.all([service.autoCloseInactiveTickets(workerNow), service.autoCloseInactiveTickets(workerNow)]);
+    assert.equal(workerResults[0].closed + workerResults[1].closed, 1);
+    assert.equal((await service.detailTenant(ids.tenantA, twoWorkerTicket.id)).status, SupportTicketStatus.Closed);
+
+    const failedCandidate = await makeStaleWaitingTicket("One worker candidate fails");
+    const nextCandidate = await makeStaleWaitingTicket("Worker continues after failure");
+    const mutableService = service as unknown as { lockTicket: (manager: EntityManager, ticketId: string, coffeeShopId?: string) => Promise<unknown> };
+    const originalLockTicket = mutableService.lockTicket;
+    mutableService.lockTicket = async (manager, ticketId, coffeeShopId) => {
+      if (ticketId === failedCandidate.id) throw new Error("Injected candidate failure");
+      return originalLockTicket.call(service, manager, ticketId, coffeeShopId);
+    };
+    let failureSweep: Awaited<ReturnType<SupportTicketsService["autoCloseInactiveTickets"]>>;
+    try { failureSweep = await service.autoCloseInactiveTickets(new Date()); }
+    finally { mutableService.lockTicket = originalLockTicket; }
+    assert.equal(failureSweep!.failed, 1);
+    assert.equal(failureSweep!.closed, 1);
+    assert.equal((await service.detailTenant(ids.tenantA, failedCandidate.id)).status, SupportTicketStatus.WaitingForTenant);
+    assert.equal((await service.detailTenant(ids.tenantA, nextCandidate.id)).status, SupportTicketStatus.Closed);
   } finally {
     if (db.isInitialized) {
       if (ticketIds.length) {
