@@ -320,6 +320,7 @@ export class OrderingService {
     if (code === "INACTIVITY_PERIOD_NOT_MET") return "این تخفیف برای مشتریانی است که مدتی سفارش نداده‌اند.";
     if (code === "REGISTRATION_AGE_NOT_MET") return "این تخفیف در بازه فعلی حساب مشتری قابل استفاده نیست.";
     if (code === "CUSTOMER_NOT_IN_REQUIRED_SEGMENT") return "این کد برای این مشتری قابل استفاده نیست.";
+    if (code === "CUSTOMER_NOT_IN_CRM_OFFER_AUDIENCE") return "این پیشنهاد برای حساب شما فعال نیست.";
     return "برای استفاده از این تخفیف وارد حساب مشتری شوید.";
   }
 

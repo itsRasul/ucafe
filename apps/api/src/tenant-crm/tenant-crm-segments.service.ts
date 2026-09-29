@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
-import { DataSource } from "typeorm";
+import { DataSource, EntityManager } from "typeorm";
 import { maskPhone } from "../auth/iran-phone.util";
 import { CreateTenantCrmSegmentDto, TenantCrmSegmentListQueryDto, TenantCrmSegmentMembersQueryDto,
   UpdateTenantCrmSegmentDto } from "./dto/tenant-crm-segments.dto";
@@ -10,6 +10,7 @@ type Option = { value: string; label: string };
 type Field = { key: string; label: string; dataType: ValueType; source: string; operators: string[]; options: Option[];
   sql?: string; customFieldId?: string; optionValues: Set<string> };
 type Catalog = { fields: Field[]; byKey: Map<string, Field> };
+type QueryExecutor = { query<T = any>(query: string, parameters?: any[]): Promise<T> };
 type Condition = { type: "condition"; field: string; operator: string; value?: unknown };
 type Group = { type: "group"; operator: "AND" | "OR"; conditions: Array<Group | Condition>; version?: number };
 type Preset = { key: string; name: string; description: string; criteria: Group };
@@ -122,7 +123,7 @@ export class TenantCrmSegmentsService {
     const row = await this.segmentRow(coffeeShopId, segmentId);
     const criteria = this.parseStoredCriteria(row.criteria);
     const issue = this.criteriaIssue(criteria, coffeeShopId, timeZone, await this.catalog(coffeeShopId));
-    return { ...row, criteria, criteriaValid: !issue, ...(issue ? { criteriaIssue: issue } : {}) };
+    return { ...row, isActive: Boolean(row.isActive), criteria, criteriaValid: !issue, ...(issue ? { criteriaIssue: issue } : {}) };
   }
 
   async create(coffeeShopId: string, timeZone: string, actorId: string, input: CreateTenantCrmSegmentDto) {
@@ -186,6 +187,21 @@ export class TenantCrmSegmentsService {
     return this.members(coffeeShopId, timeZone, this.parseStoredCriteria(row.criteria), query);
   }
 
+  async audienceQuery(manager: EntityManager, coffeeShopId: string, timeZone: string, segmentId: string) {
+    const [row] = await manager.query<Array<Row>>(`SELECT id,name,criteria,is_active AS "isActive" FROM tenant_crm_segments
+      WHERE coffee_shop_id=$1 AND id=$2 FOR SHARE`, [coffeeShopId, segmentId]);
+    if (!row) throw new NotFoundException("Segment not found");
+    if (!row.isActive) throw new BadRequestException("Offer audience Segment must be active");
+    const criteria = this.parseStoredCriteria(row.criteria);
+    const compiled = this.compileCriteria(criteria, coffeeShopId, timeZone, await this.catalog(coffeeShopId, manager));
+    return {
+      sql: `SELECT c.id ${this.fromSql()} WHERE c.coffee_shop_id=$1 AND ${compiled.where}`,
+      parameters: compiled.parameters,
+      segmentName: row.name,
+      criteria,
+    };
+  }
+
   listSmartGroups(): Array<{ key: string; name: string; description: string; criteria: unknown }> {
     return presets.map(({ key, name, description, criteria }) => ({ key, name, description, criteria }));
   }
@@ -198,21 +214,21 @@ export class TenantCrmSegmentsService {
     return this.members(coffeeShopId, timeZone, this.smartGroup(key).criteria, query);
   }
 
-  private async segmentRow(coffeeShopId: string, segmentId: string) {
-    const rows = await this.dataSource.query<Array<Row>>(`SELECT id,name,description,criteria,is_active AS "isActive",
+  private async segmentRow(coffeeShopId: string, segmentId: string, executor: QueryExecutor = this.dataSource) {
+    const rows = await executor.query<Array<Row>>(`SELECT id,name,description,criteria,is_active AS "isActive",
       created_by_user_id AS "createdByUserId",created_at AS "createdAt",updated_at AS "updatedAt"
       FROM tenant_crm_segments WHERE coffee_shop_id=$1 AND id=$2`, [coffeeShopId, segmentId]);
     if (!rows[0]) throw new NotFoundException("Segment not found");
     return rows[0];
   }
 
-  private async catalog(coffeeShopId: string): Promise<Catalog> {
-    const tags = await this.dataSource.query<Array<{ id: string; name: string }>>(
+  private async catalog(coffeeShopId: string, executor: QueryExecutor = this.dataSource): Promise<Catalog> {
+    const tags = await executor.query<Array<{ id: string; name: string }>>(
       `SELECT id,name FROM tenant_crm_tags WHERE coffee_shop_id=$1 AND archived_at IS NULL ORDER BY lower(name),id`, [coffeeShopId]);
-    const definitions = await this.dataSource.query<Array<{ id: string; key: string; label: string; dataType: string }>>(
+    const definitions = await executor.query<Array<{ id: string; key: string; label: string; dataType: string }>>(
       `SELECT id,key,label,data_type AS "dataType" FROM tenant_crm_custom_field_definitions
        WHERE coffee_shop_id=$1 AND active=TRUE ORDER BY sort_order,id`, [coffeeShopId]);
-    const optionRows = definitions.length ? await this.dataSource.query<Array<{ fieldDefinitionId: string; id: string; label: string }>>(
+    const optionRows = definitions.length ? await executor.query<Array<{ fieldDefinitionId: string; id: string; label: string }>>(
       `SELECT field_definition_id AS "fieldDefinitionId",id,label FROM tenant_crm_custom_field_options
        WHERE coffee_shop_id=$1 AND active=TRUE AND field_definition_id=ANY($2::uuid[]) ORDER BY sort_order,id`,
       [coffeeShopId, definitions.map((definition) => definition.id)]) : [];

@@ -15,6 +15,7 @@
 | SMS/notifications | SmsProvider and encrypted notification_deliveries outbox | Future campaigns require separate consent, recipient, cost, delivery, and retry design |
 | Platform CRM | Platform-scoped crm_* domain | No shared customer records or cross-CRM relations |
 | Audit | platform_audit_events | Platform-only audit; do not use for tenant customer actions |
+| Feedback | `tenant_crm_feedback` | Phase 6 owns received rating/comment and recovery status; Client identity and optional Order/Reservation context remain authoritative in their existing domains |
 
 ## Orders
 
@@ -55,3 +56,12 @@ Smart Groups are fixed criteria presets over those same sources and use the Segm
 The Orders status transaction records a durable `tenant.order.delivered` outbox row when an Order becomes `DELIVERED`; Orders has no Tenant CRM service dependency. The CRM processor reads the tenant-scoped Order's existing `total_amount_toman`, current Client status, effective CRM entitlement, and the program version effective at the event timestamp. It inserts one EARN ledger row at most per café/Order. The amount is the same stored payable amount used by Phase 2 Known UCafe Spend; it is not collected-cash evidence. Current Orders has no refund flow, and Delivered is terminal.
 
 Redemption is a staff action in Tenant CRM. It records a Redemption snapshot and matching ledger debit in one transaction. It does not issue or apply a Discount, create an Order, or change Promotion eligibility. Loyalty does not alter Phase 4 Segment criteria or source metrics. No analytics read model or Client-facing integration is added.
+
+## Phase 6 Feedback
+
+Feedback is the source of truth only for the customer's response and small recovery state. It can refer to one existing same-tenant/same-Client delivered Order or completed Reservation; it does not snapshot their content or change their lifecycle. Staff follow-up creates the existing Phase 3 Reminder for that Client and writes a short Feedback ID reference in its description. Customer panel submission and retrieval use existing Client authentication. Feedback creates no event bus integration and does not mutate Loyalty, Discounts, Campaign delivery, or source records.
+
+
+## Phase 7 Offers and Discounts
+
+Offers link a saved CRM Segment to an existing Promotion. PromotionPricingService applies the frozen Offer audience as an additional eligibility condition and still applies the Promotion's existing rules, coupon limits, schedule, dates, customer conditions, and price calculation. The tenant_crm subscription feature gates Offer APIs and linked Promotion eligibility. Order snapshots record discount applications; promotion_redemptions remains the source for recorded coupon/first-order redemption rows.

@@ -30,3 +30,12 @@ Saved criteria and current membership are internal data scoped to one café and 
 ## Phase 5 Loyalty
 
 Program, reward, adjustment reason, redemption, and ledger history are staff-only tenant CRM data. Loyalty APIs accept tenant identity only from trusted tenant context; they do not search by or share a Client's phone across cafés. The event outbox stores only event identity, type, tenant, aggregate, and an Order ID payload; logs record a failed event identifier/attempt without logging customer/order bodies or phones. Customer 360 masks staff actor phone labels. Adjustment reasons are internal free text and should describe the operational correction without including customer contact/payment data. No consent, customer notification, audience export, or third-party sharing is added.
+
+## Phase 6 Feedback
+
+Customer comments may include personal information and remain visible only to authorized users of the owning café. Resolution notes and recovery status are internal. Client-authenticated endpoints return only that Client's rating, comment, source, and creation time; they exclude recovery state, staff identity, and Reminder data. No Platform CRM or cross-tenant exposure exists. Client deletion cascades Feedback under the current Client lifecycle; UCafe has not defined separate Feedback retention or anonymization policy.
+
+
+## Phase 7 Offers
+
+Audience preview samples and paginated Offer member rows mask phone numbers. Tenant predicates and composite foreign keys scope records to the owning café. Activation stores the Segment criteria/name snapshot and Client membership needed to explain targeting; audience data is not exported or messaged in this phase. CRM feature state gates Offer reads and pricing eligibility.

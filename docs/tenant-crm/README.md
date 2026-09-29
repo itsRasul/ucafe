@@ -1,6 +1,6 @@
 # Tenant CRM
 
-**Status:** Phases 0–5 implemented in code. Phase 5 typecheck, production workspace build, full API regression (192 passed, 27 skipped), focused Segment regression (12/12), focused Loyalty tests (4/4), live PostgreSQL integration, and migration application pass. Authenticated browser acceptance remains pending until a tenant-admin session is available.
+**Status:** Phases 0–6 implemented in code. Phase 6 focused tests pass 10/10 with PostgreSQL enabled; the full API suite passes (196 passed, 33 skipped), root typecheck and production build pass, and migration `1790640000000-TenantCrmFeedback` is applied. Authenticated browser acceptance remains pending until tenant-admin and customer sessions are available; details are in [PROGRESS.md](../PROGRESS.md).
 
 ## Purpose and boundary
 
@@ -58,6 +58,15 @@ This domain is separate from Platform CRM, which manages UCafe's commercial rela
 - The Phase 5 regression run passed workspace typecheck and production build; the full API suite passed 192 tests with 27 skips. Authenticated browser acceptance remains pending.
 - See [LOYALTY.md](LOYALTY.md) and [ADR-007](ADR-007-loyalty-ledger-and-order-outbox.md) for the model and limits.
 
+## Implemented in Phase 6
+
+- Add tenant-owned Customer Feedback with required 1–5 rating, optional comment, `MANUAL`/`CUSTOMER_PANEL` source, optional one-per-source Order or Reservation relationship, and `NEW`/`NEEDS_ATTENTION`/`RESOLVED` recovery status.
+- Low ratings (`<= 2`) start in Needs Attention. Managers can mark items for follow-up, resolve with a private note, or create the existing Phase 3 Reminder. Resolved items cannot be reopened.
+- Add `/admin/crm/feedback`, bounded Client 360 summary/recent Feedback, and `FEEDBACK_RECEIVED` / `FEEDBACK_RESOLVED` Timeline projections. The Timeline does not expose free-text comments or internal notes.
+- Existing authenticated Clients can submit or view only their own Feedback from delivered Order or completed Reservation details. Client responses omit recovery status, resolution details, staff identity, and Reminders.
+- Migration `1790640000000-TenantCrmFeedback` enforces tenant/Client/source relationships, actor membership, unique source links, and restricts deletion of linked Orders/Reservations. Client deletion follows the existing CRM cascade.
+- Keep Segments, Loyalty, Discounts, Campaigns, notifications, Platform CRM, and Analytics behavior independent. See [FEEDBACK.md](FEEDBACK.md) for current behavior and limitations.
+
 ## Reading order
 
 1. DOMAIN_MODEL.md
@@ -84,10 +93,16 @@ This domain is separate from Platform CRM, which manages UCafe's commercial rela
 | ANALYTICS.md | Existing reports and future customer measures |
 | SEGMENTATION.md | Authoritative Phase 4 Segment, field, operator, and Smart Group semantics |
 | LOYALTY.md | Phase 5 earning, ledger, rewards, redemption, event processing, and limits |
+| FEEDBACK.md | Phase 6 rating, sources, service recovery, privacy, and API contract |
 | TESTING.md | Required isolation and integration coverage |
 | PHASES.md | Incremental roadmap and implemented phase contracts |
-| ADR-001..007 | Accepted domain, identity, isolation, entitlement, custom-field, segmentation, and loyalty decisions |
+| ADR-001..008 | Accepted domain, identity, isolation, entitlement, custom-field, segmentation, loyalty, and Feedback decisions |
 
 ## Current versus proposed
 
-Statements about current behavior reflect code and migrations; Phases 6–10 remain planned and are not implied by Phases 0–5.
+Statements about current behavior reflect code and migrations; Phases 7–10 remain planned and are not implied by Phases 0–6.
+
+
+## Implemented in Phase 7
+
+Offers link one saved active CRM Segment to an existing Promotion. Activation snapshots matching Clients, while the Discounts engine remains authoritative for price, coupon use, dates, schedules, and Promotion customer conditions. See [OFFERS.md](OFFERS.md) and [ADR-009](ADR-009-offer-audience-snapshot.md). Campaign messaging, SMS, and automation remain out of scope.

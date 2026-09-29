@@ -6,6 +6,8 @@ import { Promotion, PromotionCustomerConditionType, PromotionRedemption, Promoti
 import { PriceResult, PricingPromotion, priceWithPromotion, promotionStatus } from "./promotion-pricing.util";
 import { AdvancedPromotion, PricingUnit, applyAdvancedPromotions } from "./promotion-advanced.util";
 import { CustomerEligibilityFailure, CustomerEvaluationContext, customerConditionFailure } from "./promotion-customer-condition.util";
+import { SubscriptionFeatures } from "../subscriptions/subscription-features";
+import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 
 export type PricingContext = {
   product: Map<string, PricingPromotion[]>;
@@ -19,12 +21,30 @@ export type PricingContext = {
 
 @Injectable()
 export class PromotionPricingService {
+  constructor(private readonly subscriptions?: SubscriptionsService) {}
+
   async loadContext(manager: EntityManager, coffeeShopId: string, now: Date, timezone: string, clientId?: string): Promise<PricingContext> {
     const promotions = await manager.find(Promotion, { where: { coffeeShopId, isActive: true, deletedAt: IsNull() }, relations: { targets: true, coupon: true, scheduleWindows: true, advancedRule: { groups: { targets: true }, tiers: true }, customerConditions: true }, relationLoadStrategy: "query" });
     const customerContext = await this.customerContext(manager, coffeeShopId, clientId, promotions);
     const context: PricingContext = { product: new Map(), category: new Map(), order: [], advanced: [], eligiblePromotions: new Map(), customerContext, customerFailures: new Map() };
+    const promotionIds = promotions.map(({ id }) => id);
+    const offerPolicies = promotionIds.length ? await manager.query<Array<{ promotionId: string; status: string; isMember: boolean }>>(`
+      SELECT o.promotion_id AS "promotionId",o.status,(a.id IS NOT NULL) AS "isMember"
+      FROM tenant_crm_offers o LEFT JOIN tenant_crm_offer_audience_members a
+        ON a.coffee_shop_id=o.coffee_shop_id AND a.offer_id=o.id AND a.client_id=$2
+      WHERE o.coffee_shop_id=$1 AND o.promotion_id=ANY($3::uuid[]) AND o.status<>'DRAFT'
+    `, [coffeeShopId, clientId ?? null, promotionIds]) : [];
+    const crmOffersEnabled = offerPolicies.length
+      ? Boolean(this.subscriptions && (await this.subscriptions.featureState(coffeeShopId, SubscriptionFeatures.TenantCrm, now, manager)).enabled)
+      : true;
+    const offerByPromotion = new Map(offerPolicies.map((offer) => [offer.promotionId, offer]));
     for (const promotion of promotions) {
       if (promotionStatus(promotion, now, timezone) !== "RUNNING") continue;
+      const offer = offerByPromotion.get(promotion.id);
+      if (offer && (!crmOffersEnabled || offer.status !== "ACTIVE" || !offer.isMember)) {
+        context.customerFailures.set(promotion.id, "CUSTOMER_NOT_IN_CRM_OFFER_AUDIENCE");
+        continue;
+      }
       const failure = customerConditionFailure(promotion.id, promotion.customerConditions ?? [], customerContext, now);
       if (failure) { context.customerFailures.set(promotion.id, failure); continue; }
       context.eligiblePromotions.set(promotion.id, promotion);

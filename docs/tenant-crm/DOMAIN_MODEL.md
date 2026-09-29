@@ -12,7 +12,7 @@ Tenant CRM models one café's ongoing relationship with its own Clients. It is a
 
 ## Conceptual model
 
-Client is the central identity. Customer 360 composes a read view from Client, Orders, and Reservations; conceptually Orders and Reservations refer to Client, while Tenant CRM reads those relationships in the other direction. They are linked source records, not CRM-owned children. Customer 360 is not an entity or source of truth. Phase 3 adds café-entered preferences, internal notes, tags, custom fields, and reminders as CRM-owned records referencing `(coffee_shop_id, client_id)`; actor fields reference tenant User membership where required. Loyalty, feedback, campaigns, and automation remain future concepts.
+Client is the central identity. Customer 360 composes a read view from Client, Orders, and Reservations; conceptually Orders and Reservations refer to Client, while Tenant CRM reads those relationships in the other direction. They are linked source records, not CRM-owned children. Customer 360 is not an entity or source of truth. Phase 3 adds café-entered preferences, internal notes, tags, custom fields, and reminders as CRM-owned records referencing `(coffee_shop_id, client_id)`; actor fields reference tenant User membership where required. Phase 5 adds Loyalty around the same Client. Phase 6 adds customer Feedback and a small recovery state; its source records remain Orders/Reservations, and staff follow-up uses the existing Reminder.
 
 Do not create Customer, Guest, CustomerProfile, TenantCustomerProfile, GlobalCustomer, or equivalent aliases. A supplemental profile is not justified for Phase 1. If a later field cannot appropriately live on Client, store it in a narrowly scoped tenant CRM table.
 
@@ -45,3 +45,21 @@ Tags are manually assigned labels and remain separate from Segments, which are d
 ## Phase 5 Loyalty
 
 Loyalty is another tenant-owned relationship around `Client`; it adds no alternate customer identity. A café owns its versioned earning configuration, lazy per-Client account, signed ledger, reward catalog, and redemption history. Orders remain authoritative for qualifying activity and amount; the ledger records the points consequence. The current balance is the sum of ledger rows, not a mutable Client field. Loyalty rewards and redemptions do not own Menu Items, Discounts, checkout, or Platform CRM data.
+
+## Phase 6 Feedback
+
+```text
+Client
+  ↓
+TenantCrmFeedback
+  ├── Order? (same tenant and Client)
+  ├── Reservation? (same tenant and Client)
+  └── service-recovery state
+```
+
+Feedback belongs to one café and one existing Client. It stores the customer's rating/comment and limited staff recovery outcome, while Customer 360 and Timeline remain read projections. Feedback is not a support Ticket, thread, review request, or Platform CRM Activity/Task/Note. See [FEEDBACK.md](FEEDBACK.md) for exact source, lifecycle, permission, privacy, and API semantics.
+
+
+## Phase 7 Offers
+
+An Offer is a CRM targeting record linked one-to-one with an existing tenant Promotion and to one saved CRM Segment. Draft Offers do not change pricing. Activation records the current Segment audience; the existing Promotion remains the sole source of discount terms and redemption behavior. Ending an Offer disables its targeting link without changing or reopening the Promotion.

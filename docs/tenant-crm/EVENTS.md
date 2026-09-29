@@ -37,3 +37,12 @@ Segment and Smart Group evaluation is a live read query, not an event publisher.
 Orders writes `tenant.order.delivered` into `domain_event_outbox` in the same transaction that persists the transition to `DELIVERED`. This narrow PostgreSQL outbox is durable and independent of the Platform CRM workflow outbox. The consumer claims with `FOR UPDATE SKIP LOCKED`, recovers claims older than five minutes, and retries failures with capped exponential delay up to five attempts; exhausted or crashed-final-attempt records become `FAILED` for operations review. Ledger uniqueness is the final duplicate guard, even if a second outbox event exists for an Order.
 
 The Customer 360 Timeline separately projects each persisted Loyalty ledger row with `LOYALTY_LEDGER:<ledger-id>` as its globally unique event key. It remains a current-source projection, not a publication of the outbox stream or a full event history. Timeline metadata includes entry type, signed points, and the manual reason or Reward name snapshot; it excludes phone numbers and Order payloads.
+
+## Phase 6 Feedback projection
+
+Timeline projects `FEEDBACK_RECEIVED` from `tenant_crm_feedback.created_at` and `FEEDBACK_RESOLVED` from explicit `resolved_at`. Stable keys are `FEEDBACK:<feedback-id>:CREATED` and `FEEDBACK:<feedback-id>:RESOLVED`. Metadata contains only rating and source; comment and resolution note are omitted. This is a current-source read projection, not a published `tenant_crm.feedback.*` event stream or status history. Needs Attention changes do not create Timeline entries.
+
+
+## Phase 7 Offer Timeline projections
+
+The query-time Customer Timeline projects one OFFER_ELIGIBILITY_CREATED item per activation audience row and one OFFER_DISCOUNT_APPLIED item when a target Client's saved Order snapshot contains a positive discount for the linked Promotion. These read views have deterministic cursor keys. They are not a durable event log; coupon redemption rows are not duplicated as Offer events.

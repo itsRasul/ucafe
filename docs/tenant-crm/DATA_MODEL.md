@@ -58,3 +58,14 @@ The JSONB column stores the validated, versioned criteria AST; source rows remai
 Migration `1790630000000-TenantCrmLoyalty` adds versioned `tenant_crm_loyalty_programs`, one lazy `tenant_crm_loyalty_accounts` row per tenant/Client, tenant-owned `tenant_crm_loyalty_rewards`, immutable `tenant_crm_loyalty_redemptions`, signed `tenant_crm_loyalty_ledger`, and the PostgreSQL `domain_event_outbox`. There is no cached balance. Composite foreign keys tie accounts, ledger entries, redemptions, Orders, Rewards, and staff actors to the same café. The Order composite key is added by this migration for ledger integrity.
 
 The ledger uses bigint points, a tenant/idempotency-key uniqueness constraint, and a partial tenant/Order uniqueness constraint for EARN. Checks constrain signed semantics and required source snapshots by entry type. Redemptions snapshot Reward name and cost. The outbox retains bounded retry state and contains only the Order event identity; no customer phone or order body is stored there.
+
+## Phase 6 Feedback persistence
+
+Migration `1790640000000-TenantCrmFeedback` creates `tenant_crm_feedback` with required `rating` (1–5), optional customer comment, stable `MANUAL`/`CUSTOMER_PANEL` source, optional Order/Reservation links, `NEW`/`NEEDS_ATTENTION`/`RESOLVED` state, staff creator/resolver membership references, optional internal resolution note, `resolved_at`, and timestamps. A check enforces source/actor/relation consistency. Composite tenant/Client and tenant/source/Client foreign keys enforce relationship ownership; source rows are RESTRICTed from hard deletion, while deleting the Client cascades its CRM Feedback. Tenant deletion cascades the table.
+
+Unique `(coffee_shop_id,id,client_id)` keys on Orders and Reservations support those composite references. Partial unique indexes allow one Feedback per linked Order and one per linked Reservation. Listing, status, and Client-history indexes match current inbox and Customer 360 queries. There is no Feedback archive, status history, event table, cached summary, or separate case table.
+
+
+## Phase 7 Offer persistence
+
+The Phase 7 migration adds tenant-scoped tenant_crm_offers and tenant_crm_offer_audience_members. Offers retain Promotion and Segment references, lifecycle status, activation/end timestamps, and Segment name/criteria snapshots. Audience rows record the activation-time Client set and grant time. Composite tenant foreign keys prevent cross-tenant references; deleting a Client cascades its audience rows. Promotion and Segment deletion is restricted while referenced.

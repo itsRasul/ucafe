@@ -3598,3 +3598,118 @@
   .tenant-crm-segment-actions>* { flex: 1 1 auto; }
   .tenant-crm-segment-client-list a { grid-template-columns: 1fr; }
 }
+
+.tenant-feedback-workspace { display: grid; gap: .85rem; }
+.tenant-feedback-filters { display: grid; grid-template-columns: minmax(12rem, 1.5fr) repeat(3,minmax(8rem,1fr)) repeat(2,minmax(8rem,.8fr)); gap: .65rem; padding: .85rem; border: 1px solid #e5e7eb; border-radius: .8rem; background: #fff; }
+.tenant-feedback-filters label, .tenant-feedback-client-search label, .tenant-feedback-manual-form label, .tenant-feedback-actions label, .tenant-feedback-reminder label { display: grid; gap: .3rem; color: #475569; font-size: .77rem; font-weight: 700; }
+.tenant-feedback-filters input, .tenant-feedback-filters select, .tenant-feedback-client-search input, .tenant-feedback-manual-form input, .tenant-feedback-manual-form select, .tenant-feedback-manual-form textarea, .tenant-feedback-actions textarea, .tenant-feedback-reminder input, .tenant-feedback-reminder textarea { width: 100%; min-width: 0; min-height: 2.75rem; padding: .55rem .65rem; border: 1px solid #cbd5e1; border-radius: .55rem; background: #fff; color: #172033; font: inherit; }
+.tenant-feedback-manual-form textarea, .tenant-feedback-actions textarea, .tenant-feedback-reminder textarea { min-height: 5.5rem; resize: vertical; line-height: 1.7; }
+.tenant-feedback-filters :focus-visible, .tenant-feedback-client-search :focus-visible, .tenant-feedback-manual-form :focus-visible, .tenant-feedback-actions :focus-visible, .tenant-feedback-reminder :focus-visible, .tenant-feedback-workspace a:focus-visible { outline: 3px solid rgb(3 105 161 / 28%); outline-offset: 2px; }
+.tenant-feedback-list, .tenant-feedback-client-options, .tenant-feedback-recent { display: grid; gap: .55rem; margin: 0; padding: 0; list-style: none; }
+.tenant-feedback-card { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: .35rem 1rem; min-height: 5rem; padding: .8rem .9rem; border: 1px solid #e5e7eb; border-radius: .7rem; background: #fff; color: inherit; text-decoration: none; transition: border-color .15s ease, background-color .15s ease; }
+.tenant-feedback-card:hover { border-color: #94a3b8; background: #f8fafc; }
+.tenant-feedback-card-main, .tenant-feedback-card-meta { display: grid; justify-items: start; gap: .3rem; min-width: 0; }
+.tenant-feedback-card-main>strong { color: #111827; }
+.tenant-feedback-card-meta { justify-items: end; color: #64748b; font-size: .74rem; }
+.tenant-feedback-card-relation { color: #475569; font-size: .76rem; }
+.tenant-feedback-excerpt { max-width: 70ch; overflow: hidden; color: #64748b; font-size: .79rem; text-overflow: ellipsis; white-space: nowrap; }
+.tenant-feedback-stars { color: #9a6700; letter-spacing: .08em; white-space: nowrap; }
+.tenant-feedback-stars>span { color: #cbd5e1; }
+.tenant-crm-status.is-feedback-attention { background: #fff7ed; color: #9a3412; }
+.tenant-feedback-create>summary { min-height: 2.75rem; color: #075985; font-weight: 800; cursor: pointer; }
+.tenant-feedback-create-content { display: grid; gap: .7rem; padding-block-start: .75rem; }
+.tenant-feedback-client-search { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; gap: .55rem; max-width: 42rem; }
+.tenant-feedback-client-search button, .tenant-feedback-manual-form button, .tenant-feedback-actions button, .tenant-feedback-reminder button { min-height: 2.75rem; padding: .55rem .8rem; border: 1px solid #cbd5e1; border-radius: .55rem; background: #f8fafc; color: #1f2937; font: inherit; font-size: .8rem; font-weight: 700; cursor: pointer; }
+.tenant-feedback-manual-form { display: grid; grid-template-columns: minmax(10rem,.6fr) minmax(12rem,1.4fr); align-items: end; gap: .7rem; max-width: 52rem; }
+.tenant-feedback-manual-form>label:nth-child(2), .tenant-feedback-manual-form>label:nth-child(3), .tenant-feedback-manual-form>button { grid-column: 1 / -1; }
+.tenant-feedback-manual-form button:disabled, .tenant-feedback-actions button:disabled, .tenant-feedback-reminder button:disabled { opacity: .55; cursor: not-allowed; }
+.tenant-feedback-client-options button { display: flex; width: 100%; min-height: 2.9rem; align-items: center; justify-content: space-between; gap: .8rem; padding: .55rem .7rem; border: 1px solid #e2e8f0; border-radius: .5rem; background: #fff; color: inherit; text-align: right; cursor: pointer; }
+.tenant-feedback-client-options button:hover { background: #f8fafc; }
+.tenant-feedback-client-options span { color: #64748b; direction: ltr; font-size: .76rem; }
+.tenant-feedback-selected-client { display: flex; align-items: center; flex-wrap: wrap; gap: .45rem .7rem; grid-column: 1 / -1; }
+.tenant-feedback-selected-client span { color: #64748b; font-size: .78rem; }
+.tenant-feedback-selected-client button { margin-inline-start: auto; }
+.tenant-feedback-success, .tenant-feedback-error { margin: 0; padding: .75rem .9rem; border-radius: .65rem; font-size: .82rem; }
+.tenant-feedback-success { background: #ecfdf5; color: #047857; }
+.tenant-feedback-error { background: #fff1f2; color: #9f1239; }
+.tenant-feedback-detail { display: grid; gap: .85rem; max-width: 68rem; }
+.tenant-feedback-detail-card, .tenant-feedback-recovery { display: grid; gap: .75rem; }
+.tenant-feedback-detail-rating { display: flex; align-items: center; gap: .65rem; }
+.tenant-feedback-detail-rating .tenant-feedback-stars { font-size: 1.35rem; }
+.tenant-feedback-detail-rating>span { color: #64748b; font-size: .8rem; }
+.tenant-feedback-detail-card h2, .tenant-feedback-reminder h3 { margin: 0; color: #1f2937; font-size: .95rem; }
+.tenant-feedback-comment { margin: 0; color: #334155; line-height: 1.9; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tenant-feedback-muted { margin: 0; color: #64748b; font-size: .8rem; }
+.tenant-feedback-facts { display: flex; flex-wrap: wrap; gap: .7rem 1.2rem; margin: 0; padding-block-start: .7rem; border-block-start: 1px solid #edf1f5; }
+.tenant-feedback-facts>div { display: grid; gap: .2rem; }
+.tenant-feedback-facts dt { color: #64748b; font-size: .72rem; }
+.tenant-feedback-facts dd { margin: 0; color: #334155; font-size: .8rem; }
+.tenant-feedback-facts a, .tenant-feedback-recovery a { color: #075985; text-underline-offset: .2rem; }
+.tenant-feedback-resolution { display: grid; gap: .3rem; padding: .8rem; border-inline-start: 3px solid #047857; border-radius: .45rem; background: #f0fdf4; color: #14532d; }
+.tenant-feedback-resolution p { margin: 0; font-size: .82rem; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tenant-feedback-actions { display: grid; gap: .75rem; }
+.tenant-feedback-actions form, .tenant-feedback-reminder form { display: grid; gap: .65rem; max-width: 42rem; }
+.tenant-feedback-actions form>button, .tenant-feedback-reminder form>div { justify-self: start; }
+.tenant-feedback-reminder { display: grid; gap: .55rem; padding-block-start: .8rem; border-block-start: 1px solid #edf1f5; }
+.tenant-feedback-reminder form>div { display: flex; flex-wrap: wrap; gap: .45rem; }
+.tenant-crm-feedback-summary { display: grid; gap: .75rem; }
+.tenant-feedback-recent a { display: grid; grid-template-columns: minmax(0,1fr) auto auto; align-items: center; gap: .8rem; min-height: 3.5rem; padding: .6rem .7rem; border: 1px solid #edf1f5; border-radius: .6rem; color: inherit; text-decoration: none; }
+.tenant-feedback-recent a:hover { background: #f8fafc; }
+.tenant-feedback-recent a>span:first-child { display: grid; gap: .25rem; min-width: 0; }
+.tenant-feedback-recent a>span:first-child>span:last-child { overflow: hidden; color: #64748b; font-size: .78rem; text-overflow: ellipsis; white-space: nowrap; }
+.tenant-feedback-recent time { color: #64748b; font-size: .72rem; white-space: nowrap; }
+@media (max-width: 70rem) { .tenant-feedback-filters { grid-template-columns: repeat(3,minmax(0,1fr)); } }
+@media (max-width: 42rem) {
+  .tenant-feedback-filters { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .tenant-feedback-filters label:first-child { grid-column: 1 / -1; }
+  .tenant-feedback-card { grid-template-columns: 1fr; }
+  .tenant-feedback-card-meta { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+  .tenant-feedback-recent a { grid-template-columns: minmax(0,1fr) auto; }
+  .tenant-feedback-recent time { grid-column: 1 / -1; }
+}
+
+.tenant-crm-offer-filters, .tenant-crm-offer-form { display: grid; gap: .75rem; }
+.tenant-crm-offer-filters { grid-template-columns: minmax(0,1fr) minmax(10rem,.45fr); margin-bottom: .8rem; }
+.tenant-crm-offer-filters label, .tenant-crm-offer-form>label { display: grid; gap: .3rem; color: #475569; font-size: .78rem; font-weight: 700; }
+.tenant-crm-offer-filters input, .tenant-crm-offer-filters select, .tenant-crm-offer-form input, .tenant-crm-offer-form select, .tenant-crm-offer-form textarea { width: 100%; min-width: 0; min-height: 2.65rem; padding: .55rem .7rem; border: 1px solid #d1d5db; border-radius: .6rem; background: #fff; color: #111827; font: inherit; }
+.tenant-crm-offer-form textarea { resize: vertical; }
+.tenant-crm-offer-form-actions, .tenant-crm-offer-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; }
+.tenant-crm-offer-form-actions button, .tenant-crm-offer-actions button, .tenant-crm-offer-form .tenant-crm-section-heading button { min-height: 2.6rem; padding: .5rem .8rem; border: 1px solid #cbd5e1; border-radius: .55rem; background: #fff; color: #075985; font: inherit; font-size: .8rem; font-weight: 700; cursor: pointer; }
+.tenant-crm-offer-form-actions button[type="submit"] { border-color: #0e7490; background: #0e7490; color: #fff; }
+.tenant-crm-offer-form button:disabled, .tenant-crm-offer-actions button:disabled { cursor: wait; opacity: .65; }
+.tenant-crm-offer-preview { padding: .75rem; border: 1px solid #dbe3eb; border-radius: .65rem; background: #f8fafc; color: #334155; font-size: .82rem; }
+.tenant-crm-offer-preview p { margin: .3rem 0; color: #64748b; line-height: 1.7; }
+.tenant-crm-offer-preview ul, .tenant-crm-offer-audience ul, .tenant-crm-offers-client ul { display: grid; gap: .45rem; margin: .55rem 0 0; padding: 0; list-style: none; }
+.tenant-crm-offer-preview li, .tenant-crm-offer-audience li { display: flex; justify-content: space-between; gap: .65rem; padding: .55rem 0; border-top: 1px solid #e5e7eb; }
+.tenant-crm-offer-card { min-width: 0; padding: .75rem .85rem; border: 1px solid #e5e7eb; border-radius: .75rem; background: #fff; }
+.tenant-crm-offer-card.is-selected { border-color: #38bdf8; box-shadow: 0 0 0 2px #e0f2fe; }
+.tenant-crm-offer-select { display: flex; align-items: start; justify-content: space-between; gap: .65rem; width: 100%; padding: 0; border: 0; background: transparent; color: #1f2937; text-align: right; cursor: pointer; }
+.tenant-crm-offer-select>span:first-child { display: grid; gap: .2rem; min-width: 0; }
+.tenant-crm-offer-select small { color: #64748b; font-size: .8rem; line-height: 1.6; }
+.tenant-crm-offer-terms { margin: .55rem 0 0; color: #64748b; font-size: .78rem; line-height: 1.65; }
+.tenant-crm-offer-card dl, .tenant-crm-offer-client-heading+dl { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .5rem; margin: .7rem 0; }
+.tenant-crm-offer-card dl div, .tenant-crm-offer-client-heading+dl div { min-width: 0; padding: .55rem; border-radius: .55rem; background: #f8fafc; }
+.tenant-crm-offer-card dt, .tenant-crm-offer-client-heading+dl dt { color: #64748b; font-size: .72rem; line-height: 1.5; }
+.tenant-crm-offer-card dd, .tenant-crm-offer-client-heading+dl dd { margin: .2rem 0 0; color: #1f2937; font-size: .9rem; font-weight: 800; }
+.tenant-crm-offer-status-draft { background: #f1f5f9; color: #475569; }
+.tenant-crm-offer-status-active { background: #ecfdf5; color: #047857; }
+.tenant-crm-offer-status-ended { background: #fff7ed; color: #9a3412; }
+.tenant-crm-offer-audience, .tenant-crm-offers-client { margin-top: .85rem; }
+.tenant-crm-offer-audience li { align-items: center; border-bottom: 1px solid #e5e7eb; }
+.tenant-crm-offers-client>ul>li { display: grid; gap: .3rem; padding: .75rem 0; border-bottom: 1px solid #e5e7eb; }
+.tenant-crm-offer-client-group { margin-top: .7rem; }
+.tenant-crm-offer-client-group h3 { margin: 0; color: #334155; font-size: .9rem; }
+.tenant-crm-offer-client-heading { display: flex; align-items: center; justify-content: space-between; gap: .65rem; }
+.tenant-crm-offers-client li p, .tenant-crm-offer-source-note, .tenant-crm-offers-client li>small { margin: .25rem 0; color: #64748b; font-size: .79rem; line-height: 1.65; }
+.tenant-crm-offers-client dl { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .5rem; margin: .7rem 0; }
+.tenant-crm-offers-client dl div { min-width: 0; padding: .55rem; border-radius: .55rem; background: #f8fafc; }
+.tenant-crm-offers-client dt { color: #64748b; font-size: .72rem; line-height: 1.5; }
+.tenant-crm-offers-client dd { margin: .2rem 0 0; color: #1f2937; font-size: .9rem; font-weight: 800; }
+.tenant-crm-offer-notice { padding: .65rem .8rem; border: 1px solid #a7f3d0; border-radius: .6rem; background: #ecfdf5; color: #047857; font-size: .84rem; }
+@media (max-width: 42rem) {
+  .tenant-crm-offer-filters { grid-template-columns: 1fr; }
+  .tenant-crm-offer-card dl, .tenant-crm-offer-client-heading+dl { grid-template-columns: 1fr; }
+  .tenant-crm-offer-select { align-items: flex-start; flex-direction: column; }
+  .tenant-crm-offer-form-actions { align-items: stretch; flex-direction: column; }
+  .tenant-crm-offers-client dl { grid-template-columns: 1fr; }
+}

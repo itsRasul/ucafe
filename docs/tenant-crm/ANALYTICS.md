@@ -40,3 +40,12 @@ Segment preview/member counts describe matches at query time. There is no histor
 ## Phase 5 Loyalty boundary
 
 Current balance is derived from signed ledger entries at read time; accounts contain no cached balance or analytics counters. The CRM profile exposes a single Client's balance and short history for operations, not a cross-client dashboard or retention metric. Earning uses the current `DELIVERED` Order amount semantics but does not alter or extend Analytics aggregates. Loyalty measures in analytics, retention, or Segmentation remain future work and require explicit windows and history semantics.
+
+## Phase 6 Feedback boundary
+
+Customer 360 may show per-Client Feedback count, one-decimal average rating, count rated 1–2, current Needs Attention count, and last Feedback time. These are operational profile facts, not tenant-wide analytics. Feedback does not add aggregate tables, charts, cross-customer averages, resolution-time claims, or causal attribution. Future metrics such as negative-feedback rate or resolution time belong to Phase 10 and need defined time windows and lifecycle semantics.
+
+
+## Phase 7 Offer measures
+
+Offer audience count comes from activation-time membership rows. Recorded redemption count comes from applied promotion_redemptions after activation. Applied-order count is separately derived from positive order/order-item Promotion snapshots within the Offer lifecycle. The latter is an application measure, not a coupon redemption measure; the two counts can overlap and have distinct source records.

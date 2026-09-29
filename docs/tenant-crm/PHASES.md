@@ -10,7 +10,7 @@ Phase numbers sequence work; they do not authorize work beyond the agreed phase.
 | 3 | Preferences, notes, tags, custom fields, and reminders | Implemented; authenticated visual acceptance pending |
 | 4 | Segmentation and smart groups | Implemented; PostgreSQL regression passed, authenticated visual acceptance pending |
 | 5 | Loyalty and rewards | Implemented; authenticated visual acceptance pending |
-| 6 | Feedback and service recovery | Planned |
+| 6 | Feedback and service recovery | Implemented; authenticated visual acceptance pending |
 | 7 | Offers and Discount targeting | Planned |
 | 8 | Customer communications and campaigns | Planned |
 | 9 | Lifecycle automation and retention journeys | Planned |
@@ -49,3 +49,18 @@ Use the existing Client identity and effective `tenant_crm` entitlement. Add a v
 Migration `1790630000000-TenantCrmLoyalty` creates tenant-composite persistence and the PostgreSQL outbox. Orders only writes the durable event; a CRM-owned consumer claims/retries it and no-ops without effective CRM entitlement. Reward redemption is not checkout or a Discount. The Customer 360 panel and `/admin/crm/loyalty` workspace use existing CRM permissions and Persian RTL patterns. Segmentation, Campaign, Automation, expiry, refund reversals, and Loyalty analytics stay outside Phase 5. Focused database tests and migration application passed; see LOYALTY.md and TESTING.md. Authenticated visual acceptance remains pending.
 
 No Campaign, consent, automation, dynamic membership persistence, analytics implementation, search service, broker, separate database, or microservice was introduced by Phase 5.
+
+## Phase 6 contract
+
+Phase 6 stores customer responses in `tenant_crm_feedback`, rooted in the existing tenant Client identity. Ratings are required integers 1–5; 1–2 is the fixed negative threshold and starts at `NEEDS_ATTENTION`; ratings 3–5 start at `NEW`. Customer-panel responses may link to one delivered Order or completed Reservation belonging to the same Client and tenant, with one response per linked source. Manual entries are staff-attributed and may be unlinked. Staff can mark attention or resolve with an optional private note; resolution is row-locked, records actor/time, is idempotent, and cannot be reopened.
+
+Tenant Admin inbox/detail, bounded Customer 360 summary/recent records, and Timeline projection use effective `tenant_crm`; reads require `tenant_crm.read` and mutations require `tenant_crm.manage`. The customer-panel form uses the existing authenticated Client and exposes only its own rating/comment/source/time. Follow-up uses the existing Reminder. Migration `1790640000000-TenantCrmFeedback` enforces tenant/client/source and actor references. Feedback does not add ticketing, review invitations, Segment fields, Campaign, Offers, automation, automatic loyalty/discount/SMS changes, or analytics. Focused tests and schema checks are recorded in [TESTING.md](TESTING.md); authenticated desktop/mobile visual acceptance remains pending.
+
+
+## Phase 7 contract
+
+Implemented Offers link saved active Segments to existing Promotions, snapshot the current audience atomically on activation, and add that snapshot to the existing Discounts eligibility path. Customer 360 and Timeline expose targeting and saved discount applications without creating Campaigns, SMS delivery, new pricing, or redemption accounting. See [OFFERS.md](OFFERS.md).
+
+## Phase 8 status
+
+Customer Communications and Campaigns are not implemented by Phase 7. Their future requirements include approved delivery providers, consent/suppression, communication scheduling, delivery state, and privacy-safe metrics; none are prerequisites for using Offers today.

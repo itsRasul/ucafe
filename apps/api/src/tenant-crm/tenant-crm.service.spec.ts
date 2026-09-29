@@ -92,6 +92,8 @@ test("timeline cursors round-trip a validated event key and reject malformed inp
   assert.deepEqual(decodeTimelineCursor(encodeTimelineCursor(cursor)), cursor);
   const crmCursor = { occurredAt: "2026-09-04T00:00:00.000Z", eventKey: "REMINDER:123e4567-e89b-12d3-a456-426614174000:COMPLETED" };
   assert.deepEqual(decodeTimelineCursor(encodeTimelineCursor(crmCursor)), crmCursor);
+  const offerCursor = { occurredAt: "2026-09-04T00:00:00.000Z", eventKey: "OFFER_ORDER:123e4567-e89b-12d3-a456-426614174000:123e4567-e89b-12d3-a456-426614174001" };
+  assert.deepEqual(decodeTimelineCursor(encodeTimelineCursor(offerCursor)), offerCursor);
   assert.throws(() => decodeTimelineCursor("%%%"), BadRequestException);
   assert.throws(() => decodeTimelineCursor(encodeTimelineCursor({ ...cursor, eventKey: "ORDER:bad:CREATED" })), BadRequestException);
 });

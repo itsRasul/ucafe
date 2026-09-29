@@ -37,3 +37,12 @@ The builder hides mutation controls for users without manage permission, while s
 ## Phase 5 Loyalty access
 
 Program, reward, Client Loyalty summary, ledger, and redemption history reads require `tenant_crm.read` and effective `tenant_crm`. Program/reward changes, manual adjustments, and staff redemptions additionally require `tenant_crm.manage`. No loyalty-specific permission or feature flag is introduced. Management controls are hidden when the manager permission is absent; each API route independently checks trusted tenant context, permission, and entitlement.
+
+## Phase 6 Feedback access
+
+Feedback inbox, detail, Customer 360 summary/recent items, and Timeline projections require `tenant_crm.read` plus effective `tenant_crm`. Manual Feedback creation, marking Needs Attention, resolution, and Reminder creation additionally require `tenant_crm.manage`; no granular permission is added. Customer-panel endpoints are separate Client-authenticated routes protected by existing Tenant and Client access guards and feature entitlement. They return only the authenticated Client's own Feedback fields and never recovery status, staff identity, internal notes, or Reminders.
+
+
+## Phase 7 Offer access
+
+Offer reads, Segment previews, audience lists, and Customer 360 Offer summaries require tenant_crm.read and menu.read plus the tenant_crm feature. Draft changes, activation, and ending also require tenant_crm.manage. Existing Promotion management permissions continue to govern discount edits; no new permission is introduced.

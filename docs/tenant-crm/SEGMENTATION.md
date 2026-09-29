@@ -115,3 +115,12 @@ Future Campaign or Analytics work may consume a Segment as a current audience pr
 ## Phase 5 boundary
 
 Loyalty adds no criteria field, stored membership, or automatic Segment recalculation. Segment filters continue to use current Client, CRM, Order, and Reservation sources only. A later phase may define a points-balance filter or loyalty audience independently after measuring query cost and specifying membership freshness/history semantics.
+
+## Phase 6 boundary
+
+Feedback count, average rating, negative count, latest Feedback time, and Needs Attention count are not Segment fields in Phase 6. The current registry remains unchanged; future work must define typed operators and confirm a tenant-scoped aggregate query before adding Feedback criteria.
+
+
+## Phase 7 Offer targeting
+
+Offer preview and activation reuse the saved Segment criteria compiler and the tenant's current field catalog. Preview is a current estimate. Activation takes a one-time snapshot of matching Clients and records the Segment name and criteria used. Later Segment or Client changes do not recalculate that Offer's audience; a new Draft and activation are required for a new audience.
