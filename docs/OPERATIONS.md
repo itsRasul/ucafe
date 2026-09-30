@@ -29,6 +29,16 @@ The schema refuses development SMS, simulated payment, or an HTTP payment callba
 
 The reverse proxy must terminate TLS, redirect HTTP, preserve the external host, set trusted forwarded address/protocol, and strip inbound `x-ucafe-tenant-host` plus `x-ucafe-proxy-secret`. Keep API, PostgreSQL, Redis, and object storage private except for the deliberately routed gateway callback/API paths. Review `compose.prod.yaml` loopback publications rather than treating it as a complete production perimeter.
 
+## Sentry alerts and uptime
+
+Set `SENTRY_TRACES_SAMPLE_RATE=0.05` for production unless quota/latency review supports another value; development defaults to 1 and tests to 0. Missing DSNs disable the relevant SDK. Set the Sentry environment to `production` so development events cannot match production alert rules.
+
+In each existing `ucafe-api` and `ucafe-web` Sentry project, add one first-seen/actionable error alert filtered to `environment:production` and route it to the team's existing notification destination. API expected 4xx errors are excluded by the capture boundary. Add at most one production error-count/spike rule after confirming account support and a traffic baseline; set its threshold from that baseline. Add latency rules only after a useful baseline exists; do not guess a threshold.
+
+Create one public HTTPS uptime check for `GET https://<web-origin>/health` and one for `GET https://<api-origin>/api/v1/health`, expecting HTTP 200, and route failures to the same existing notification destination. These are liveness checks; keep dependency readiness at `/api/v1/health/ready` for deployment and on-call diagnostics so a dependency outage does not look like the API process itself is down. Do not create tenant-specific checks. Replace the placeholders with the deployed public HTTPS origins; they and the account's notification destination are not stored in this repository.
+
+When an alert fires, check the Sentry environment/release, the sampled trace if present, API request ID, safe tenant context, and matching application readiness/restart/provider logs. Sentry telemetry is best-effort and must never be made a request or business-operation dependency. See [observability](OBSERVABILITY.md) for propagation and privacy limits.
+
 ## Backup and restore
 
 `scripts/backup.ps1` creates a PostgreSQL custom-format dump inside the repository. Encrypt and copy completed backups off-host; assign daily/weekly/monthly retention. Configure independent S3/MinIO versioning or provider snapshots because the database dump does not contain object bytes.

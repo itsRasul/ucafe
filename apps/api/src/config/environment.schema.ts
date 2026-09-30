@@ -4,9 +4,6 @@ const smsTemplateId = Joi.when("SMS_PROVIDER", { is: "smsir", then: Joi.string()
 
 export const environmentSchema = Joi.object({
   NODE_ENV: Joi.string().valid("development", "test", "production").default("development"),
-  SENTRY_DSN: Joi.string().uri({ scheme: ["http", "https"] }).empty("").optional(),
-  SENTRY_ENVIRONMENT: Joi.string().valid("development", "test", "production").empty("").optional(),
-  SENTRY_RELEASE: Joi.string().max(200).empty("").optional(),
   API_PORT: Joi.number().port().default(3001),
   DATABASE_URL: Joi.string().uri({ scheme: ["postgres", "postgresql"] }).required(),
   REDIS_URL: Joi.string().uri({ scheme: ["redis", "rediss"] }).required(),

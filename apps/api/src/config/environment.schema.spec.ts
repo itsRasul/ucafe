@@ -18,8 +18,8 @@ test("sms.ir templates must be the numeric panel ids", () => {
   assert.ok(environmentSchema.validate({ ...base, ...templates, SMS_PROVIDER: "smsir", SMSIR_API_KEY: "test-api-key", SMSIR_OTP_TEMPLATE_ID: "otp" }).error);
 });
 
-test("Sentry config is optional but environment names are constrained", () => {
+test("invalid optional Sentry config cannot prevent API startup", () => {
   const result = environmentSchema.validate({ ...base, SENTRY_DSN: "https://public@example.test/1", SENTRY_ENVIRONMENT: "production", SENTRY_RELEASE: "abc123" });
   assert.equal(result.error, undefined);
-  assert.ok(environmentSchema.validate({ ...base, SENTRY_ENVIRONMENT: "staging" }).error);
+  assert.equal(environmentSchema.validate({ ...base, SENTRY_DSN: "not-a-sentry-dsn", SENTRY_ENVIRONMENT: "staging", SENTRY_RELEASE: "x".repeat(500) }).error, undefined);
 });

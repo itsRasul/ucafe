@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { headers } from "next/headers";
 import { request as httpRequest } from "node:http";
+import { canonicalRequestId } from "../request-id";
 import type { PublicMenu, PublicOrderingState, PublicSite, TenantContext } from "./tenant-public";
 
 type PlatformPublicData = { isTenant: false };
@@ -23,10 +24,10 @@ export type PublicOffering = {
   trialDays: number;
 };
 
-function loadApiPath(apiBaseUrl: string, host: string, path: string): Promise<{ status: number; body: string }> {
+function loadApiPath(apiBaseUrl: string, host: string, path: string, requestId: string): Promise<{ status: number; body: string }> {
   const url = new URL(`${apiBaseUrl}${path}`);
   return new Promise((resolve, reject) => {
-    const request = httpRequest(url, { method: "GET", headers: { host } }, (response) => {
+    const request = httpRequest(url, { method: "GET", headers: { host, "x-request-id": requestId } }, (response) => {
       const chunks: Buffer[] = [];
       response.on("data", (chunk: Buffer) => chunks.push(chunk));
       response.on("end", () => resolve({ status: response.statusCode ?? 500, body: Buffer.concat(chunks).toString("utf8") }));
@@ -37,13 +38,15 @@ function loadApiPath(apiBaseUrl: string, host: string, path: string): Promise<{ 
 }
 
 export const loadPublicPageData = cache(async (): Promise<PublicPageData> => {
-  const host = (await headers()).get("host")?.toLowerCase() ?? "";
+  const incomingHeaders = await headers();
+  const host = incomingHeaders.get("host")?.toLowerCase() ?? "";
+  const requestId = canonicalRequestId(incomingHeaders.get("x-request-id"));
   const hostname = host.replace(/:\d+$/, "").replace(/\.$/, "");
   const baseDomain = process.env.PLATFORM_BASE_DOMAIN ?? "u-cafe.localhost";
   if (!hostname.endsWith(`.${baseDomain}`)) return { isTenant: false };
 
   const apiBaseUrl = process.env.API_INTERNAL_URL ?? "http://localhost:3001/api/v1";
-  const contextResponse = await loadApiPath(apiBaseUrl, host, "/public/context");
+  const contextResponse = await loadApiPath(apiBaseUrl, host, "/public/context", requestId);
   if (contextResponse.status === 404) return { isTenant: true, context: null, site: null, menu: null, ordering: null };
   if (contextResponse.status < 200 || contextResponse.status >= 300) throw new Error("Tenant context is temporarily unavailable");
 
@@ -51,9 +54,9 @@ export const loadPublicPageData = cache(async (): Promise<PublicPageData> => {
   if (!context.available) return { isTenant: true, context, site: null, menu: null, ordering: null };
 
   const [siteResponse, menuResponse, orderingResponse] = await Promise.all([
-    loadApiPath(apiBaseUrl, host, "/public/site"),
-    loadApiPath(apiBaseUrl, host, "/public/menu"),
-    loadApiPath(apiBaseUrl, host, "/public/ordering/settings"),
+    loadApiPath(apiBaseUrl, host, "/public/site", requestId),
+    loadApiPath(apiBaseUrl, host, "/public/menu", requestId),
+    loadApiPath(apiBaseUrl, host, "/public/ordering/settings", requestId),
   ]);
   if (siteResponse.status < 200 || siteResponse.status >= 300) throw new Error("Tenant site content is temporarily unavailable");
   if (menuResponse.status < 200 || menuResponse.status >= 300) throw new Error("Tenant menu is temporarily unavailable");
@@ -70,7 +73,8 @@ export const loadPublicPageData = cache(async (): Promise<PublicPageData> => {
 export const loadPlatformOffering = cache(async (): Promise<PublicOffering | null> => {
   const apiBaseUrl = process.env.API_INTERNAL_URL ?? "http://localhost:3001/api/v1";
   try {
-    const response = await loadApiPath(apiBaseUrl, "", "/public/platform/offering");
+    const requestId = canonicalRequestId((await headers()).get("x-request-id"));
+    const response = await loadApiPath(apiBaseUrl, "", "/public/platform/offering", requestId);
     if (response.status < 200 || response.status >= 300) return null;
     return JSON.parse(response.body) as PublicOffering;
   } catch {

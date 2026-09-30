@@ -5,6 +5,7 @@ import { AUTH_PRINCIPAL, AuthorizedRequest, MEMBERSHIP_CONTEXT } from "./auth-pr
 import { TENANT_PERMISSIONS_METADATA } from "./authorization.decorators";
 import { AuthorizationService } from "./authorization.service";
 import { TenantPermissionKey } from "./permission.constants";
+import { setActorObservabilityContext } from "../observability/request-context";
 
 @Injectable()
 export class TenantPermissionGuard implements CanActivate {
@@ -28,6 +29,7 @@ export class TenantPermissionGuard implements CanActivate {
     if (!result.permitted || !result.membershipId) throw new ForbiddenException("Tenant permission denied");
 
     request[MEMBERSHIP_CONTEXT] = { membershipId: result.membershipId, coffeeShopId: tenant.coffeeShopId };
+    setActorObservabilityContext(result.roleKeys?.includes("owner") ? "tenant_owner" : "tenant_staff");
     return true;
   }
 }

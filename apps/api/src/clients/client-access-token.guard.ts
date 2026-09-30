@@ -6,6 +6,7 @@ import { ClientAccessTokenPayload } from "../auth/auth-token.service";
 import { TENANT_CONTEXT, TenantContextRequest } from "../tenants/tenant-context";
 import { CLIENT_PRINCIPAL, ClientAuthorizedRequest } from "./client-principal";
 import { ClientAuthSession, ClientStatus } from "./entities";
+import { setActorObservabilityContext } from "../observability/request-context";
 
 @Injectable()
 export class ClientAccessTokenGuard implements CanActivate {
@@ -32,6 +33,7 @@ export class ClientAccessTokenGuard implements CanActivate {
       });
       if (!session) throw new UnauthorizedException();
       request[CLIENT_PRINCIPAL] = { clientId: payload.sub, sessionId: payload.sid, coffeeShopId: tenant.coffeeShopId };
+      setActorObservabilityContext("client");
       return true;
     } catch {
       throw new UnauthorizedException();

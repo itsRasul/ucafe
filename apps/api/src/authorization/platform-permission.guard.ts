@@ -4,6 +4,7 @@ import { AUTH_PRINCIPAL, AuthorizedRequest } from "./auth-principal";
 import { PLATFORM_PERMISSIONS_METADATA } from "./authorization.decorators";
 import { AuthorizationService } from "./authorization.service";
 import { PlatformPermissionKey } from "./permission.constants";
+import { setActorObservabilityContext } from "../observability/request-context";
 
 @Injectable()
 export class PlatformPermissionGuard implements CanActivate {
@@ -23,6 +24,7 @@ export class PlatformPermissionGuard implements CanActivate {
     if (!(await this.authorization.hasPlatformPermissions(principal.userId, required))) {
       throw new ForbiddenException("Platform permission denied");
     }
+    setActorObservabilityContext("platform_admin");
     return true;
   }
 }

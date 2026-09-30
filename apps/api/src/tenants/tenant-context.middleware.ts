@@ -8,6 +8,7 @@ import { TENANT_CONTEXT, TenantContextRequest } from "./tenant-context";
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { ConfigService } from "@nestjs/config";
 import { trustedForwardedTenantHost } from "./proxy-trust.util";
+import { setTenantObservabilityContext } from "../observability/request-context";
 
 const PUBLIC_TENANT_STATUSES = [CoffeeShopStatus.Preview, CoffeeShopStatus.Active, CoffeeShopStatus.Suspended];
 
@@ -42,6 +43,7 @@ export class TenantContextMiddleware implements NestMiddleware {
 
     if (domain) {
       const effectiveStatus = await this.subscriptions.enforceForPublicRequest(domain.coffeeShopId);
+      setTenantObservabilityContext(domain.coffeeShopId);
       request[TENANT_CONTEXT] = {
         coffeeShopId: domain.coffeeShopId,
         slug: domain.coffeeShop.slug,

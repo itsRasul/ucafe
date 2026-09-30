@@ -10,6 +10,7 @@ interface PermissionRow {
 
 interface TenantPermissionRow extends PermissionRow {
   membership_id: string;
+  role_key: string;
 }
 
 export interface TenantAccess {
@@ -50,7 +51,7 @@ export class AuthorizationService {
     userId: string,
     coffeeShopId: string,
     required: TenantPermissionKey[],
-  ): Promise<{ permitted: boolean; membershipId?: string }> {
+  ): Promise<{ permitted: boolean; membershipId?: string; roleKeys?: string[] }> {
     const permissions = [...new Set(required)];
     if (permissions.length === 0) return { permitted: false };
 
@@ -67,13 +68,18 @@ export class AuthorizationService {
       .andWhere("(role.coffee_shop_id IS NULL OR role.coffee_shop_id = membership.coffee_shop_id)")
       .andWhere("permission.key IN (:...permissions)", { permissions })
       .select("membership.id", "membership_id")
+      .addSelect("role.key", "role_key")
       .addSelect("permission.key", "permission_key")
       .distinct(true)
       .getRawMany<TenantPermissionRow>();
 
     const granted = new Set(rows.map((row) => row.permission_key));
     const membershipId = rows[0]?.membership_id;
-    return { permitted: Boolean(membershipId) && granted.size === permissions.length, membershipId };
+    return {
+      permitted: Boolean(membershipId) && granted.size === permissions.length,
+      membershipId,
+      roleKeys: [...new Set(rows.map((row) => row.role_key))],
+    };
   }
 
   async getPlatformAccess(userId: string): Promise<PlatformAccess | null> {

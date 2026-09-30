@@ -6,6 +6,7 @@ import { normalizeIranianMobile } from "../auth/iran-phone.util";
 import { SMS_PROVIDER, SmsProvider } from "../auth/sms-provider";
 import { NotificationDelivery, NotificationStatus } from "./entities";
 import { jalaliDate, NotificationPayload, NotificationType } from "./notification-type";
+import { logOperationalFailure } from "../observability/operational-logger";
 
 type EnqueueInput = {
   coffeeShopId: string | null;
@@ -87,7 +88,15 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         } catch {
           const attempts = job.attempts + 1;
           await repository.update(job.id, { attempts, status: attempts >= 3 ? NotificationStatus.Failed : NotificationStatus.Pending, nextAttemptAt: new Date(Date.now() + Math.pow(2, attempts) * 30_000), lastErrorCode: "PROVIDER_UNAVAILABLE" });
-          this.logger.warn(`Notification delivery failed id=${job.id} type=${job.type} attempt=${attempts}`);
+          if (attempts >= 3) {
+            logOperationalFailure(this.logger, "warn", "Notification delivery exhausted retries", {
+              feature: "notifications",
+              integration: this.config.get<string>("SMS_PROVIDER") === "smsir" ? "sms_ir" : undefined,
+              tenant_id: job.coffeeShopId ?? undefined,
+              error_code: "PROVIDER_UNAVAILABLE",
+              attempt: attempts,
+            });
+          } else this.logger.warn(`Notification delivery failed id=${job.id} type=${job.type} attempt=${attempts}`);
         }
       }
     } finally { this.running = false; }

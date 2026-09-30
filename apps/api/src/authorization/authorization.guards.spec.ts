@@ -9,6 +9,9 @@ import { AuthorizationService } from "./authorization.service";
 import { PlatformPermissionGuard } from "./platform-permission.guard";
 import { PlatformPermissions, TenantPermissions } from "./permission.constants";
 import { TenantPermissionGuard } from "./tenant-permission.guard";
+import { getRequestObservabilityContext, runWithRequestObservability } from "../observability/request-context";
+import { ClientAccessTokenGuard } from "../clients/client-access-token.guard";
+import { JwtService } from "@nestjs/jwt";
 
 function executionContext(request: AuthorizedRequest): ExecutionContext {
   return {
@@ -60,6 +63,40 @@ test("tenant guard scopes authorization to the resolved tenant and attaches memb
   };
   assert.equal(await guard.canActivate(executionContext(request)), true);
   assert.deepEqual(request[MEMBERSHIP_CONTEXT], { membershipId: "membership-a", coffeeShopId: "tenant-a" });
+});
+
+test("successful guards set only the bounded actor category in request-local context", async () => {
+  for (const [roleKey, expectedRole] of [["owner", "tenant_owner"], ["content_editor", "tenant_staff"]] as const) {
+    const authorization = { authorizeTenant: async () => ({ permitted: true, membershipId: "membership-a", roleKeys: [roleKey] }) } as unknown as AuthorizationService;
+    const guard = new TenantPermissionGuard(reflectorWith([TenantPermissions.MenuManage]), authorization);
+    const request: AuthorizedRequest = {
+      headers: {},
+      [AUTH_PRINCIPAL]: { userId: "user-a", sessionId: "session-a" },
+      [TENANT_CONTEXT]: tenant,
+    };
+    await runWithRequestObservability("123e4567-e89b-42d3-a456-426614174000", "menu", async () => {
+      assert.equal(await guard.canActivate(executionContext(request)), true);
+      assert.equal(getRequestObservabilityContext()?.actorRole, expectedRole);
+    });
+  }
+
+  const platformGuard = new PlatformPermissionGuard(reflectorWith([PlatformPermissions.TenantsRead]), {
+    hasPlatformPermissions: async () => true,
+  } as unknown as AuthorizationService);
+  const platformRequest: AuthorizedRequest = { headers: {}, [AUTH_PRINCIPAL]: { userId: "platform-user", sessionId: "session-platform" } };
+  await runWithRequestObservability("123e4567-e89b-42d3-a456-426614174001", "platform", async () => {
+    assert.equal(await platformGuard.canActivate(executionContext(platformRequest)), true);
+    assert.equal(getRequestObservabilityContext()?.actorRole, "platform_admin");
+  });
+
+  const clientGuard = new ClientAccessTokenGuard({
+    verifyAsync: async () => ({ typ: "client_access", cafe: tenant.coffeeShopId, sub: "client-a", sid: "session-client", jti: "jti" }),
+  } as unknown as JwtService, { findOne: async () => ({}) } as never);
+  const clientRequest = { headers: { authorization: "Bearer synthetic" }, [TENANT_CONTEXT]: tenant } as unknown as AuthorizedRequest;
+  await runWithRequestObservability("123e4567-e89b-42d3-a456-426614174002", "tenant_crm", async () => {
+    assert.equal(await clientGuard.canActivate(executionContext(clientRequest)), true);
+    assert.equal(getRequestObservabilityContext()?.actorRole, "client");
+  });
 });
 
 test("tenant guard rejects a membership without all required permissions", async () => {
