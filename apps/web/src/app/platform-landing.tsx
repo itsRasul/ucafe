@@ -1,96 +1,62 @@
-import type { PublicOffering } from "./tenant-public-data";
-import { BrandLogo } from "./brand-logo";
-import { PlatformLandingMotion } from "./platform-landing-motion";
+import type { PublicCatalog } from "./platform-catalog";
 import { PlatformMobileNav } from "./platform-mobile-nav";
 import { PlatformOrderForm } from "./platform-order-form";
+import { PlatformPricing } from "./platform-pricing";
+import { PlatformProductTour, ProductPreview } from "./platform-product-tour";
+import { ButtonLink, SectionHeader } from "./ui/primitives";
+import "./ui/tokens.css";
 import "./platform-landing.css";
-import "./platform-refinements.css";
 
-const serviceItems = [
-  { title: "وب‌سایت اختصاصی", text: "یک ویترین سریع، فارسی و متناسب با هویت کافه؛ بدون قالب‌های تکراری و پیچیدگی فنی." },
-  { title: "منوی همیشه به‌روز", text: "دسته‌بندی، قیمت، موجودی و تصویر آیتم‌ها را از پنل خودتان مدیریت کنید." },
-  { title: "رزرو میز", text: "مهمان زمان مناسب را پیدا می‌کند و درخواست رزرو مستقیماً به تیم کافه می‌رسد." },
-  { title: "میزبانی و پشتیبانی", text: "نگهداری فنی، امنیت و به‌روزرسانی‌ها با یو کافه است تا شما روی تجربه مهمان تمرکز کنید." },
+const pillars = [
+  ["فروش و تجربه مشتری", "سایت کافه، منوی آنلاین، سفارش حضوری یا ارسال و رزرو؛ از اولین بازدید تا مراجعه بعدی."],
+  ["شناخت مشتری", "تاریخچه سفارش و رزرو، ترجیحات، گروه‌بندی، وفاداری و بازخورد در پروفایل مشتری."],
+  ["عملیات روزمره", "مدیریت منو، تخفیف‌ها، سفارش‌ها و مواد اولیه؛ همراه با پشتیبانی در پنل کافه."],
+  ["تصمیم‌گیری با داده", "ارزش سفارش‌های تحویل‌شده، آیتم‌های پرفروش، الگوی مشتری و زمان‌های شلوغ."],
+];
+const faq = [
+  ["آیا به برنامه‌نویس نیاز دارم؟", "برای مدیریت منو، محتوا، سفارش و رزرو از پنل یوکافه استفاده می‌کنید. ساخت و میزبانی سایت در همان پلتفرم انجام می‌شود."],
+  ["سایت کافه روی چه نشانی ساخته می‌شود؟", "هنگام شروع، یک زیر دامنه اختصاصی و آزاد انتخاب می‌کنید. نشانی کامل پیش از پرداخت نمایش داده می‌شود. اتصال دامنه شخصی فعلاً ارائه نمی‌شود."],
+  ["آیا بعداً می‌توانم پلنم را تغییر بدهم؟", "بله. پنل اشتراک پیش‌نمایش مبلغ و زمان تغییر را نشان می‌دهد. ارتقا پس از پرداخت تأییدشده اعمال می‌شود و کاهش پلن برای پایان دوره برنامه‌ریزی می‌شود."],
+  ["اگر پرداخت لغو شود چه اتفاقی می‌افتد؟", "کافه در وضعیت پیش‌نویس باقی می‌ماند و اشتراک فعال نمی‌شود. با همان شماره می‌توانید به مسیر شروع برگردید و پرداخت را ادامه دهید."],
+  ["اگر اشتراک تمام شود، اطلاعاتم حذف می‌شود؟", "خیر. پس از پایان اشتراک پولی و مهلت تنفس پلن، سایت تعلیق می‌شود اما داده‌های کافه حذف نمی‌شوند. پرداخت تأییدشده می‌تواند دسترسی را دوباره فعال کند."],
+  ["سفارش، رزرو و پشتیبانی چگونه کار می‌کنند؟", "امکانات سفارش و رزرو به پلن انتخابی بستگی دارند. پرداخت سفارش مشتری فعلاً آفلاین است. درخواست پشتیبانی و پاسخ‌ها را از مرکز پشتیبانی پنل مدیریت پیگیری می‌کنید."],
+  ["آیا خرید، دوره آزمایشی را فعال می‌کند؟", "خیر. خرید مستقیم یک اشتراک پولی را پس از تأیید پرداخت فعال می‌کند. دوره آزمایشی، در صورت هماهنگی، توسط تیم یوکافه شروع می‌شود."],
 ];
 
-const manifesto = "کافه شما فقط یک نشانی روی نقشه نیست؛ تجربه‌ای است که باید پیش از اولین سفارش حس شود.".split(" ");
+export function PlatformLanding({ catalog }: { catalog: PublicCatalog | null }) {
+  return <main className="ucafe-ui platform-home" id="top">
+    <a className="uc-skip" href="#main-content">رفتن به محتوای اصلی</a>
+    <header className="uc-header"><nav className="uc-container uc-nav" aria-label="راهبری اصلی"><a className="uc-brand" href="#top" aria-label="یوکافه، صفحه اصلی"><img src="/brand/ucafe-logo-current.webp" alt="" width={64} height={58} /><strong>یوکافه</strong></a><div className="uc-nav-links"><a href="#features">امکانات</a><a href="#solutions">راهکارها</a><a href="#pricing">تعرفه‌ها</a><a href="#about">درباره ما</a></div><div className="uc-nav-actions"><a href="/start">ورود</a><ButtonLink href="#pricing" size="sm">شروع با یوکافه <span aria-hidden="true">←</span></ButtonLink></div><PlatformMobileNav /></nav></header>
 
-function formatPrice(value: string) {
-  const amount = Number(value);
-  return Number.isFinite(amount) ? new Intl.NumberFormat("fa-IR").format(amount) : value;
-}
-
-export function PlatformLanding({ offering }: { offering: PublicOffering | null }) {
-  return <main className="platform-home overflow-x-hidden w-full max-w-full">
-    <PlatformLandingMotion />
-    <header className="platform-header">
-      <nav className="platform-nav" aria-label="راهبری اصلی">
-        <a className="platform-brand" href="#top" aria-label="یو کافه، صفحه اصلی"><BrandLogo className="platform-brand-logo" variant="mark" /><strong>یو کافه</strong><small>ucafe</small></a>
-        <div className="platform-nav-links"><a href="#services">خدمات</a><a href="#process">روند همکاری</a><a href="#pricing">تعرفه</a></div>
-        <a className="nav-cta" href="#request">درخواست مشاوره</a>
-        <PlatformMobileNav />
-      </nav>
-    </header>
-
-    <section className="platform-hero" id="top" aria-labelledby="platform-title">
-      <div className="hero-orbit hero-orbit-one" /><div className="hero-orbit hero-orbit-two" />
-      <div className="platform-hero-copy">
-        <p className="platform-kicker">خانه دیجیتال کافه‌های حرفه‌ای</p>
-        <h1 id="platform-title">کافه‌تان را جایی بسازید که <em>دیده شود.</em></h1>
-        <p>یو کافه وب‌سایت، منوی آنلاین و رزرو کافه را در یک تجربه سریع و فارسی کنار هم می‌آورد؛ شما قهوه را جدی بگیرید، ما حضور دیجیتال‌تان را.</p>
-        <div className="hero-actions"><a className="primary-button" href="#request">شروع همکاری</a><a className="secondary-button" href="#product">دیدن تجربه محصول</a></div>
-      </div>
-      <div className="hero-product" id="product" aria-label="نمایی از محصول یو کافه">
-        <div className="product-browser"><div className="browser-bar"><span /><span /><span /><small>yourcafe.u-cafe.ir</small></div><img src="/platform/storefront-desktop.webp" alt="نمونه وب‌سایت دسکتاپ طراحی‌شده با یو کافه" /></div>
-        <div className="product-phone"><div className="phone-top" /><img src="/platform/storefront-mobile.webp" alt="نمونه منوی موبایل طراحی‌شده با یو کافه" /></div>
-        <div className="product-status"><i /><span><strong>رزرو جدید</strong><small>در انتظار بررسی</small></span></div>
-      </div>
+    <section className="uc-container uc-hero" id="main-content" aria-labelledby="platform-title"><div className="uc-hero-copy"><h1 id="platform-title">کافه‌ات را<br /><em>راحت‌تر</em> مدیریت کن.<br />مشتری‌هایت را<br /><em>بهتر</em> بشناس.</h1><p>از منوی آنلاین و رزرو میز تا سفارش‌گیری، مدیریت مشتریان، انبار و تحلیل فروش؛ ابزارهای کافه‌ات، همه در یک پلتفرم.</p><div className="uc-actions"><ButtonLink href="#pricing" size="lg">ساخت کافه من <span aria-hidden="true">←</span></ButtonLink><ButtonLink href="#request" variant="outline" size="lg">مشاوره رایگان</ButtonLink></div><a className="uc-hero-tour-link" href="#features">اول با محصول آشنا شو <span aria-hidden="true">↓</span></a></div>
+      <div className="uc-hero-product"><div className="uc-hero-product-label"><span>ویترین کافه + مدیریت پشت صحنه</span><span>یک یوکافه</span></div><ProductPreview compact /><div className="uc-storefront-preview"><img src="/platform/storefront-mobile.webp" width={320} height={640} alt="نمای واقعی منوی موبایل یک کافه نمونه در یوکافه" /><span>سایت کافه، همراه مشتری</span></div><div className="uc-hero-reservation"><span className="uc-status-dot" /><div><strong>درخواست رزرو</strong><small>زمان، ظرفیت و وضعیت در یک پنل</small></div></div><p className="uc-sample-label">نمای مفهومی محصول با داده‌های نمونه</p></div>
     </section>
 
-    <div className="platform-marquee" aria-hidden="true"><div>{["وب‌سایت سریع", "منوی آنلاین", "رزرو میز", "پنل مدیریت", "پشتیبانی واقعی", "میزبانی امن", "وب‌سایت سریع", "منوی آنلاین", "رزرو میز", "پنل مدیریت"].map((item, index) => <span key={`${item}-${index}`}>{item}<i /></span>)}</div></div>
+    <div className="uc-trust"><div className="uc-container"><span>برای کافه‌های ایرانی</span><span>فارسی و راست‌به‌چپ</span><span>سایت و عملیات، یک‌جا</span><span>اشتراک با پرداخت تأییدشده</span></div></div>
 
-    <section className="platform-manifesto">
-      <p>{manifesto.map((word, index) => <span className="manifesto-word" key={`${word}-${index}`}>{word}{index === 4 && <i className="inline-coffee-image" aria-hidden="true" />} </span>)}</p>
-    </section>
+    <section className="uc-section uc-container uc-problems" id="solutions" aria-labelledby="problems-title"><SectionHeader id="problems-title" title="کافه‌داری به‌اندازه کافی شلوغ هست." description="اطلاعات پراکنده، کارهای ساده را پیچیده می‌کند. وقتی هر بخش در ابزار جداگانه‌ای باشد، دیدن تصویر کامل سخت‌تر می‌شود." /><div className="uc-problem-list">{[["فروش امروز را کجا می‌بینی؟", "ارزش سفارش‌ها و آیتم‌های پرفروش، کنار هم."], ["مشتری همیشگی‌ات را چقدر می‌شناسی؟", "سابقه سفارش، رزرو و ترجیحات در یک پروفایل."], ["موجودی را از روی حدس مدیریت می‌کنی؟", "ثبت مواد اولیه، خرید و مصرف در پنل کافه."], ["رزروها بین دفتر و پیام‌ها پخش شده‌اند؟", "زمان و ظرفیت مشخص، با وضعیت قابل پیگیری."]].map(([question, answer]) => <div key={question}><h3>{question}</h3><p>{answer}</p></div>)}</div></section>
 
-    <section className="platform-services" id="services" aria-labelledby="services-title">
-      <div className="section-heading platform-reveal"><p>همه‌چیز در یک خانه</p><h2 id="services-title">از اولین کلیک تا نشستن پشت میز</h2><span>ابزارهای لازم برای معرفی، جذب و ارتباط بهتر با مهمان‌ها؛ یکپارچه و بدون دردسر نگهداری.</span></div>
-      <div className="services-accordion platform-reveal">{serviceItems.map((item, index) => <article key={item.title} tabIndex={0}><span>۰{index + 1}</span><div><h3>{item.title}</h3><p>{item.text}</p></div></article>)}</div>
-    </section>
+    <section className="uc-ecosystem uc-section" aria-labelledby="ecosystem-title"><div className="uc-container"><div className="uc-ecosystem-heading"><h2 id="ecosystem-title">یک کافه.<br />یک تصویر کامل.</h2><p>ویترین دیجیتال و کارهای روزمره‌ات به هم وصل‌اند. هر بخش را از همان محیط مدیریت کن؛ با امکاناتی که پلنت در اختیار تو می‌گذارد.</p></div><div className="uc-ecosystem-map"><div className="uc-ecosystem-core"><img src="/brand/ucafe-logo-current.webp" alt="یوکافه" width={104} height={94} /><strong>مرکز مدیریت کافه</strong></div><div className="uc-ecosystem-modules">{["وب‌سایت کافه", "منوی آنلاین", "سفارش‌ها", "رزرو میز", "مدیریت مشتریان", "انبار", "تحلیل فروش", "پنل مشتری", "تخفیف‌ها", "پشتیبانی"].map((name) => <span key={name}>{name}</span>)}</div></div></div></section>
 
-    <section className="platform-benefits" aria-labelledby="benefits-title">
-      <div className="section-heading platform-reveal"><p>چرا یو کافه</p><h2 id="benefits-title">فناوری کمتر در ذهن شما، فرصت بیشتر برای رشد</h2></div>
-      <div className="benefit-bento">
-        <article className="benefit-wide platform-reveal"><span className="benefit-mark">۰۱</span><h3>اقتصادی و قابل پیش‌بینی</h3><p>به‌جای هزینه ساخت و نگهداری یک پروژه مستقل، یک سرویس کامل با تعرفه ماهانه روشن دریافت می‌کنید.</p><div className="cost-lines"><i /><i /><i /></div></article>
-        <article className="benefit-compact platform-reveal"><span className="benefit-mark">۰۲</span><h3>راه‌اندازی سریع</h3><p>مسیر شروع کوتاه است؛ اطلاعات کافه را می‌گیریم و نسخه اولیه را برای بررسی آماده می‌کنیم.</p><strong>ساده، مستقیم، بدون درگیری فنی</strong></article>
-        <article className="benefit-compact platform-reveal"><span className="benefit-mark">۰۳</span><h3>پشتیبانی انسانی</h3><p>پشت سرویس یک تیم واقعی است؛ برای راه‌اندازی و ادامه مسیر کنار شما می‌مانیم.</p><div className="support-pulse"><i /><span>در دسترس برای همراهی</span></div></article>
-        <article className="benefit-wide platform-reveal"><span className="benefit-mark">۰۴</span><h3>ساخته‌شده برای فارسی</h3><p>از راست‌به‌چپ و موبایل تا نمایش تومان و شماره ایرانی، جزئیات از ابتدا برای مخاطب شما طراحی شده‌اند.</p><div className="rtl-demo"><span>منوی کافه</span><i>قهوه‌های گرم</i><b>تومان</b></div></article>
-      </div>
-    </section>
+    <section className="uc-section uc-container" id="features" aria-labelledby="features-title"><SectionHeader id="features-title" title="ببین در کافه‌ات چه می‌گذرد." description="پنج نگاه به کار روزمره کافه؛ از سفارش تازه تا شناخت مشتری و بررسی موجودی." /><PlatformProductTour /></section>
 
-    <section className="platform-process" id="process" aria-labelledby="process-title">
-      <div className="process-heading"><p>مسیر همکاری</p><h2 id="process-title">از یک گفت‌وگو تا انتشار کافه شما</h2><span>فرایند روشن است و پرداخت در این مرحله، پس از هماهنگی و به‌صورت دستی انجام می‌شود.</span></div>
-      <div className="process-cards">
-        <article className="demo-card"><span>۱</span><div><h3>درخواست شما</h3><p>فرم کوتاه را پر می‌کنید تا با کافه و نیازتان آشنا شویم.</p></div></article>
-        <article className="demo-card"><span>۲</span><div><h3>گفت‌وگوی کوتاه</h3><p>برای مشخص‌کردن محتوا، زمان‌بندی و جزئیات همکاری با شما تماس می‌گیریم.</p></div></article>
-        <article className="demo-card"><span>۳</span><div><h3>ساخت و تحویل</h3><p>خانه دیجیتال کافه آماده می‌شود و پس از تأیید شما روی نشانی اختصاصی منتشر خواهد شد.</p></div></article>
-      </div>
-    </section>
+    <section className="uc-section uc-container uc-pillars" aria-labelledby="pillars-title"><SectionHeader id="pillars-title" title="از تجربه مهمان تا تصمیم مدیر." /><div>{pillars.map(([title, text]) => <article key={title}><h3>{title}</h3><p>{text}</p></article>)}</div></section>
 
-    <section className="platform-pricing" id="pricing" aria-labelledby="pricing-title">
-      <div className="pricing-copy platform-reveal"><p>تعرفه روشن</p><h2 id="pricing-title">یک هزینه مشخص، یک سرویس کامل</h2><span>بدون هزینه راه‌اندازی. پرداخت اشتراک فعلاً پس از گفت‌وگو و به‌صورت دستی انجام می‌شود.</span></div>
-      <article className="price-card platform-reveal"><div><span>پلن نقره‌ای</span><p>مناسب شروع حرفه‌ای کافه</p></div>{offering ? <><strong><b>{formatPrice(offering.priceToman)}</b> تومان<small>برای هر ماه</small></strong><ul><li>وب‌سایت اختصاصی و واکنش‌گرا</li><li>منوی آنلاین و مدیریت محتوا</li><li>رزرو میز و پنل کافه</li><li>میزبانی و پشتیبانی</li></ul><a href="#request">درخواست شروع همکاری</a></> : <><p className="price-unavailable">برای دریافت قیمت روز، درخواست خود را ثبت کنید.</p><a href="#request">دریافت مشاوره</a></>}</article>
-    </section>
+    <section className="uc-before-after uc-section" aria-labelledby="comparison-title"><div className="uc-container"><h2 id="comparison-title">همان کافه؛ با اطلاعات مرتب‌تر.</h2><div className="uc-before-after-grid"><div><h3>وقتی اطلاعات پراکنده‌اند</h3><ul><li>منو در چند جای مختلف</li><li>رزرو میان تماس و پیام</li><li>سابقه مشتری دور از دسترس</li><li>گزارش‌ها در فایل‌های جداگانه</li></ul></div><div><h3>وقتی یوکافه کنار توست</h3><ul><li>منو از یک پنل مدیریت می‌شود</li><li>رزرو، زمان و وضعیت مشخص دارد</li><li>تاریخچه مشتری یک‌جا دیده می‌شود</li><li>گزارش سفارش‌ها در دسترس است</li></ul></div></div></div></section>
 
-    <section className="platform-faq" aria-labelledby="faq-title"><div className="section-heading"><p>پیش از شروع</p><h2 id="faq-title">چند پاسخ کوتاه</h2></div><div>{[
-      ["آیا ثبت درخواست هزینه دارد؟", "خیر. فرم فقط برای آشنایی و تماس اولیه است و هیچ پرداختی ایجاد نمی‌کند."],
-      ["برای استفاده از یو کافه دانش فنی لازم است؟", "خیر. پنل برای کار روزمره کافه طراحی شده و راه‌اندازی فنی بر عهده ماست."],
-      ["اطلاعات منو و تصاویر را چه کسی وارد می‌کند؟", "در شروع همکاری برای آماده‌سازی محتوای اولیه هماهنگ می‌شویم؛ بعد از آن می‌توانید اطلاعات را از پنل مدیریت کنید."],
-      ["پرداخت اشتراک چگونه است؟", "در نسخه فعلی پرداخت پس از هماهنگی با تیم یو کافه و به‌صورت دستی انجام می‌شود."],
-    ].map(([question, answer]) => <details key={question}><summary>{question}<i /></summary><p>{answer}</p></details>)}</div></section>
+    <section className="uc-section uc-container uc-why" aria-labelledby="why-title"><SectionHeader id="why-title" title="جزئیات کوچک، کار روزمره ساده‌تر." /><div><article><h3>برای استفاده در ایران</h3><p>فارسی، راست‌به‌چپ، قیمت به تومان و ورود با شماره موبایل ایرانی.</p></article><article><h3>مدیریت بدون کدنویسی</h3><p>محتوا، قیمت و ساعت کاری را از پنل خودت تغییر بده.</p></article><article><h3>پشتیبانی در همان پنل</h3><p>درخواست، فایل و پاسخ‌های پشتیبانی را در یک گفت‌وگوی قابل پیگیری ببین.</p></article></div></section>
 
-    <section className="platform-request" id="request" aria-labelledby="request-title"><div className="request-copy"><p>شروع یک همکاری خوب</p><h2 id="request-title">کافه‌تان را معرفی کنید؛ ما در اولین فرصت تماس می‌گیریم.</h2><span>این فرم قرارداد یا پرداخت نیست. فقط کمک می‌کند گفت‌وگوی اول دقیق‌تر و کوتاه‌تر باشد.</span></div><PlatformOrderForm /></section>
+    <section className="uc-section uc-container uc-process" id="process" aria-labelledby="process-title"><SectionHeader id="process-title" title="از انتخاب پلن تا آماده‌کردن کافه." /><ol>{[["پلنت را انتخاب کن", "امکانات و تعرفه‌های روز را مقایسه کن."], ["کافه‌ات را معرفی کن", "شماره را تأیید کن؛ نام و نشانی کافه را انتخاب کن."], ["اشتراک را فعال کن", "مبلغ را بررسی کن و به درگاه پرداخت برو."], ["کافه‌ات را آماده کن", "هویت، ساعت کاری و اولین آیتم منو را در پنل تنظیم کن."]].map(([title, text], i) => <li key={title}><span aria-hidden="true">{["۱", "۲", "۳", "۴"][i]}</span><h3>{title}</h3><p>{text}</p></li>)}</ol></section>
 
-    <footer className="platform-footer"><a className="platform-brand" href="#top"><BrandLogo className="platform-brand-logo" variant="mark" /><strong>یو کافه</strong><small>ucafe</small></a><p>خانه دیجیتال کافه‌های حرفه‌ای</p><div><a href="#services">خدمات</a><a href="#pricing">تعرفه</a><a href="#request">درخواست همکاری</a></div><small>© {new Date().getFullYear()} یو کافه. تمامی حقوق محفوظ است.</small></footer>
+    <section className="uc-section uc-pricing-section" id="pricing" aria-labelledby="pricing-title"><div className="uc-container"><SectionHeader id="pricing-title" title="پلنی برای نیاز امروز کافه‌ات." description="امکانات را کنار هم ببین و با انتخاب مناسب شروع کن. نام، مبلغ و دسترسی هر پلن از تنظیمات فعلی یوکافه دریافت می‌شود." /><PlatformPricing initialCatalog={catalog} /></div></section>
+
+    <section className="uc-section uc-container uc-about" id="about" aria-labelledby="about-title"><h2 id="about-title">چرا مدیریت دیجیتال<br />یک کافه باید پیچیده باشد؟</h2><div><p>یوکافه برای کنار هم آوردن بخش‌هایی ساخته شده که هر روز با آن‌ها سروکار داری: منو، مهمان، سفارش، رزرو و مواد اولیه.</p><p>هدف ما روشن است: یک محیط فارسی و منظم که حضور آنلاین کافه و کار پشت صحنه را به هم وصل کند، تا وقتت را بیشتر صرف خود کافه کنی.</p><ButtonLink href="#request" variant="outline">با ما گفت‌وگو کن</ButtonLink></div></section>
+
+    <section className="uc-section uc-container uc-faq" id="faq" aria-labelledby="faq-title"><SectionHeader id="faq-title" title="قبل از شروع، این‌ها را بدان." /><div>{faq.map(([question, answer]) => <details key={question}><summary>{question}<span aria-hidden="true" /></summary><p>{answer}</p></details>)}</div></section>
+
+    <section className="uc-section uc-container uc-request" id="request" aria-labelledby="request-title"><div><h2 id="request-title">هنوز مطمئن نیستی؟<br />از یک گفت‌وگو شروع کنیم.</h2><p>کمی از کافه و نیازت بگو. تیم یوکافه برای مشاوره با تو تماس می‌گیرد؛ ارسال فرم، قرارداد یا پرداخت ایجاد نمی‌کند.</p></div><PlatformOrderForm /></section>
+
+    <section className="uc-final-cta" aria-labelledby="final-title"><div className="uc-container"><h2 id="final-title">برای روزهای منظم‌تر کافه آماده‌ای؟</h2><div className="uc-actions"><ButtonLink href="#pricing" size="lg">ساخت کافه من <span aria-hidden="true">←</span></ButtonLink><ButtonLink href="#request" variant="outline" size="lg">مشاوره رایگان</ButtonLink></div></div></section>
+    <footer className="uc-footer uc-container"><a className="uc-brand" href="#top"><img src="/brand/ucafe-logo-current.webp" alt="" width={64} height={58} /><strong>یوکافه</strong></a><p>مدیریت کافه، یک‌جا.</p><nav aria-label="پیوندهای پایین صفحه"><a href="#features">امکانات</a><a href="#pricing">تعرفه‌ها</a><a href="#faq">سوالات متداول</a><a href="#request">ارتباط با ما</a></nav><small>© {new Intl.NumberFormat("fa-IR", { useGrouping: false }).format(new Date().getFullYear())} یوکافه</small></footer>
   </main>;
 }

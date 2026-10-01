@@ -1,0 +1,413 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-01T14:56:11Z",
+  "title": "Design System: UCafe Platform Acquisition",
+  "extensions": {
+    "colorMeta": {
+      "purple-500": {
+        "role": "primary",
+        "displayName": "UCafe Purple",
+        "tonalRamp": [
+          "oklch(15% 0.22278 287.06)",
+          "oklch(26.4% 0.22278 287.06)",
+          "oklch(37.9% 0.22278 287.06)",
+          "oklch(49.3% 0.22278 287.06)",
+          "oklch(60.7% 0.22278 287.06)",
+          "oklch(72.1% 0.22278 287.06)",
+          "oklch(83.6% 0.22278 287.06)",
+          "oklch(95% 0.22278 287.06)"
+        ]
+      },
+      "purple-600": {
+        "role": "primary",
+        "displayName": "Deep UCafe Purple",
+        "tonalRamp": [
+          "oklch(15% 0.18580 287.62)",
+          "oklch(26.4% 0.18580 287.62)",
+          "oklch(37.9% 0.18580 287.62)",
+          "oklch(49.3% 0.18580 287.62)",
+          "oklch(60.7% 0.18580 287.62)",
+          "oklch(72.1% 0.18580 287.62)",
+          "oklch(83.6% 0.18580 287.62)",
+          "oklch(95% 0.18580 287.62)"
+        ]
+      },
+      "orange-500": {
+        "role": "secondary",
+        "displayName": "Tangerine",
+        "tonalRamp": [
+          "oklch(15% 0.17572 41.20)",
+          "oklch(26.4% 0.17572 41.20)",
+          "oklch(37.9% 0.17572 41.20)",
+          "oklch(49.3% 0.17572 41.20)",
+          "oklch(60.7% 0.17572 41.20)",
+          "oklch(72.1% 0.17572 41.20)",
+          "oklch(83.6% 0.17572 41.20)",
+          "oklch(95% 0.17572 41.20)"
+        ]
+      },
+      "cream-50": {
+        "role": "neutral",
+        "displayName": "Warm Cream",
+        "tonalRamp": [
+          "oklch(15% 0.01194 67.69)",
+          "oklch(26.4% 0.01194 67.69)",
+          "oklch(37.9% 0.01194 67.69)",
+          "oklch(49.3% 0.01194 67.69)",
+          "oklch(60.7% 0.01194 67.69)",
+          "oklch(72.1% 0.01194 67.69)",
+          "oklch(83.6% 0.01194 67.69)",
+          "oklch(95% 0.01194 67.69)"
+        ]
+      },
+      "white": {
+        "role": "neutral",
+        "displayName": "Clean White",
+        "tonalRamp": [
+          "oklch(15% 0.00000 0.00)",
+          "oklch(26.4% 0.00000 0.00)",
+          "oklch(37.9% 0.00000 0.00)",
+          "oklch(49.3% 0.00000 0.00)",
+          "oklch(60.7% 0.00000 0.00)",
+          "oklch(72.1% 0.00000 0.00)",
+          "oklch(83.6% 0.00000 0.00)",
+          "oklch(95% 0.00000 0.00)"
+        ]
+      },
+      "ink-900": {
+        "role": "neutral",
+        "displayName": "Espresso Ink",
+        "tonalRamp": [
+          "oklch(15% 0.01805 305.18)",
+          "oklch(26.4% 0.01805 305.18)",
+          "oklch(37.9% 0.01805 305.18)",
+          "oklch(49.3% 0.01805 305.18)",
+          "oklch(60.7% 0.01805 305.18)",
+          "oklch(72.1% 0.01805 305.18)",
+          "oklch(83.6% 0.01805 305.18)",
+          "oklch(95% 0.01805 305.18)"
+        ]
+      },
+      "ink-600": {
+        "role": "neutral",
+        "displayName": "Secondary Ink",
+        "tonalRamp": [
+          "oklch(15% 0.02667 305.19)",
+          "oklch(26.4% 0.02667 305.19)",
+          "oklch(37.9% 0.02667 305.19)",
+          "oklch(49.3% 0.02667 305.19)",
+          "oklch(60.7% 0.02667 305.19)",
+          "oklch(72.1% 0.02667 305.19)",
+          "oklch(83.6% 0.02667 305.19)",
+          "oklch(95% 0.02667 305.19)"
+        ]
+      },
+      "ink-500": {
+        "role": "neutral",
+        "displayName": "Muted Ink",
+        "tonalRamp": [
+          "oklch(15% 0.02790 306.64)",
+          "oklch(26.4% 0.02790 306.64)",
+          "oklch(37.9% 0.02790 306.64)",
+          "oklch(49.3% 0.02790 306.64)",
+          "oklch(60.7% 0.02790 306.64)",
+          "oklch(72.1% 0.02790 306.64)",
+          "oklch(83.6% 0.02790 306.64)",
+          "oklch(95% 0.02790 306.64)"
+        ]
+      },
+      "teal-600": {
+        "role": "secondary",
+        "displayName": "Fresh Teal",
+        "tonalRamp": [
+          "oklch(15% 0.08606 186.39)",
+          "oklch(26.4% 0.08606 186.39)",
+          "oklch(37.9% 0.08606 186.39)",
+          "oklch(49.3% 0.08606 186.39)",
+          "oklch(60.7% 0.08606 186.39)",
+          "oklch(72.1% 0.08606 186.39)",
+          "oklch(83.6% 0.08606 186.39)",
+          "oklch(95% 0.08606 186.39)"
+        ]
+      },
+      "lavender-100": {
+        "role": "primary",
+        "displayName": "Soft Lavender",
+        "tonalRamp": [
+          "oklch(15% 0.02987 296.23)",
+          "oklch(26.4% 0.02987 296.23)",
+          "oklch(37.9% 0.02987 296.23)",
+          "oklch(49.3% 0.02987 296.23)",
+          "oklch(60.7% 0.02987 296.23)",
+          "oklch(72.1% 0.02987 296.23)",
+          "oklch(83.6% 0.02987 296.23)",
+          "oklch(95% 0.02987 296.23)"
+        ]
+      },
+      "danger-600": {
+        "role": "tertiary",
+        "displayName": "Error Red",
+        "tonalRamp": [
+          "oklch(15% 0.15475 21.99)",
+          "oklch(26.4% 0.15475 21.99)",
+          "oklch(37.9% 0.15475 21.99)",
+          "oklch(49.3% 0.15475 21.99)",
+          "oklch(60.7% 0.15475 21.99)",
+          "oklch(72.1% 0.15475 21.99)",
+          "oklch(83.6% 0.15475 21.99)",
+          "oklch(95% 0.15475 21.99)"
+        ]
+      },
+      "warning-700": {
+        "role": "tertiary",
+        "displayName": "Warning Amber",
+        "tonalRamp": [
+          "oklch(15% 0.10693 56.07)",
+          "oklch(26.4% 0.10693 56.07)",
+          "oklch(37.9% 0.10693 56.07)",
+          "oklch(49.3% 0.10693 56.07)",
+          "oklch(60.7% 0.10693 56.07)",
+          "oklch(72.1% 0.10693 56.07)",
+          "oklch(83.6% 0.10693 56.07)",
+          "oklch(95% 0.10693 56.07)"
+        ]
+      },
+      "neutral-200": {
+        "role": "neutral",
+        "displayName": "Quiet Border",
+        "tonalRamp": [
+          "oklch(15% 0.01787 311.56)",
+          "oklch(26.4% 0.01787 311.56)",
+          "oklch(37.9% 0.01787 311.56)",
+          "oklch(49.3% 0.01787 311.56)",
+          "oklch(60.7% 0.01787 311.56)",
+          "oklch(72.1% 0.01787 311.56)",
+          "oklch(83.6% 0.01787 311.56)",
+          "oklch(95% 0.01787 311.56)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Landing hero; local responsive overrides remain in landing CSS."
+      },
+      "h1": {
+        "displayName": "Page Heading",
+        "purpose": "Acquisition page titles."
+      },
+      "h2": {
+        "displayName": "Section Heading",
+        "purpose": "Major section headings."
+      },
+      "h3": {
+        "displayName": "Subheading",
+        "purpose": "Smaller headings and purchase card headings."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Short prominent labels; weight follows context."
+      },
+      "body-large": {
+        "displayName": "Body Large",
+        "purpose": "Hero and section introduction text."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Default reading and field text."
+      },
+      "body-small": {
+        "displayName": "Body Small",
+        "purpose": "Supporting prose, navigation, and field hints."
+      },
+      "caption": {
+        "displayName": "Caption",
+        "purpose": "Sample notes, badges, and fine print."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Visible form labels."
+      },
+      "button": {
+        "displayName": "Button",
+        "purpose": "Medium/large button labels; small variants change size and retain weight."
+      }
+    },
+    "shadows": [
+      {
+        "name": "uc-shadow-sm",
+        "value": "0 .25rem 1rem rgb(31 27 36 / 5%)",
+        "purpose": "Declared foundation token; no acquisition panel currently consumes it."
+      },
+      {
+        "name": "uc-shadow-md",
+        "value": "0 1rem 3rem rgb(31 27 36 / 8%)",
+        "purpose": "Declared foundation token; no acquisition panel currently consumes it."
+      },
+      {
+        "name": "uc-shadow-floating",
+        "value": "0 1.5rem 4rem rgb(31 27 36 / 12%)",
+        "purpose": "The floating real storefront crop; ordinary panels remain flat."
+      }
+    ],
+    "motion": [
+      {
+        "name": "uc-duration-fast",
+        "value": "160ms",
+        "purpose": "Shipped background/press-state button transition."
+      },
+      {
+        "name": "uc-duration-normal",
+        "value": "240ms",
+        "purpose": "Declared normal duration; no acquisition transition currently consumes it."
+      },
+      {
+        "name": "uc-ease-out",
+        "value": "cubic-bezier(.16, 1, .3, 1)",
+        "purpose": "Declared foundation easing; the current button transition uses browser-default easing."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "animation: none !important; transition: none !important; scroll-behavior: auto !important",
+        "purpose": "Applies to .ucafe-ui descendants and their pseudo-elements under prefers-reduced-motion: reduce."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "compact-columns",
+        "value": "64rem"
+      },
+      {
+        "name": "stacked-layout",
+        "value": "48rem"
+      },
+      {
+        "name": "small-screen",
+        "value": "40rem"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Shared primary action; medium size.",
+      "html": "<button type=\"button\" class=\"ds-button-primary\" dir=\"rtl\">ساخت کافه من</button>",
+      "css": ".ds-button-primary { display: inline-flex; align-items: center; justify-content: center; gap: var(--uc-space-3, .75rem); min-height: 3rem; padding: var(--uc-space-3, .75rem) var(--uc-space-6, 1.5rem); border: 1px solid transparent; border-radius: var(--uc-radius-md, .75rem); background: var(--color-primary, var(--uc-purple-500, #5a2dcb)); color: var(--uc-white, #ffffff); font-family: Vazir, Tahoma, sans-serif; font-size: var(--uc-font-body, 1rem); font-weight: 700; line-height: 1.9; text-decoration: none; cursor: pointer; transition: background var(--uc-duration-fast, 160ms), transform var(--uc-duration-fast, 160ms); } .ds-button-primary:hover { background: var(--color-primary-hover, var(--uc-purple-600, #46219f)); } .ds-button-primary:active { transform: translateY(1px); } .ds-button-primary:focus-visible { outline: 3px solid var(--color-ring, var(--uc-purple-500, #5a2dcb)); outline-offset: 4px; } .ds-button-primary:disabled { cursor: not-allowed; opacity: .55; } @media (prefers-reduced-motion: reduce) { .ds-button-primary { transition: none; } }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Shared secondary action; medium size.",
+      "html": "<button type=\"button\" class=\"ds-button-secondary\" dir=\"rtl\">دیدن امکانات</button>",
+      "css": ".ds-button-secondary { display: inline-flex; align-items: center; justify-content: center; gap: var(--uc-space-3, .75rem); min-height: 3rem; padding: var(--uc-space-3, .75rem) var(--uc-space-6, 1.5rem); border: 1px solid transparent; border-radius: var(--uc-radius-md, .75rem); background: var(--color-bg-subtle, var(--uc-lavender-100, #eee9ff)); color: var(--color-primary, var(--uc-purple-500, #5a2dcb)); font-family: Vazir, Tahoma, sans-serif; font-size: var(--uc-font-body, 1rem); font-weight: 700; line-height: 1.9; text-decoration: none; cursor: pointer; transition: background var(--uc-duration-fast, 160ms), transform var(--uc-duration-fast, 160ms); } .ds-button-secondary:hover { background: color-mix(in srgb, var(--color-primary, var(--uc-purple-500, #5a2dcb)) 16%, var(--color-bg-surface, var(--uc-white, #ffffff))); } .ds-button-secondary:active { transform: translateY(1px); } .ds-button-secondary:focus-visible { outline: 3px solid var(--color-ring, var(--uc-purple-500, #5a2dcb)); outline-offset: 4px; } .ds-button-secondary:disabled { cursor: not-allowed; opacity: .55; } @media (prefers-reduced-motion: reduce) { .ds-button-secondary { transition: none; } }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Shared outline action; medium size.",
+      "html": "<button type=\"button\" class=\"ds-button-outline\" dir=\"rtl\">مشاوره رایگان</button>",
+      "css": ".ds-button-outline { display: inline-flex; align-items: center; justify-content: center; gap: var(--uc-space-3, .75rem); min-height: 3rem; padding: var(--uc-space-3, .75rem) var(--uc-space-6, 1.5rem); border: 1px solid var(--color-border, var(--uc-neutral-200, #ded7e3)); border-radius: var(--uc-radius-md, .75rem); background: transparent; color: var(--color-text-primary, var(--uc-ink-900, #1f1b24)); font-family: Vazir, Tahoma, sans-serif; font-size: var(--uc-font-body, 1rem); font-weight: 700; line-height: 1.9; text-decoration: none; cursor: pointer; transition: background var(--uc-duration-fast, 160ms), transform var(--uc-duration-fast, 160ms); } .ds-button-outline:hover { background: var(--color-bg-subtle, var(--uc-lavender-100, #eee9ff)); } .ds-button-outline:active { transform: translateY(1px); } .ds-button-outline:focus-visible { outline: 3px solid var(--color-ring, var(--uc-purple-500, #5a2dcb)); outline-offset: 4px; } .ds-button-outline:disabled { cursor: not-allowed; opacity: .55; } @media (prefers-reduced-motion: reduce) { .ds-button-outline { transition: none; } }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Shared ghost action; medium size.",
+      "html": "<button type=\"button\" class=\"ds-button-ghost\" dir=\"rtl\">اصلاح شماره</button>",
+      "css": ".ds-button-ghost { display: inline-flex; align-items: center; justify-content: center; gap: var(--uc-space-3, .75rem); min-height: 3rem; padding: var(--uc-space-3, .75rem) var(--uc-space-6, 1.5rem); border: 1px solid transparent; border-radius: var(--uc-radius-md, .75rem); background: transparent; color: var(--color-text-primary, var(--uc-ink-900, #1f1b24)); font-family: Vazir, Tahoma, sans-serif; font-size: var(--uc-font-body, 1rem); font-weight: 700; line-height: 1.9; text-decoration: none; cursor: pointer; transition: background var(--uc-duration-fast, 160ms), transform var(--uc-duration-fast, 160ms); } .ds-button-ghost:hover { background: var(--color-bg-subtle, var(--uc-lavender-100, #eee9ff)); } .ds-button-ghost:active { transform: translateY(1px); } .ds-button-ghost:focus-visible { outline: 3px solid var(--color-ring, var(--uc-purple-500, #5a2dcb)); outline-offset: 4px; } .ds-button-ghost:disabled { cursor: not-allowed; opacity: .55; } @media (prefers-reduced-motion: reduce) { .ds-button-ghost { transition: none; } }"
+    },
+    {
+      "name": "Destructive Button",
+      "kind": "button",
+      "refersTo": "button-destructive",
+      "description": "Supported destructive variant; not used by the acquisition flow. Hover retains the danger meaning.",
+      "html": "<button type=\"button\" class=\"ds-button-destructive\" dir=\"rtl\">حذف</button>",
+      "css": ".ds-button-destructive { display: inline-flex; align-items: center; justify-content: center; gap: var(--uc-space-3, .75rem); min-height: 3rem; padding: var(--uc-space-3, .75rem) var(--uc-space-6, 1.5rem); border: 1px solid transparent; border-radius: var(--uc-radius-md, .75rem); background: var(--color-danger, var(--uc-danger-600, #a52e35)); color: var(--uc-white, #ffffff); font-family: Vazir, Tahoma, sans-serif; font-size: var(--uc-font-body, 1rem); font-weight: 700; line-height: 1.9; text-decoration: none; cursor: pointer; transition: background var(--uc-duration-fast, 160ms), transform var(--uc-duration-fast, 160ms); } .ds-button-destructive:hover { background: var(--color-danger-hover, color-mix(in srgb, var(--color-danger, var(--uc-danger-600, #a52e35)) 85%, var(--color-text-primary, var(--uc-ink-900, #1f1b24)))); } .ds-button-destructive:active { transform: translateY(1px); } .ds-button-destructive:focus-visible { outline: 3px solid var(--color-ring, var(--uc-purple-500, #5a2dcb)); outline-offset: 4px; } .ds-button-destructive:disabled { cursor: not-allowed; opacity: .55; } @media (prefers-reduced-motion: reduce) { .ds-button-destructive { transition: none; } }"
+    },
+    {
+      "name": "Labeled Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Native field, visible label, and associated hint; phone/OTP values use explicit LTR direction.",
+      "html": "<div class=\"ds-field\" dir=\"rtl\"><label for=\"ds-cafe-name\">نام کافه</label><input id=\"ds-cafe-name\" class=\"ds-input\" autocomplete=\"organization\" aria-describedby=\"ds-cafe-hint\" /><p id=\"ds-cafe-hint\">بقیه اطلاعات را بعداً در پنل تکمیل می‌کنی.</p></div>",
+      "css": ".ds-field { display: grid; gap: var(--uc-space-2, .5rem); text-align: start; font-family: Vazir, Tahoma, sans-serif; line-height: 1.9; color: var(--color-text-primary, var(--uc-ink-900, #1f1b24)); } .ds-field label { font-size: var(--uc-font-label, .875rem); font-weight: 500; } .ds-input { width: 100%; min-height: 3.25rem; padding: var(--uc-space-3, .75rem) var(--uc-space-4, 1rem); border: 1px solid var(--color-border, var(--uc-neutral-200, #ded7e3)); border-radius: var(--uc-radius-md, .75rem); background: var(--color-bg-surface, var(--uc-white, #ffffff)); color: var(--color-text-primary, var(--uc-ink-900, #1f1b24)); font-family: Vazir, Tahoma, sans-serif; font-size: var(--uc-font-body, 1rem); line-height: 1.9; caret-color: var(--color-primary, var(--uc-purple-500, #5a2dcb)); } .ds-input::placeholder { color: var(--color-text-muted, var(--uc-ink-500, #706879)); } .ds-input:focus-visible { outline: 3px solid var(--color-ring, var(--uc-purple-500, #5a2dcb)); outline-offset: 4px; } .ds-field p { margin: 0; color: var(--color-text-secondary, var(--uc-ink-600, #625b6b)); font-size: var(--uc-font-body-small, .875rem); }"
+    },
+    {
+      "name": "Sample Data Badge",
+      "kind": "chip",
+      "refersTo": "badge",
+      "description": "Non-interactive badge identifies illustrative product data.",
+      "html": "<span class=\"ds-badge\" dir=\"rtl\">داده نمایشی</span>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; gap: var(--uc-space-2, .5rem); padding: var(--uc-space-1, .25rem) var(--uc-space-3, .75rem); border-radius: var(--uc-radius-sm, .375rem); background: var(--color-bg-subtle, var(--uc-lavender-100, #eee9ff)); color: var(--color-primary, var(--uc-purple-500, #5a2dcb)); font-family: Vazir, Tahoma, sans-serif; font-size: var(--uc-font-caption, .75rem); line-height: 1.9; }"
+    },
+    {
+      "name": "Flat Panel",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Bordered plan/product panel; no shadow at rest.",
+      "html": "<article class=\"ds-card\" dir=\"rtl\"><h3>پلن انتخابی</h3><p>تعرفه و امکانات از سرور دریافت می‌شود.</p></article>",
+      "css": ".ds-card { display: flex; flex-direction: column; gap: var(--uc-space-6, 1.5rem); padding: var(--uc-space-8, 2rem); border: 1px solid var(--color-border, var(--uc-neutral-200, #ded7e3)); border-radius: var(--uc-radius-lg, 1rem); background: var(--color-bg-surface, var(--uc-white, #ffffff)); color: var(--color-text-primary, var(--uc-ink-900, #1f1b24)); font-family: Vazir, Tahoma, sans-serif; line-height: 1.9; } .ds-card h3 { margin: 0; color: var(--color-primary, var(--uc-purple-500, #5a2dcb)); font-size: var(--uc-font-h3, clamp(1.25rem, 2vw, 1.5rem)); font-weight: 700; line-height: 1.65; text-wrap: balance; letter-spacing: 0; } .ds-card p { margin: 0; color: var(--color-text-secondary, var(--uc-ink-600, #625b6b)); font-size: var(--uc-font-body-small, .875rem); } @media(max-width: 40rem) { .ds-card { padding: var(--uc-space-6, 1.5rem); } }"
+    },
+    {
+      "name": "Navigation Links",
+      "kind": "nav",
+      "refersTo": "navigation",
+      "description": "Cream platform navigation with readable text and native links; mobile menu behavior remains in the app.",
+      "html": "<nav class=\"ds-nav\" dir=\"rtl\" aria-label=\"راهبری نمونه\"><strong>یوکافه</strong><a href=\"#features\">امکانات</a><a href=\"#pricing\">تعرفه‌ها</a></nav>",
+      "css": ".ds-nav { display: flex; align-items: center; gap: var(--uc-space-6, 1.5rem); min-height: 6rem; padding-inline: var(--uc-space-4, 1rem); background: var(--color-bg-page, var(--uc-cream-50, #fff8f1)); color: var(--color-text-primary, var(--uc-ink-900, #1f1b24)); border-bottom: 1px solid var(--color-border, var(--uc-neutral-200, #ded7e3)); font-family: Vazir, Tahoma, sans-serif; line-height: 1.9; } .ds-nav strong { font-size: var(--uc-font-title, 1.25rem); } .ds-nav a { display: inline-flex; align-items: center; min-height: 2.75rem; color: inherit; font-size: var(--uc-font-body-small, .875rem); text-decoration: none; } .ds-nav a:hover { color: var(--color-primary, var(--uc-purple-500, #5a2dcb)); } .ds-nav a:focus-visible { outline: 3px solid var(--color-ring, var(--uc-purple-500, #5a2dcb)); outline-offset: 4px; } @media(max-width: 48rem) { .ds-nav { min-height: 5rem; } }"
+    },
+    {
+      "name": "Native Disclosure",
+      "kind": "custom",
+      "refersTo": "disclosure",
+      "description": "FAQ and mobile comparison disclosure with a visible open/closed cue; native keyboard behavior.",
+      "html": "<details class=\"ds-disclosure\" dir=\"rtl\"><summary>امکانات پلن<span aria-hidden=\"true\"></span></summary><p>امکانات پلن انتخابی از تعرفه‌های فعلی دریافت می‌شود.</p></details>",
+      "css": ".ds-disclosure { border-bottom: 1px solid var(--color-border, var(--uc-neutral-200, #ded7e3)); color: var(--color-text-primary, var(--uc-ink-900, #1f1b24)); font-family: Vazir, Tahoma, sans-serif; line-height: 1.9; } .ds-disclosure summary { min-height: 3rem; padding-block: var(--uc-space-5, 1.25rem); display: flex; align-items: center; justify-content: space-between; gap: var(--uc-space-4, 1rem); cursor: pointer; font-weight: 700; list-style: none; } .ds-disclosure summary::-webkit-details-marker { display: none; } .ds-disclosure summary > span { width: .5rem; height: .5rem; border-bottom: 1.5px solid currentColor; border-left: 1.5px solid currentColor; transform: rotate(-45deg); flex-shrink: 0; } .ds-disclosure[open] summary > span { transform: rotate(135deg); } .ds-disclosure summary:focus-visible { outline: 3px solid var(--color-ring, var(--uc-purple-500, #5a2dcb)); outline-offset: 4px; } .ds-disclosure p { margin: 0; padding-bottom: var(--uc-space-6, 1.5rem); color: var(--color-text-secondary, var(--uc-ink-600, #625b6b)); font-size: var(--uc-font-body-small, .875rem); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Warm Editorial SaaS",
+    "overview": "Warm Editorial SaaS makes software for café owners feel clear, capable, and approachable. Cream gives the interface warmth; purple gives actions a consistent voice; restrained Tangerine and Fresh Teal make product evidence and status readable. Generous Persian typography, quiet borders, and useful product views carry the identity.\n\nThis system applies only to the opt-in `.ucafe-ui` platform landing, `/start`, and `/start/result`. Tenant storefront themes, tenant client panels, and existing owner/platform admin shells retain their own identity. The repository-root `PRODUCT.md` describes tenant-client context; it is not a mandate to replace those themes with this palette. Page composition and conversion strategy belong in the scoped surface brief.",
+    "keyCharacteristics": [
+      "Persian RTL with self-hosted Vazir and explicit LTR islands for phones, hostnames, and OTP.",
+      "Two token layers: reusable brand primitives and scoped semantic roles.",
+      "Flat bordered panels, cream/white/lavender tonal hierarchy, and restrained depth.",
+      "Real product evidence; illustrative UI remains visibly labeled as sample data."
+    ],
+    "rules": [
+      {
+        "name": "Scoped Identity",
+        "body": "Apply acquisition styling through `.ucafe-ui`. Do not map these tokens onto tenant themes or either admin shell without a separate adoption decision.",
+        "section": "overview"
+      },
+      {
+        "name": "Semantic First",
+        "body": "Components consume semantic color roles. Brand primitives remain the source behind those roles; page-local hex colors are not a parallel palette.",
+        "section": "colors"
+      },
+      {
+        "name": "Quiet Depth",
+        "body": "Ordinary forms, plan cards, and product panels use tonal surfaces and borders. The floating storefront crop is the shipped exception; a shadow token's existence does not make every card elevated.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do keep `.ucafe-ui` adoption explicit and preserve tenant and admin identity.",
+      "Do use semantic colors and the existing spacing, type, and radius scales.",
+      "Do use the confirmed current UCafe logo and optimized real product captures; label illustrative data.",
+      "Do preserve Persian RTL, visible focus, associated field errors, textual status, and explicit LTR technical values.",
+      "Do retain native disclosure behavior and the six-column OTP layout with the shipped small-screen padding and gaps.",
+      "Do show loading, empty, unavailable, retry, disabled, and authoritative result states in the same visual system."
+    ],
+    "donts": [
+      "Don't fabricate testimonials, customers, metrics, prices, or product capabilities to fill a layout.",
+      "Don't replace product evidence with generic coffee imagery, decorative blobs, large gradients, or excessive glass and shadows.",
+      "Don't add a new component or dependency merely to mirror a native field, checkbox, or disclosure.",
+      "Don't shrink mobile comparison into a wide unreadable table or make a required interaction depend on animation."
+    ]
+  }
+}

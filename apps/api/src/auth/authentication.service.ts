@@ -127,7 +127,7 @@ export class AuthenticationService {
         .where("challenge.id = :challengeId", { challengeId })
         .getOne();
 
-      if (!challenge || challenge.status !== OtpChallengeStatus.Pending) return { kind: "invalid" } as const;
+      if (!challenge || challenge.purpose !== OtpPurpose.Login || challenge.coffeeShopId !== null || challenge.status !== OtpChallengeStatus.Pending) return { kind: "invalid" } as const;
       if (challenge.expiresAt <= now) {
         challenge.status = OtpChallengeStatus.Expired;
         await manager.save(challenge);

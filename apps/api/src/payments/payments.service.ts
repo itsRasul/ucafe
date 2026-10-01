@@ -1,7 +1,7 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { DataSource, LessThan } from "typeorm";
-import { CoffeeShop, Domain, DomainStatus } from "../database/entities";
+import { DataSource } from "typeorm";
+import { CoffeeShop, CoffeeShopStatus, Domain, DomainStatus } from "../database/entities";
 import { NotificationType } from "../notifications/notification-type";
 import { NotificationsService } from "../notifications/notifications.service";
 import { SubscriptionOperation, SubscriptionPayment } from "../subscriptions/entities";
@@ -14,15 +14,16 @@ import { PAYMENT_GATEWAY, PaymentGateway } from "./payment-gateway";
 export class PaymentsService {
   constructor(private readonly db: DataSource, private readonly config: ConfigService, private readonly subscriptions: SubscriptionsService, private readonly notifications: NotificationsService, @Inject(PAYMENT_GATEWAY) private readonly gateway: PaymentGateway) {}
 
-  async checkout(coffeeShopId: string, input: CreateCheckoutDto) {
+  async checkout(coffeeShopId: string, input: CreateCheckoutDto, purchaseOnly = false) {
     const prepared = await this.db.transaction(async (manager) => {
       await manager.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`subscription:${coffeeShopId}`]);
       const repository = manager.getRepository(PaymentIntent);
       const existing = await repository.findOneBy({ coffeeShopId, idempotencyKey: input.idempotencyKey });
       if (existing) return { intent: existing, existing: true };
-      await repository.createQueryBuilder().update().set({ status: PaymentIntentStatus.Expired }).where("coffee_shop_id=:coffeeShopId AND status IN (:...statuses) AND expires_at<=:now", { coffeeShopId, statuses: [PaymentIntentStatus.Pending, PaymentIntentStatus.Verifying], now: new Date() }).execute();
+      await repository.createQueryBuilder().update().set({ status: PaymentIntentStatus.Expired }).where("coffee_shop_id=:coffeeShopId AND status=:status AND expires_at<=:now", { coffeeShopId, status: PaymentIntentStatus.Pending, now: new Date() }).execute();
       if (await repository.existsBy({ coffeeShopId, status: PaymentIntentStatus.Pending }) || await repository.existsBy({ coffeeShopId, status: PaymentIntentStatus.Verifying })) throw new ConflictException("A payment is already in progress");
       const quote = await this.subscriptions.quote(manager, coffeeShopId, input.planKey, new Date());
+      if (purchaseOnly && (quote.operation !== SubscriptionOperation.Purchase || !await manager.existsBy(CoffeeShop, { id: coffeeShopId, status: CoffeeShopStatus.Draft }))) throw new ConflictException("Use the cafe subscription panel");
       if (!quote.operation || quote.action === "SCHEDULE_DOWNGRADE" || quote.action === "CHANGE_DOWNGRADE") throw new ConflictException("This plan change does not require checkout");
       if (quote.subscriptionVersion !== input.expectedSubscriptionVersion || quote.targetPlan.updatedAt.toISOString() !== new Date(input.expectedPlanUpdatedAt).toISOString()) throw new ConflictException("Subscription pricing changed; refresh the preview");
       const intent = await repository.save(repository.create({
@@ -38,12 +39,12 @@ export class PaymentsService {
     if (prepared.existing) return this.project(prepared.intent, this.payableUrl(prepared.intent));
     try {
       const requested = await this.gateway.request({ amountRial: this.toRial(prepared.intent.amountToman), callbackUrl: this.callbackUrl(prepared.intent.id), description: `اشتراک ${prepared.intent.planNameSnapshot} یو کافه` });
-      prepared.intent.authority = requested.authority;
-      const saved = await this.db.getRepository(PaymentIntent).save(prepared.intent);
-      return this.project(saved, requested.paymentUrl);
+      const repository = this.db.getRepository(PaymentIntent);
+      await repository.update({ id: prepared.intent.id, status: PaymentIntentStatus.Pending }, { authority: requested.authority });
+      const saved = await repository.findOneByOrFail({ id: prepared.intent.id });
+      return this.project(saved, this.payableUrl(saved));
     } catch (error) {
-      prepared.intent.status = PaymentIntentStatus.Failed;
-      await this.db.getRepository(PaymentIntent).save(prepared.intent);
+      await this.db.getRepository(PaymentIntent).update({ id: prepared.intent.id, status: PaymentIntentStatus.Pending }, { status: PaymentIntentStatus.Failed });
       throw error;
     }
   }
@@ -64,22 +65,39 @@ export class PaymentsService {
 
   async callback(input: PaymentCallbackDto) {
     const repository = this.db.getRepository(PaymentIntent);
-    const intent = await repository.findOneBy({ id: input.intentId, authority: input.Authority });
-    if (!intent) throw new NotFoundException("Payment was not found");
-    if (intent.status === PaymentIntentStatus.Paid) return this.withResultUrl(intent);
-    if (input.Status !== "OK") { intent.status = PaymentIntentStatus.Canceled; return this.withResultUrl(await repository.save(intent)); }
-    if (intent.expiresAt <= new Date()) { intent.status = PaymentIntentStatus.Expired; return this.withResultUrl(await repository.save(intent)); }
-    const prior = await this.db.getRepository(SubscriptionPayment).findOneBy({ paymentIntentId: intent.id });
-    if (prior) { intent.status = PaymentIntentStatus.Paid; intent.providerReference = prior.providerReference; intent.paidAt = prior.paidAt; return this.withResultUrl(await repository.save(intent)); }
-    if (intent.status === PaymentIntentStatus.Verifying) await repository.update({ id: intent.id, status: PaymentIntentStatus.Verifying, updatedAt: LessThan(new Date(Date.now() - 5 * 60_000)) }, { status: PaymentIntentStatus.Pending });
-    const claim = await repository.update({ id: intent.id, status: PaymentIntentStatus.Pending }, { status: PaymentIntentStatus.Verifying });
-    if (!claim.affected) throw new ConflictException("Payment verification is already in progress");
+    const claimed = await this.db.transaction(async (manager) => {
+      const intent = await manager.getRepository(PaymentIntent).createQueryBuilder("intent").setLock("pessimistic_write").where("intent.id=:id AND intent.authority=:authority", { id: input.intentId, authority: input.Authority }).getOne();
+      if (!intent) throw new NotFoundException("Payment was not found");
+      if (intent.status === PaymentIntentStatus.Paid) return { intent, verify: false };
+      const prior = await manager.findOneBy(SubscriptionPayment, { paymentIntentId: intent.id });
+      if (prior) {
+        intent.status = PaymentIntentStatus.Paid; intent.providerReference = prior.providerReference; intent.paidAt = prior.paidAt;
+        return { intent: await manager.save(intent), verify: false };
+      }
+      if (intent.status === PaymentIntentStatus.Verifying && intent.updatedAt.getTime() > Date.now() - 5 * 60_000) return { intent, verify: false };
+      if (![PaymentIntentStatus.Pending, PaymentIntentStatus.Verifying].includes(intent.status)) return { intent, verify: false };
+      if (input.Status !== "OK" || intent.expiresAt <= new Date()) {
+        intent.status = input.Status !== "OK" ? PaymentIntentStatus.Canceled : PaymentIntentStatus.Expired;
+        return { intent: await manager.save(intent), verify: false };
+      }
+      intent.status = PaymentIntentStatus.Verifying;
+      return { intent: await manager.save(intent), verify: true };
+    });
+    const intent = claimed.intent;
+    if (!claimed.verify) return this.withResultUrl(intent);
     let verified;
     try { verified = await this.gateway.verify({ authority: input.Authority, amountRial: this.toRial(intent.amountToman) }); }
-    catch { intent.status = PaymentIntentStatus.Failed; const saved = await repository.save(intent); await this.enqueueFailedPayment(saved); return this.withResultUrl(saved); }
+    catch {
+      await repository.update({ id: intent.id, status: PaymentIntentStatus.Verifying }, { status: PaymentIntentStatus.Failed });
+      const saved = await repository.findOneByOrFail({ id: intent.id });
+      if (saved.status === PaymentIntentStatus.Failed) await this.enqueueFailedPayment(saved);
+      return this.withResultUrl(saved);
+    }
     const paidAt = new Date();
     const saved = await this.db.transaction(async (manager) => {
+      await manager.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`subscription:${intent.coffeeShopId}`]);
       const locked = await manager.getRepository(PaymentIntent).createQueryBuilder("intent").setLock("pessimistic_write").where("intent.id=:id", { id: intent.id }).getOneOrFail();
+      if (locked.status === PaymentIntentStatus.Paid) return locked;
       const duplicate = await manager.findOneBy(SubscriptionPayment, { paymentIntentId: intent.id });
       if (!duplicate) await this.subscriptions.applyPaidQuote(manager, intent.coffeeShopId, this.intentQuote(intent), { provider: "ZARINPAL", providerReference: verified.reference, providerAuthority: input.Authority, paymentIntentId: intent.id }, paidAt);
       locked.status = PaymentIntentStatus.Paid; locked.providerReference = verified.reference; locked.paidAt = paidAt; return manager.save(locked);
@@ -96,7 +114,20 @@ export class PaymentsService {
   private async enqueueFailedPayment(intent: PaymentIntent) { await this.db.transaction(async (manager) => { const cafe = await manager.findOneByOrFail(CoffeeShop, { id: intent.coffeeShopId }); await this.notifications.enqueueOwners(manager, { coffeeShopId: intent.coffeeShopId, type: NotificationType.SubscriptionPaymentFailed, relatedEntityType: "payment_intent", relatedEntityId: intent.id, deduplicationKey: `${NotificationType.SubscriptionPaymentFailed}:${intent.id}`, payload: { cafeName: cafe.name, planName: intent.planNameSnapshot } }); }); }
   private callbackUrl(intentId: string) { return `${this.config.getOrThrow<string>("PAYMENT_CALLBACK_BASE_URL").replace(/\/$/, "")}/api/v1/public/payments/callback?intentId=${intentId}`; }
   private payableUrl(intent: PaymentIntent) { return intent.status === PaymentIntentStatus.Pending && intent.authority && intent.expiresAt > new Date() ? this.gateway.paymentUrl(intent.authority, this.callbackUrl(intent.id)) : undefined; }
-  private async resultUrl(intent: PaymentIntent) { const domain = await this.db.getRepository(Domain).findOne({ where: { coffeeShopId: intent.coffeeShopId, isPrimary: true, status: DomainStatus.Active } }); const protocol = new URL(this.config.getOrThrow<string>("PAYMENT_CALLBACK_BASE_URL")).protocol; return `${protocol}//${domain?.hostname ?? this.config.getOrThrow<string>("PLATFORM_BASE_DOMAIN")}/admin/subscription/payment-result?intentId=${intent.id}&status=${intent.status}`; }
+  private async resultUrl(intent: PaymentIntent) {
+    if (intent.operation === SubscriptionOperation.Purchase) {
+      const cafe = await this.db.getRepository(CoffeeShop).findOneByOrFail({ id: intent.coffeeShopId });
+      const url = new URL("/start/result", this.config.getOrThrow<string>("PLATFORM_PUBLIC_URL"));
+      url.searchParams.set("slug", cafe.slug); url.searchParams.set("intentId", intent.id);
+      return url.toString();
+    }
+    const domain = await this.db.getRepository(Domain).findOne({ where: { coffeeShopId: intent.coffeeShopId, isPrimary: true, status: DomainStatus.Active } });
+    const origin = new URL(this.config.getOrThrow<string>("PLATFORM_PUBLIC_URL"));
+    if (domain) origin.hostname = domain.hostname;
+    origin.pathname = "/admin/subscription/payment-result";
+    origin.search = `?intentId=${intent.id}`;
+    return origin.toString();
+  }
   private async withResultUrl(intent: PaymentIntent) { return { ...this.project(intent), redirectUrl: await this.resultUrl(intent) }; }
   private project(intent: PaymentIntent, paymentUrl?: string) { return { id: intent.id, status: intent.status, operation: intent.operation, amountToman: intent.amountToman, pricing: intent.pricingSnapshot, plan: { key: intent.planKeySnapshot, name: intent.planNameSnapshot, priceToman: intent.planPriceSnapshot, billingMonths: intent.billingMonthsSnapshot }, sourcePlan: intent.sourcePlanKeySnapshot ? { key: intent.sourcePlanKeySnapshot, name: intent.sourcePlanNameSnapshot, priceToman: intent.sourcePlanPriceSnapshot, billingMonths: intent.sourceBillingMonthsSnapshot } : null, effectiveTiming: intent.effectiveTiming, periodStartedAt: intent.periodStartedAt, periodEndsAt: intent.periodEndsAt, authority: intent.authority, providerReference: intent.providerReference, createdAt: intent.createdAt, expiresAt: intent.expiresAt, paidAt: intent.paidAt, ...(paymentUrl ? { paymentUrl } : {}) }; }
   private hydrate(row: PaymentIntent) { const value = row as unknown as Record<string, unknown>; const pick = (camel: string, snake: string) => value[camel] ?? value[snake]; return Object.assign(row, { coffeeShopId: pick("coffeeShopId", "coffee_shop_id"), planId: pick("planId", "plan_id"), planKeySnapshot: pick("planKeySnapshot", "plan_key_snapshot"), planNameSnapshot: pick("planNameSnapshot", "plan_name_snapshot"), planPriceSnapshot: pick("planPriceSnapshot", "plan_price_snapshot"), billingMonthsSnapshot: pick("billingMonthsSnapshot", "billing_months_snapshot"), sourcePlanKeySnapshot: pick("sourcePlanKeySnapshot", "source_plan_key_snapshot"), sourcePlanNameSnapshot: pick("sourcePlanNameSnapshot", "source_plan_name_snapshot"), sourcePlanPriceSnapshot: pick("sourcePlanPriceSnapshot", "source_plan_price_snapshot"), sourceBillingMonthsSnapshot: pick("sourceBillingMonthsSnapshot", "source_billing_months_snapshot"), amountToman: pick("amountToman", "amount_toman"), pricingSnapshot: pick("pricingSnapshot", "pricing_snapshot"), effectiveTiming: pick("effectiveTiming", "effective_timing"), periodStartedAt: pick("periodStartedAt", "period_started_at"), periodEndsAt: pick("periodEndsAt", "period_ends_at"), providerReference: pick("providerReference", "provider_reference"), expiresAt: pick("expiresAt", "expires_at"), paidAt: pick("paidAt", "paid_at"), createdAt: pick("createdAt", "created_at"), updatedAt: pick("updatedAt", "updated_at") }); }

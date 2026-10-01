@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { DataSource, IsNull, QueryFailedError } from "typeorm";
+import { DataSource, EntityManager, IsNull, QueryFailedError } from "typeorm";
 import { Branch, CoffeeShop, CoffeeShopStatus, Domain, DomainStatus, DomainType } from "../database/entities";
 import { AuthorizationScope, CoffeeShopMembership, MembershipRole, MembershipStatus, Role, User, UserStatus } from "../identity/entities";
 import { normalizeIranianMobile } from "../auth/iran-phone.util";
@@ -56,16 +56,16 @@ export class TenantsService {
     return rows[0];
   }
 
-  async provision(input: ProvisionTenantInput): Promise<ProvisionedTenant> {
+  async provision(input: ProvisionTenantInput, transaction?: EntityManager): Promise<ProvisionedTenant> {
     const name = input.name.trim();
     const slug = input.slug.trim().toLowerCase();
     if (!name || name.length > 160) throw new BadRequestException("Tenant name must contain 1 to 160 characters");
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new BadRequestException("Tenant slug is invalid");
+    if (slug.length > 63 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new BadRequestException("Tenant slug is invalid");
 
     const hostname = buildTenantHostname(slug, this.config.getOrThrow<string>("PLATFORM_BASE_DOMAIN"));
 
     try {
-      return await this.dataSource.transaction(async (manager) => {
+      const create = async (manager: EntityManager) => {
         const coffeeShop = await manager.save(CoffeeShop, manager.create(CoffeeShop, {
           name,
           slug,
@@ -126,7 +126,8 @@ export class TenantsService {
             ownerMembershipStatus: ownerMembership.status,
           } : {}),
         };
-      });
+      };
+      return transaction ? await create(transaction) : await this.dataSource.transaction(create);
     } catch (error) {
       if (error instanceof QueryFailedError && (error.driverError as { code?: string }).code === "23505") {
         throw new ConflictException("A coffee shop with this slug or hostname already exists");

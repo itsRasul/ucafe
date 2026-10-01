@@ -41,6 +41,8 @@ explicit start -> TRIALING -> SUSPENDED (trial expires unpaid)
 
 ## APIs and authority
 
+The public active-plan catalog and verified initial purchase reuse this plan registry, quote engine, and financial settlement. Purchase creates a DRAFT café without a subscription, then creates ACTIVE subscription access only on verified payment. It does not start a trial. See [PUBLIC_ACQUISITION.md](PUBLIC_ACQUISITION.md) for API, ownership and resume contracts.
+
 - Platform `subscriptions.manage`: list/edit plans; read tenant summary; start trial; record manual prepaid payment; reconcile lifecycle.
 - Platform `subscriptions.read`: read only the CRM customer-context projection and mixed Timeline. It omits amount, invoice intents, provider references, and payment details, and its reads never reconcile the Subscription or Tenant.
 - Tenant `subscription.read`: view a reconciled summary, active-plan catalog/virtual trial card, authoritative previews, and scoped invoices.

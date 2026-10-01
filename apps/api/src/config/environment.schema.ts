@@ -63,8 +63,12 @@ export const environmentSchema = Joi.object({
   SUPPORT_TICKET_TENANT_REPLIED: smsTemplateId,
   PAYMENT_PROVIDER: Joi.string().valid("simulated", "zarinpal").default("simulated"),
   PAYMENT_CALLBACK_BASE_URL: Joi.string().uri({scheme:["http","https"]}).required(),
+  PLATFORM_PUBLIC_URL: Joi.when("NODE_ENV", { is: "production", then: Joi.string().uri({ scheme: ["https"] }).required(), otherwise: Joi.string().uri({ scheme: ["http", "https"] }).default("http://localhost:3000") }),
   ZARINPAL_MERCHANT_ID: Joi.when("PAYMENT_PROVIDER", { is:"zarinpal", then:Joi.string().guid().required(), otherwise:Joi.string().allow("").optional() }),
 }).unknown(true).custom((environment, helpers) => {
+  const publicUrl = new URL(environment.PLATFORM_PUBLIC_URL);
+  if (publicUrl.username || publicUrl.password || publicUrl.pathname !== "/" || publicUrl.search || publicUrl.hash) return helpers.error("any.custom", { message: "PLATFORM_PUBLIC_URL must be an origin" });
+  if (environment.NODE_ENV === "production" && publicUrl.hostname !== environment.PLATFORM_BASE_DOMAIN) return helpers.error("any.custom", { message: "PLATFORM_PUBLIC_URL must use the platform hostname" });
   if (environment.NODE_ENV !== "production") return environment;
   if (environment.SMS_PROVIDER !== "smsir") return helpers.error("any.custom", { message: "Production requires SMS_PROVIDER=smsir" });
   if (environment.PAYMENT_PROVIDER !== "zarinpal") return helpers.error("any.custom", { message: "Production requires PAYMENT_PROVIDER=zarinpal" });

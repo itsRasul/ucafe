@@ -1,6 +1,6 @@
 # Subscription payments
 
-This domain handles cafe subscription renewal, not customer order payment.
+This domain handles café subscription purchase and renewal. Customer order payment remains offline. The public acquisition flow reuses these same intents and settlement; see [PUBLIC_ACQUISITION.md](PUBLIC_ACQUISITION.md).
 
 ## Components
 
@@ -22,12 +22,12 @@ Zarinpal returns to the public callback with intent ID, authority, and `OK`/`NOK
 
 1. Intent ID and authority must match.
 2. Already-paid intent returns its prior result.
-3. `NOK` becomes `CANCELED`; an elapsed intent becomes `EXPIRED`.
-4. An existing unique subscription payment for the intent reconciles it to `PAID`.
-5. A pending intent is atomically claimed as `VERIFYING`; claims older than five minutes may reset.
+3. An existing unique subscription payment for the intent reconciles it to `PAID`.
+4. Terminal states remain terminal; an active VERIFYING claim returns its receipt without another verification. For an unclaimed pending intent, `NOK` becomes `CANCELED` and elapsed time becomes `EXPIRED`.
+5. A pending intent is atomically claimed as `VERIFYING`; claims older than five minutes may be reclaimed. Checkout expiry never releases an in-flight verification for a second purchase.
 6. Verification uses the snapshotted amount, never callback/client input.
 7. Verification failure becomes `FAILED` and queues an owner notification.
-8. Success atomically settles the intent, payment ledger, entitlement periods, lifecycle projection, cafe status, and success notification, then redirects to the tenant admin result page.
+8. Success atomically settles the intent, payment ledger, entitlement periods, lifecycle projection, café status, and success notification. Initial PURCHASE returns to the platform receipt; later operations return to tenant admin. Both display fetched invoice status rather than a query-string success flag.
 
 Zarinpal codes 100 and 101 are accepted as verified success by the adapter. HTTP/provider failures map to a gateway error and never extend the subscription.
 
@@ -43,5 +43,5 @@ Tenant invoice list/detail is cafe-scoped. Platform invoice reads require both `
 
 ## Production acceptance
 
-Implementation and mocked contract tests are present. Production still requires `PAYMENT_PROVIDER=zarinpal`, a real GUID `ZARINPAL_MERCHANT_ID`, public HTTPS `PAYMENT_CALLBACK_BASE_URL`, and a real request/redirect/verify/duplicate/recovery test. Recurring billing, refunds UI, and customer order payments are not implemented.
+Implementation, mocked adapter contracts and real PostgreSQL simulated-purchase checks are present. Production still requires `PAYMENT_PROVIDER=zarinpal`, a real GUID `ZARINPAL_MERCHANT_ID`, public HTTPS `PAYMENT_CALLBACK_BASE_URL`, trusted HTTPS platform-origin `PLATFORM_PUBLIC_URL`, and a real request/redirect/verify/duplicate/recovery test. Recurring billing, refunds UI, and customer order payments are not implemented.
 

@@ -19,7 +19,7 @@ The product is aimed at independent cafes that need a professional storefront, e
 
 ### Platform and tenant sites
 
-- The platform host presents ucafe marketing and a consultation/request form.
+- The platform host presents Persian RTL product marketing, current active-plan pricing/comparison, the consultation/request form, and a verified direct subscription purchase journey at `/start`. Purchase provisions an unpublished draft through existing services and activates it only after authoritative payment verification. See [PUBLIC_ACQUISITION.md](PUBLIC_ACQUISITION.md).
 - Active tenant hostnames present one curated, responsive RTL storefront using tenant content, theme settings, menu, private media variants, hours, location, and enabled service calls to action.
 - Suspended tenants retain their data but receive a controlled unavailable page.
 - Provisioning creates the cafe, primary branch, platform subdomain, default website/reservation settings, and optional owner invitation in one transaction.

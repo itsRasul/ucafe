@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { request as httpRequest } from "node:http";
 import { canonicalRequestId } from "../request-id";
 import type { PublicMenu, PublicOrderingState, PublicSite, TenantContext } from "./tenant-public";
+import type { PublicCatalog } from "./platform-catalog";
 
 type PlatformPublicData = { isTenant: false };
 type MissingTenantData = { isTenant: true; context: null; site: null; menu: null; ordering: null };
@@ -16,14 +17,6 @@ type TenantPublicData = {
 
 export type PublicPageData = PlatformPublicData | MissingTenantData | TenantPublicData;
 
-export type PublicOffering = {
-  key: string;
-  name: string;
-  priceToman: string;
-  billingMonths: number;
-  trialDays: number;
-};
-
 function loadApiPath(apiBaseUrl: string, host: string, path: string, requestId: string): Promise<{ status: number; body: string }> {
   const url = new URL(`${apiBaseUrl}${path}`);
   return new Promise((resolve, reject) => {
@@ -33,6 +26,7 @@ function loadApiPath(apiBaseUrl: string, host: string, path: string, requestId: 
       response.on("end", () => resolve({ status: response.statusCode ?? 500, body: Buffer.concat(chunks).toString("utf8") }));
     });
     request.on("error", reject);
+    request.setTimeout(8000, () => request.destroy(new Error("Public API timed out")));
     request.end();
   });
 }
@@ -70,14 +64,9 @@ export const loadPublicPageData = cache(async (): Promise<PublicPageData> => {
   };
 });
 
-export const loadPlatformOffering = cache(async (): Promise<PublicOffering | null> => {
-  const apiBaseUrl = process.env.API_INTERNAL_URL ?? "http://localhost:3001/api/v1";
+export const loadPlatformCatalog = cache(async (): Promise<PublicCatalog | null> => {
   try {
-    const requestId = canonicalRequestId((await headers()).get("x-request-id"));
-    const response = await loadApiPath(apiBaseUrl, "", "/public/platform/offering", requestId);
-    if (response.status < 200 || response.status >= 300) return null;
-    return JSON.parse(response.body) as PublicOffering;
-  } catch {
-    return null;
-  }
+    const response = await loadApiPath(process.env.API_INTERNAL_URL ?? "http://localhost:3001/api/v1", "", "/public/platform/plans", canonicalRequestId((await headers()).get("x-request-id")));
+    return response.status === 200 ? JSON.parse(response.body) as PublicCatalog : null;
+  } catch { return null; }
 });

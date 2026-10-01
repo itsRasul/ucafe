@@ -4,7 +4,7 @@ ucafe has two intentionally separate OTP identity domains.
 
 ## Administrative users
 
-`users` represent platform operators and cafe owners/staff. `POST /api/v1/auth/otp/request` creates a `LOGIN` challenge not associated with a cafe. Verification requires an existing active user with applicable access; an invited cafe membership becomes active when its user first verifies the phone.
+`users` represent platform operators and cafe owners/staff. `POST /api/v1/auth/otp/request` creates a `LOGIN` challenge not associated with a cafe. Verification accepts only this unscoped challenge purpose, creates a User for a previously unknown verified number, and rejects blocked identities. Verification alone grants no platform or tenant permissions; an invited cafe membership becomes active when its user first verifies the phone. Public purchase uses this same identity and binds ownership from the verified User, never a browser-supplied phone.
 
 Successful verification returns a short-lived JWT access token and sets a rotating opaque refresh token in an HttpOnly cookie. Access tokens identify user/session only; permissions are loaded from the database on each authorized operation.
 

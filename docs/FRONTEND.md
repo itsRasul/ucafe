@@ -5,6 +5,7 @@
 ## Route surfaces
 
 - `/`: platform marketing page on the base host; resolved tenant storefront on tenant hosts; controlled unavailable state for suspended tenants.
+- `/start`, `/start/result`: platform-only subscription purchase, authenticated draft recovery, authoritative receipt and owner onboarding links; noindex.
 - `/menu`, `/cart`, `/checkout`, `/checkout/result`, `/reserve`, `/login`: tenant customer journeys.
 - `/panel`: authenticated client overview, profile, orders/detail, and reservations/detail.
 - `/admin`: tenant owner/staff overview, site/media, menu, orders, reservations, support tickets, analytics, subscription, invoices, and payment result.
@@ -27,6 +28,8 @@ Do not move ordinary static/public content to client fetching without a measured
 Admin and client session providers are separate. Both keep short-lived access tokens in browser session state and refresh through same-origin HttpOnly cookies. Checkout/reservation/login reuse the parent client session; the admin shell exposes navigation based on the access projection but relies on API guards for security.
 
 ## Tenant and design conventions
+
+Platform acquisition opts in to `.ucafe-ui` primitive/semantic tokens in `ui/tokens.css`, shared button/section primitives, and the warm UCafe logo identity. These rules do not replace tenant themes or existing admin shells. The shell and current plan catalog render on the server; interactive tour, retry and purchase forms are client leaves. See [PUBLIC_ACQUISITION.md](PUBLIC_ACQUISITION.md).
 
 - Tenant site content/theme/media from the API remains authoritative; uploaded cafe logo takes precedence over platform fallback branding.
 - The storefront is one curated template with controlled CSS variables—not arbitrary tenant CSS or a page builder.

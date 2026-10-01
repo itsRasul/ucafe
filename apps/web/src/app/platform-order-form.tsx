@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
+import { Button } from "./ui/primitives";
 
 const services = [
   ["WEBSITE", "وب‌سایت کافه"],
@@ -15,9 +16,11 @@ type SubmitState = "idle" | "sending" | "success" | "error";
 export function PlatformOrderForm() {
   const [state, setState] = useState<SubmitState>("idle");
   const [message, setMessage] = useState("");
+  const submitting = useRef(false);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submitting.current || state === "success") return;
     const form = event.currentTarget;
     const data = new FormData(form);
     const payload = {
@@ -25,7 +28,7 @@ export function PlatformOrderForm() {
       businessStage: data.get("businessStage"), requestedServices: data.getAll("requestedServices"), note: data.get("note"), website: data.get("website"),
     };
     if (payload.requestedServices.length === 0) { setState("error"); setMessage("حداقل یک خدمت را انتخاب کنید."); return; }
-    setState("sending"); setMessage("");
+    submitting.current = true; setState("sending"); setMessage("");
     try {
       const response = await fetch("/api/backend/public/platform/order-requests", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
       if (!response.ok) {
@@ -35,7 +38,7 @@ export function PlatformOrderForm() {
       form.reset(); setState("success"); setMessage("درخواست شما ثبت شد. تیم یو کافه در اولین فرصت با شما تماس می‌گیرد.");
     } catch (error) {
       setState("error"); setMessage(error instanceof Error ? error.message : "ارتباط با سرور برقرار نشد. دوباره تلاش کنید.");
-    }
+    } finally { submitting.current = false; }
   }
 
   return <form className="platform-form" onSubmit={submit} aria-busy={state === "sending"}>
@@ -46,10 +49,10 @@ export function PlatformOrderForm() {
       <label><span>شهر</span><input name="city" autoComplete="address-level2" maxLength={100} required /></label>
       <label className="form-wide"><span>کافه شما در چه مرحله‌ای است؟</span><select name="businessStage" defaultValue="" required><option value="" disabled>انتخاب کنید</option><option value="LAUNCHING">در حال راه‌اندازی</option><option value="OPERATING">فعال</option><option value="MULTI_BRANCH">چند شعبه‌ای</option></select></label>
     </div>
-    <fieldset><legend>چه خدماتی نیاز دارید؟</legend><div className="service-checks">{services.map(([value, label]) => <label key={value}><input type="checkbox" name="requestedServices" value={value} /><span>{label}</span></label>)}</div></fieldset>
+    <fieldset aria-describedby={state === "error" ? "consultation-message" : undefined}><legend>چه خدماتی نیاز دارید؟</legend><div className="service-checks">{services.map(([value, label]) => <label key={value}><input type="checkbox" name="requestedServices" value={value} /><span>{label}</span></label>)}</div></fieldset>
     <label className="note-field"><span>توضیحات بیشتر <small>اختیاری</small></span><textarea name="note" maxLength={1000} rows={4} placeholder="از کافه، زمان شروع یا نیازهای خاص‌تان بگویید." /></label>
     <label className="form-honeypot" aria-hidden="true">وب‌سایت<input name="website" tabIndex={-1} autoComplete="off" /></label>
-    <div className="form-submit"><button type="submit" disabled={state === "sending"}>{state === "sending" ? "در حال ثبت…" : "ثبت درخواست همکاری"}</button><p>ارسال این فرم به معنی پرداخت یا شروع اشتراک نیست.</p></div>
-    {message && <p className={`form-message ${state}`} role="status">{message}</p>}
+    <div className="form-submit"><Button type="submit" disabled={state === "sending" || state === "success"}>{state === "sending" ? "در حال ثبت…" : state === "success" ? "درخواست ثبت شد" : "ثبت درخواست مشاوره"}</Button><p>ارسال این فرم به معنی پرداخت یا شروع اشتراک نیست.</p></div>
+    {message && <p id="consultation-message" className={`form-message ${state}`} role={state === "error" ? "alert" : "status"}>{message}</p>}
   </form>;
 }

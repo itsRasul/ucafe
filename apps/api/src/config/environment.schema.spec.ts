@@ -10,7 +10,7 @@ test("production fails closed when SMS or payment simulators are selected", () =
 });
 
 test("production provider configuration accepts only the real adapters and HTTPS callback", () => {
-  const result = environmentSchema.validate({ ...base, ...templates, NODE_ENV: "production", SMS_PROVIDER: "smsir", SMSIR_API_KEY: "test-api-key", SMSIR_OTP_TEMPLATE_ID: "100000", PAYMENT_PROVIDER: "zarinpal", ZARINPAL_MERCHANT_ID: "00000000-0000-0000-0000-000000000000" });
+  const result = environmentSchema.validate({ ...base, ...templates, PLATFORM_PUBLIC_URL: "https://u-cafe.test", NODE_ENV: "production", SMS_PROVIDER: "smsir", SMSIR_API_KEY: "test-api-key", SMSIR_OTP_TEMPLATE_ID: "100000", PAYMENT_PROVIDER: "zarinpal", ZARINPAL_MERCHANT_ID: "00000000-0000-0000-0000-000000000000" });
   assert.equal(result.error, undefined);
 });
 
@@ -25,4 +25,10 @@ test("invalid optional Sentry config cannot prevent API startup", () => {
   const result = environmentSchema.validate({ ...base, SENTRY_DSN: "https://public@example.test/1", SENTRY_ENVIRONMENT: "production", SENTRY_RELEASE: "abc123" });
   assert.equal(result.error, undefined);
   assert.equal(environmentSchema.validate({ ...base, SENTRY_DSN: "not-a-sentry-dsn", SENTRY_ENVIRONMENT: "staging", SENTRY_RELEASE: "x".repeat(500) }).error, undefined);
+});
+
+test("public return origin rejects credentials, paths and unrelated production hosts", () => {
+  for (const PLATFORM_PUBLIC_URL of ["http://localhost:3000/start", "http://user@localhost:3000", "http://localhost:3000?redirect=other"]) assert.ok(environmentSchema.validate({ ...base, PLATFORM_PUBLIC_URL }).error);
+  assert.equal(environmentSchema.validate({ ...base, PLATFORM_PUBLIC_URL: "http://localhost:3000" }).error, undefined);
+  assert.ok(environmentSchema.validate({ ...base, ...templates, PLATFORM_PUBLIC_URL: "https://other.test", NODE_ENV: "production", SMS_PROVIDER: "smsir", SMSIR_API_KEY: "test-api-key", SMSIR_OTP_TEMPLATE_ID: "100000", PAYMENT_PROVIDER: "zarinpal", ZARINPAL_MERCHANT_ID: "00000000-0000-0000-0000-000000000000" }).error);
 });

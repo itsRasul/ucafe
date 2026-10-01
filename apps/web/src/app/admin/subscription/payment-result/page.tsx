@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { useAdminSession } from "../../admin-session";
 
 type Invoice = { id: string; status: string; operation: string; amountToman: string; plan: { name: string }; providerReference: string | null };
-const statusLabels: Record<string, string> = { PENDING: "در انتظار پرداخت", VERIFYING: "در حال بررسی", PAID: "پرداخت موفق", FAILED: "پرداخت ناموفق", EXPIRED: "فاکتور منقضی شد" };
+const statusLabels: Record<string, string> = { PENDING: "در انتظار پرداخت", VERIFYING: "در حال بررسی", PAID: "پرداخت موفق", FAILED: "پرداخت ناموفق", CANCELED: "پرداخت لغو شد", EXPIRED: "فاکتور منقضی شد" };
 const nf = new Intl.NumberFormat("fa-IR");
 const successCopy: Record<string, string> = { PURCHASE: "اشتراک با موفقیت فعال شد.", RENEWAL: "اشتراک با موفقیت تمدید شد.", REACTIVATION: "اشتراک دوباره فعال شد.", TRIAL_TO_PAID: "دوره آزمایشی پایان یافت و پلن پولی فعال شد.", UPGRADE: "پلن جدید بلافاصله فعال شد." };
 
@@ -17,12 +17,12 @@ export default function PaymentResultPage() {
   const [invoice, setInvoice] = useState<Invoice>();
   const [error, setError] = useState("");
   useEffect(() => { if (intentId) api<Invoice>(`/tenant/payments/invoices/${intentId}`).then(setInvoice).catch((reason: Error) => setError(reason.message)); }, [api, intentId]);
-  const status = invoice?.status ?? params.get("status") ?? "FAILED";
+  const status = invoice?.status ?? "LOADING";
   const success = status === "PAID";
   return <section className="admin-section-state payment-result-state">
     <span className={`result-mark ${success ? "success" : "failed"}`}>{success ? "✓" : "!"}</span>
-    <h1>{statusLabels[status] ?? "نتیجه پرداخت"}</h1>
-    <p>{success ? successCopy[invoice?.operation ?? ""] ?? "پرداخت با موفقیت تأیید شد." : "اشتراک تغییری نکرده است. می‌توانید دوباره از بخش اشتراک اقدام کنید."}</p>
+    <h1>{statusLabels[status] ?? "در حال بررسی نتیجه پرداخت"}</h1>
+    <p>{success ? successCopy[invoice?.operation ?? ""] ?? "پرداخت با موفقیت تأیید شد." : invoice ? "برای ادامه، وضعیت فاکتور را از بخش اشتراک بررسی کنید." : "نتیجه معتبر از سرور دریافت می‌شود."}</p>
     {invoice && <dl><div><dt>طرح</dt><dd>{invoice.plan.name}</dd></div><div><dt>مبلغ</dt><dd>{nf.format(Number(invoice.amountToman))} تومان</dd></div><div><dt>شماره پیگیری</dt><dd dir="ltr">{invoice.providerReference ?? "—"}</dd></div></dl>}
     {error && <p className="admin-message error" role="alert">{error}</p>}
     <Link className="admin-preview-link" href="/admin">بازگشت به پنل</Link>
