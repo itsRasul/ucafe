@@ -18,6 +18,8 @@ Store values in a secret manager; never bake `.env` into an image. At minimum:
 
 The schema refuses development SMS, simulated payment, or an HTTP payment callback in production.
 
+Ticketing also requires the three `SUPPORT_TICKET_*` numeric sms.ir template IDs with the configured named parameters. Its API accepts up to five 8 MiB files; set the production reverse-proxy/body limit to at least 40 MiB plus multipart overhead. The private S3 credentials need list and delete access under `tenants/*/support-tickets/` for orphan cleanup. Object storage is checked at API startup and readiness, so an unavailable bucket can prevent startup or traffic routing. The 10-minute API scheduler logs bounded inactivity and orphan cleanup counts; repeated failures should alert through the API error/log pipeline.
+
 ## Deployment
 
 1. Record verified PostgreSQL and object-storage backup/snapshot identifiers.
@@ -66,6 +68,7 @@ The Sentry project boundary, privacy rules, runtime configuration, and source-ma
 - PostgreSQL/Redis/object-store health and capacity
 - HTTP 5xx/error rate and p95 latency
 - notification pending age, retry exhaustion, provider failures
+- Ticket inactivity/orphan sweep errors, repeated storage cleanup failures, and ticket notification retry exhaustion; alert using counts/error categories only, never message or provider payloads
 - CRM Workflow outbox age/backlog, terminal execution failures, and loop-depth blocks through database monitoring; inspect counts and timestamps only, never event payloads
 - payment verification failures/stale `VERIFYING` intents
 - backup/restore verification age and certificate expiry

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { BrandLogo } from "../brand-logo";
 import { OtpCodeFields } from "../otp-code-fields";
 
-export type TenantPermission = "site.manage" | "menu.read" | "menu.manage" | "reservations.read" | "reservations.manage" | "orders.read" | "orders.manage" | "analytics.read" | "inventory.read" | "inventory.manage" | "tenant_crm.read" | "tenant_crm.manage" | "staff.manage" | "subscription.read" | "subscription.checkout";
+export type TenantPermission = "site.manage" | "menu.read" | "menu.manage" | "reservations.read" | "reservations.manage" | "orders.read" | "orders.manage" | "analytics.read" | "inventory.read" | "inventory.manage" | "tenant_crm.read" | "tenant_crm.manage" | "support.tickets.use" | "staff.manage" | "subscription.read" | "subscription.checkout";
 type Access = { tenant: { slug: string; status: string; locale: string; timezone: string }; permissions: TenantPermission[]; features?: { inventory?: boolean; reservations?: boolean; tenant_crm?: boolean } };
 type ApiError = { message?: string | string[]; code?: string; feature?: string };
 type SessionContext = { access: Access; api: <T>(path: string, init?: RequestInit) => Promise<T>; signOut: () => Promise<void> };
@@ -25,9 +25,12 @@ async function request<T>(path: string, token?: string, init?: RequestInit): Pro
   if (!(init?.body instanceof FormData) && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
   const response = await fetch(`/api/backend${path}`, { ...init, cache: "no-store", credentials: "same-origin", headers });
-  const body = response.status === 204 ? {} : await response.json().catch(() => ({})) as ApiError;
-  if (!response.ok) throw Object.assign(new Error(messageFor(response, body)), { status: response.status, code: body.code, feature: body.feature });
-  return body as T;
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({})) as ApiError;
+    throw Object.assign(new Error(messageFor(response, body)), { status: response.status, code: body.code, feature: body.feature });
+  }
+  if (response.status === 204) return {} as T;
+  return response.headers.get("content-type")?.includes("json") ? await response.json() as T : await response.blob() as T;
 }
 
 export function AdminSessionProvider({ children }: { children: React.ReactNode }) {

@@ -18,6 +18,11 @@ type EnqueueInput = {
   payload: NotificationPayload;
 };
 
+function deliveryFailureCode(error: unknown) {
+  const code = error && typeof error === "object" && "providerCode" in error ? error.providerCode : undefined;
+  return typeof code === "string" && /^[A-Z0-9_-]{1,50}$/.test(code) ? code : "PROVIDER_UNAVAILABLE";
+}
+
 @Injectable()
 export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(NotificationsService.name);
@@ -80,23 +85,27 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
             await repository.update(job.id, { status: NotificationStatus.Sent, sentAt: new Date(), lastErrorCode: "NO_LONGER_ELIGIBLE" });
             continue;
           }
-          const templateId = Number(this.config.get<string>(job.type) ?? (this.config.get("SMS_PROVIDER") === "development" ? "1" : ""));
+          const templateId = Number(this.config.get<string>(job.type) || (this.config.get("SMS_PROVIDER") === "development" ? "1" : ""));
           if (!Number.isSafeInteger(templateId) || templateId <= 0) throw new Error("SMS template is not configured");
           const result = await this.sms.sendTemplate({ phone: this.crypto.decryptPhone(job.recipientCiphertext), templateId, parameters: Object.entries(job.payload).map(([name, value]) => ({ name, value })) });
           await repository.update(job.id, { status: NotificationStatus.Sent, providerMessageId: result.providerMessageId, sentAt: new Date(), lastErrorCode: null });
           this.logger.log(`Notification sent type=${job.type} tenant=${job.coffeeShopId ?? "platform"} entity=${job.relatedEntityType}:${job.relatedEntityId}`);
-        } catch {
+        } catch (error) {
           const attempts = job.attempts + 1;
-          await repository.update(job.id, { attempts, status: attempts >= 3 ? NotificationStatus.Failed : NotificationStatus.Pending, nextAttemptAt: new Date(Date.now() + Math.pow(2, attempts) * 30_000), lastErrorCode: "PROVIDER_UNAVAILABLE" });
+          const status = attempts >= 3 ? NotificationStatus.Failed : NotificationStatus.Pending;
+          const errorCode = deliveryFailureCode(error);
+          await repository.update(job.id, { attempts, status, nextAttemptAt: new Date(Date.now() + Math.pow(2, attempts) * 30_000), lastErrorCode: errorCode });
           if (attempts >= 3) {
             logOperationalFailure(this.logger, "warn", "Notification delivery exhausted retries", {
               feature: "notifications",
               integration: this.config.get<string>("SMS_PROVIDER") === "smsir" ? "sms_ir" : undefined,
               tenant_id: job.coffeeShopId ?? undefined,
-              error_code: "PROVIDER_UNAVAILABLE",
+              error_code: errorCode,
               attempt: attempts,
             });
-          } else this.logger.warn(`Notification delivery failed id=${job.id} type=${job.type} attempt=${attempts}`);
+          } else {
+            this.logger.warn(`Notification delivery failed id=${job.id} type=${job.type} entity=${job.relatedEntityType}:${job.relatedEntityId} attempt=${attempts} status=${status} error=${errorCode}`);
+          }
         }
       }
     } finally { this.running = false; }

@@ -195,6 +195,8 @@
 
 .nav-icon-crm::before { width: .42rem; height: .42rem; inset: .08rem .37rem auto auto; border: 1.8px solid currentColor; border-radius: 50%; }
 .nav-icon-crm::after { inset: .62rem .1rem .08rem; border: 1.8px solid currentColor; border-radius: .7rem .7rem .28rem .28rem; }
+.nav-icon-support::before { inset: .12rem .08rem .22rem; border: 1.8px solid currentColor; border-radius: .3rem; }
+.nav-icon-support::after { width: .32rem; height: .32rem; inset: auto auto .03rem .17rem; border-right: 1.8px solid currentColor; border-bottom: 1.8px solid currentColor; transform: skew(-18deg) rotate(18deg); background: #f5f7fa; }
 
 .nav-icon-reservations::before {
     inset: .13rem;
@@ -3749,4 +3751,106 @@
   .tenant-crm-offer-form-actions { align-items: stretch; flex-direction: column; }
   .tenant-crm-offers-client dl { grid-template-columns: 1fr; }
   .tenant-crm-automation-reminder, .tenant-crm-automation-form .tenant-crm-criteria-rule { grid-template-columns: 1fr; }
+}
+
+.admin-support { display: grid; gap: .85rem; min-width: 0; color: #1f2937; }
+.admin-support .admin-page-heading { align-items: center; }
+.support-primary-link { min-height: 2.75rem; display: inline-flex; align-items: center; justify-content: center; gap: .35rem; padding: .5rem .8rem; border: 1px solid #087cc7; border-radius: .5rem; background: #0284c7; color: #fff; font-size: .82rem; font-weight: 800; text-decoration: none; white-space: nowrap; }
+.support-primary-link:hover { border-color: #0369a1; background: #0369a1; color: #fff; }
+.support-primary-link span { font-size: 1.15rem; line-height: 1; }
+.support-back-link { display: inline-flex; align-items: center; min-height: 2.5rem; margin-bottom: .25rem; color: #0369a1; font-size: .82rem; font-weight: 700; }
+.support-ticket-list { display: grid; gap: .55rem; margin: 0; padding: 0; list-style: none; }
+.support-ticket-list li { min-width: 0; }
+.support-ticket-card { min-height: 5.5rem; display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .8rem .9rem; border: 1px solid #e5e7eb; border-radius: .7rem; background: #fff; color: inherit; text-decoration: none; transition: border-color .16s ease, background-color .16s ease; }
+.support-ticket-card:hover { border-color: #bae6fd; background: #f8fcff; }
+.support-ticket-card:focus-visible, .support-primary-link:focus-visible, .support-back-link:focus-visible, .support-pagination button:focus-visible, .support-form a:focus-visible, .support-closed-note a:focus-visible { outline: 3px solid rgb(3 105 161/28%); outline-offset: 2px; }
+.support-ticket-main { display: grid; gap: .38rem; min-width: 0; }
+.support-ticket-topline { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; }
+.support-unread { display: inline-flex; align-items: center; min-height: 1.45rem; padding: .1rem .45rem; border: 1px solid #86efac; border-radius: 99rem; background: #f0fdf4; color: #166534; font-size: .75rem; font-weight: 800; }
+.support-ticket-topline>b, .support-reference { color: #475569; font-size: .77rem; font-variant-numeric: tabular-nums; }
+.support-ticket-main>strong { color: #0f172a; font-size: .92rem; line-height: 1.7; overflow-wrap: anywhere; }
+.support-ticket-meta { display: flex; align-items: center; flex-wrap: wrap; gap: .2rem .65rem; color: #64748b; font-size: .75rem; line-height: 1.7; }
+.support-ticket-arrow { color: #64748b; font-size: 1.35rem; flex: 0 0 auto; }
+.support-status { display: inline-flex; align-items: center; width: fit-content; min-height: 1.65rem; padding: .2rem .55rem; border: 1px solid #bae6fd; border-radius: 99rem; background: #effaff; color: #0369a1; font-size: .72rem; font-weight: 800; line-height: 1.45; }
+.support-status--waiting_for_tenant { border-color: #fed7aa; background: #fff7ed; color: #9a3412; }
+.support-status--closed { border-color: #cbd5e1; background: #f1f5f9; color: #475569; }
+.support-refreshing { margin: 0; color: #64748b; font-size: .78rem; }
+.support-pagination { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .65rem; color: #64748b; font-size: .78rem; }
+.support-pagination>div { display: flex; align-items: center; gap: .55rem; }
+.support-pagination button { min-height: 2.75rem; }
+.support-empty { display: grid; justify-items: center; gap: .4rem; padding: clamp(1.5rem, 5vw, 3.2rem) 1rem; border: 1px dashed #cbd5e1; border-radius: .8rem; background: #fbfdff; text-align: center; }
+.support-empty h2 { margin: .25rem 0 0; color: #0f172a; font-size: 1.05rem; line-height: 1.5; }
+.support-empty p { max-width: 34rem; margin: 0 0 .65rem; color: #64748b; font-size: .85rem; line-height: 1.8; }
+.support-empty-icon { position: relative; width: 2.7rem; height: 2.35rem; margin-bottom: .25rem; }
+.support-empty-icon i:first-child { position: absolute; inset: .05rem .15rem .35rem .3rem; border: 2px solid #0284c7; border-radius: .5rem; }
+.support-empty-icon i:last-child { position: absolute; width: .5rem; height: .5rem; right: .35rem; bottom: .15rem; border-right: 2px solid #0284c7; border-bottom: 2px solid #0284c7; transform: rotate(30deg); background: #fbfdff; }
+.support-form, .support-reply { display: grid; gap: .75rem; min-width: 0; padding: 1rem; border: 1px solid #e5e7eb; border-radius: .75rem; background: #fbfdff; }
+.support-form { max-width: 48rem; }
+.support-field { display: grid; gap: .35rem; min-width: 0; color: #334155; font-size: .84rem; font-weight: 800; }
+.support-field>span b { color: #be123c; }
+.admin-support .support-field input, .admin-support .support-field select, .admin-support .support-field textarea { min-width: 0; min-height: 2.75rem; background: #fff; }
+.admin-support .support-field textarea { min-height: 8rem; }
+.support-field small, .support-reply-help { color: #64748b; font-size: .75rem; font-weight: 400; line-height: 1.7; }
+.support-field-error { display: block; color: #be123c !important; font-size: .78rem; font-weight: 700 !important; line-height: 1.7; }
+.support-error-summary { margin: 0; }
+.support-error-summary strong { display: block; margin-bottom: .25rem; }
+.support-error-summary ul { display: grid; gap: .15rem; margin: .25rem 0 0; padding-inline-start: 1.15rem; }
+.support-error-summary a { color: inherit; text-decoration: underline; text-underline-offset: .15em; }
+.support-form-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: .55rem; }
+.support-form-actions>a { min-height: 2.75rem; display: inline-flex; align-items: center; padding: .4rem .7rem; color: #475569; font-size: .82rem; }
+.support-form-actions button, .support-reply>button { min-height: 2.75rem; }
+.support-form-actions .admin-spinner, .support-reply .admin-spinner { width: .9rem; height: .9rem; border-color: rgb(255 255 255/42%); border-top-color: #fff; }
+.support-detail-heading { align-items: flex-start !important; }
+.support-detail-heading h1 { overflow-wrap: anywhere; }
+.support-reference { margin-bottom: .1rem; }
+.support-ticket-metadata { display: flex; flex-wrap: wrap; gap: .75rem 2rem; margin: 0; padding: .75rem .9rem; border: 1px solid #e5e7eb; border-radius: .65rem; background: #fff; }
+.support-ticket-metadata>div { display: grid; gap: .12rem; }
+.support-ticket-metadata dt { color: #64748b; font-size: .73rem; }
+.support-ticket-metadata dd { margin: 0; color: #334155; font-size: .82rem; font-weight: 700; }
+.support-status-note { margin: 0; padding: .65rem .8rem; border: 1px solid #bae6fd; border-radius: .6rem; background: #f0f9ff; color: #075985; font-size: .82rem; line-height: 1.75; }
+.support-status-note.is-your-turn { border-color: #fed7aa; background: #fff7ed; color: #9a3412; }
+.support-conversation { display: grid; gap: .7rem; min-width: 0; }
+.support-conversation>h2 { margin: .25rem 0 0; color: #0f172a; font-size: .98rem; }
+.support-messages { display: flex; flex-direction: column; align-items: stretch; gap: .65rem; margin: 0; padding: 0; list-style: none; }
+.support-message { width: min(100%, 48rem); min-width: 0; padding: .7rem .8rem; border: 1px solid #dbeafe; border-radius: .7rem .7rem .7rem .2rem; background: #f3f9ff; }
+.support-message--tenant { align-self: flex-start; border-color: #dbeafe; border-radius: .7rem .7rem .2rem .7rem; background: #f3f9ff; }
+.support-message--platform { align-self: flex-end; border-color: #e5e7eb; border-radius: .7rem .7rem .7rem .2rem; background: #fbfdff; }
+.support-message-meta { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .2rem .6rem; color: #475569; font-size: .73rem; }
+.support-message-meta time { color: #64748b; font-variant-numeric: tabular-nums; }
+.support-message>p { margin: .45rem 0 0; color: #1f2937; font-size: .88rem; line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; }
+.support-attachment-picker { display: grid; justify-items: start; gap: .4rem; min-width: 0; color: #475569; font-size: .78rem; }
+.support-attachment-picker-label { display: grid; gap: .35rem; color: #334155; font-size: .8rem; font-weight: 800; }
+.support-attachment-picker input { max-width: 100%; min-height: 2.75rem; color: #334155; font: inherit; }
+.support-attachment-picker>small,.support-attachment-copy small { color: #64748b; font-size: .73rem; font-weight: 500; line-height: 1.6; }
+.support-attachment-error { color: #b42318; font-size: .76rem; line-height: 1.6; }
+.support-attachment-list { display: grid; gap: .45rem; min-width: 0; margin: .55rem 0 0; padding: 0; list-style: none; }
+.support-attachment-card { display: grid; grid-template-columns: 2.25rem minmax(0,1fr) auto; align-items: center; gap: .6rem; min-width: 0; padding: .55rem .65rem; border: 1px solid #dbe4ee; border-radius: .65rem; background: #fff; }
+.support-attachment-card--pending { background: #f8fafc; }
+.support-attachment-glyph { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: .55rem; color: #0c6b71; background: #e5f4f2; }
+.support-attachment-glyph.is-document { color: #9a3412; background: #fff1e8; }
+.support-attachment-glyph svg { width: 1.25rem; height: 1.25rem; }
+.support-attachment-copy { display: grid; min-width: 0; gap: .1rem; }
+.support-attachment-copy strong { overflow: hidden; color: #1f2937; font-size: .8rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.support-attachment-actions { display: flex; flex-wrap: wrap; gap: .35rem; }
+.support-attachment-action { min-height: 2.75rem; padding: .35rem .65rem; border: 1px solid #cbd5e1; border-radius: .5rem; color: #334155; background: #fff; font: inherit; cursor: pointer; }
+.support-attachment-action:disabled { opacity: .6; cursor: wait; }
+.support-attachment-preview { grid-column: 1 / -1; display: block; width: min(100%, 35rem); max-height: 24rem; justify-self: start; object-fit: contain; border: 1px solid #dbe4ee; border-radius: .55rem; background: #f8fafc; }
+.support-reply { width: min(100%, 48rem); }
+.support-reply .support-field textarea { min-height: 6rem; }
+.support-reply>button { justify-self: start; }
+.support-closed-note { display: grid; gap: .3rem; padding: .85rem .9rem; border: 1px solid #cbd5e1; border-radius: .65rem; background: #f8fafc; color: #334155; }
+.support-closed-note strong { font-size: .85rem; }
+.support-closed-note p { margin: 0; color: #64748b; font-size: .8rem; line-height: 1.7; }
+.support-closed-note a { justify-self: start; min-height: 2.75rem; display: inline-flex; align-items: center; color: #0369a1; font-size: .82rem; font-weight: 700; }
+.admin-support a:focus-visible { outline: 3px solid rgb(3 105 161/28%); outline-offset: 2px; }
+@media (max-width: 36rem) {
+  .admin-support .admin-page-heading, .support-detail-heading { align-items: stretch !important; flex-direction: column; }
+  .support-primary-link { width: 100%; }
+  .support-ticket-card { padding: .7rem; }
+  .support-ticket-main>strong { font-size: .88rem; }
+  .support-pagination { align-items: stretch; flex-direction: column; }
+  .support-pagination>div { justify-content: space-between; }
+  .support-form, .support-reply { padding: .8rem; }
+  .support-ticket-metadata { gap: .6rem 1.2rem; }
+  .support-message { width: 100%; }
 }

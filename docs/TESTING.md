@@ -2,9 +2,9 @@
 
 ## Current automated checks
 
-The API uses Node's built-in test runner with `ts-node/register`; no Jest setup exists. The explicit package script covers environment fail-closed behavior, sms.ir contracts, host/proxy trust, authorization guards, auth crypto/tokens/phone, client authentication/panel logic, subscription lifecycle/features, site/menu rules, reservation time rules, order transitions, analytics periods/comparisons, notification formatting, media validation/storage behavior, payment gateways, consultation requests, and platform access. Analytics SQL isolation and aggregation run against PostgreSQL when `ANALYTICS_INTEGRATION_DATABASE_URL` is set; the fixture rolls back.
+The API uses Node's built-in test runner with `ts-node/register`; no Jest setup exists. The explicit package script covers environment fail-closed behavior, sms.ir contracts, host/proxy trust, authorization guards, auth crypto/tokens/phone, client authentication/panel logic, subscription lifecycle/features, site/menu rules, reservation time rules, order transitions, analytics periods/comparisons, notification formatting, media validation/storage behavior, payment gateways, consultation requests, Platform access, and Support Tickets. Analytics tests use PostgreSQL when `ANALYTICS_INTEGRATION_DATABASE_URL` is set. Support Ticket persistence tests use PostgreSQL when `TICKETING_INTEGRATION_DATABASE_URL` is set and clean up their fixture rows. The web's Node built-in `npm test --workspace=@ucafe/web` suite covers Tenant Support contract mapping, field bounds, payloads, duplicate-submit guarding, reply paths, lifecycle, safe error copy, and server-rendered list/form/conversation states.
 
-The web and worker have typecheck/build scripts but no automated component/browser test suite. The root scripts run workspace checks where present:
+The web has focused Tenant and Platform Support helper and server-rendered component tests, but no DOM-driven interaction or authenticated browser test suite; the worker has typecheck/build scripts only. The Platform PostgreSQL Ticket integration suite also requires `TICKETING_INTEGRATION_DATABASE_URL`. The root scripts run workspace checks where present:
 
 ```powershell
 npm run typecheck
@@ -41,6 +41,7 @@ UI work needs mobile and desktop verification for Persian/RTL semantics, keyboar
 - client ownership across cafe, client, address, order, and reservation
 - server-side order prices and order idempotency
 - reservation concurrency/capacity and transition locking
+- Support Ticket row-lock lifecycle transitions, tenant scoping, and concurrent reference generation
 - payment authority/amount verification, duplicate callbacks, stale verifying recovery, and no double credit
 - notification encryption, deduplication, retry exhaustion, and scheduled eligibility
 - production refusal of simulators/HTTP callback

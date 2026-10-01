@@ -7,6 +7,10 @@ type SmsIrVerifyResponse = { status?: number; message?: string; data?: { message
 const verifyUrl = "https://api.sms.ir/v1/send/verify";
 const maxParameterLength = 25;
 
+function providerFailure(code: string) {
+  return Object.assign(new ServiceUnavailableException("SMS provider rejected the message"), { providerCode: `SMSIR_${code}` });
+}
+
 export class SmsIrSmsProvider implements SmsProvider {
   private readonly key: string; private readonly otpTemplateId: number;
   constructor(config: ConfigService) { this.key = config.getOrThrow("SMSIR_API_KEY"); this.otpTemplateId = Number(config.getOrThrow("SMSIR_OTP_TEMPLATE_ID")); }
@@ -17,7 +21,8 @@ export class SmsIrSmsProvider implements SmsProvider {
     const response = await fetch(verifyUrl, { method: "POST", headers: { "content-type": "application/json", accept: "text/plain", "x-api-key": this.key }, body, signal: AbortSignal.timeout(10_000) });
     const result = await response.json().catch(() => ({})) as SmsIrVerifyResponse;
     const messageId = result.data?.messageId;
-    if (!response.ok || result.status !== 1 || !messageId) throw new ServiceUnavailableException("SMS provider rejected the message");
+    if (!response.ok) throw providerFailure(`HTTP_${response.status}`);
+    if (result.status !== 1 || !messageId) throw providerFailure(`STATUS_${result.status ?? "UNKNOWN"}`);
     return { providerMessageId: String(messageId) };
   }
 }

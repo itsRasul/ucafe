@@ -26,6 +26,7 @@ import { InventoryModule } from "./inventory/inventory.module";
 import { CrmModule } from "./crm/crm.module";
 import { TenantCrmModule } from "./tenant-crm/tenant-crm.module";
 import { UcafeSentryGlobalFilter } from "./observability/sentry-global.filter";
+import { SupportTicketsModule } from "./support-tickets/support-tickets.module";
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { UcafeSentryGlobalFilter } from "./observability/sentry-global.filter";
     InventoryModule,
     CrmModule,
     TenantCrmModule,
+    SupportTicketsModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_FILTER, useClass: UcafeSentryGlobalFilter }],

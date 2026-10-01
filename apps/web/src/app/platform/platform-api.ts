@@ -10,7 +10,7 @@ export async function platformRaw<T>(path: string, token?: string, init?: Reques
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
-  if (response.ok && response.headers.get("content-type")?.startsWith("image/")) return await response.blob() as T;
+  if (response.ok && response.status !== 204 && !response.headers.get("content-type")?.includes("json")) return await response.blob() as T;
   const body = response.status === 204 ? {} : await response.json().catch(() => ({}));
   if (!response.ok) throw Object.assign(new Error(Array.isArray(body.message) ? body.message[0] : body.message || "ارتباط با سرور برقرار نشد."), { status: response.status, data: body });
   return body as T;

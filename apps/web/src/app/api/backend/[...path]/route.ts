@@ -10,18 +10,21 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
   url.search = request.nextUrl.search;
   const authorization = incomingHeaders.get("authorization");
   const cookie = incomingHeaders.get("cookie");
-  const response = await fetch(url, {
+  const hasBody = request.method !== "GET" && request.method !== "HEAD";
+  const init: RequestInit & { duplex?: "half" } = {
     method: request.method,
     headers: { "x-ucafe-tenant-host": incomingHeaders.get("host") ?? "", "x-ucafe-proxy-secret": process.env.INTERNAL_PROXY_SECRET ?? "", "x-request-id": requestId, "content-type": incomingHeaders.get("content-type") ?? "application/json", ...(authorization ? { authorization } : {}), ...(cookie ? { cookie } : {}) },
-    body: request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer(),
+    body: hasBody ? request.body : undefined,
+    ...(hasBody ? { duplex: "half" as const } : {}),
     cache: "no-store",
-  });
+  };
+  const response = await fetch(url, init);
   const backendRequestId = response.headers.get("x-request-id");
   const outgoing = new NextResponse(response.body, { status: response.status, headers: {
     "content-type": response.headers.get("content-type") ?? "application/octet-stream",
     "x-request-id": isSafeRequestId(backendRequestId) ? backendRequestId.toLowerCase() : requestId,
   } });
-  for (const header of ["cache-control", "content-length", "etag"]) {
+  for (const header of ["cache-control", "content-length", "content-disposition", "x-content-type-options", "etag"]) {
     const value = response.headers.get(header); if (value) outgoing.headers.set(header, value);
   }
   const setCookie = response.headers.get("set-cookie");

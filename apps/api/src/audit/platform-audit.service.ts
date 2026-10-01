@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { DataSource } from "typeorm";
+import { DataSource, EntityManager } from "typeorm";
 
 export interface PlatformAuditInput {
   actorUserId: string;
@@ -13,8 +13,8 @@ export interface PlatformAuditInput {
 export class PlatformAuditService {
   constructor(private readonly dataSource: DataSource) {}
 
-  async record(input: PlatformAuditInput): Promise<void> {
-    await this.dataSource.query(
+  async record(input: PlatformAuditInput, manager: EntityManager = this.dataSource.manager): Promise<void> {
+    await manager.query(
       `INSERT INTO "platform_audit_events" ("actor_user_id", "action", "target_type", "target_id", "summary") VALUES ($1, $2, $3, $4, $5::jsonb)`,
       [input.actorUserId, input.action, input.targetType, input.targetId, JSON.stringify(input.summary ?? {})],
     );

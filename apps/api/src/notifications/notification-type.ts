@@ -22,6 +22,9 @@ export enum NotificationType {
   SubscriptionExpiredFollowUp = "SUBSCRIPTION_REMINDER_FOLLOW_UP",
   SubscriptionActivated = "SUBSCRIPTION_SUCCESSFULLY_PAID",
   SubscriptionPaymentFailed = "SUBSCRIPTION_FAILD_PAID",
+  TicketCreated = "SUPPORT_TICKET_CREATED",
+  TicketPlatformReplied = "SUPPORT_TICKET_PLATFORM_REPLIED",
+  TicketTenantReplied = "SUPPORT_TICKET_TENANT_REPLIED",
 }
 
 export type NotificationPayload = Record<string, string>;

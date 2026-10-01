@@ -7,8 +7,8 @@
 - `/`: platform marketing page on the base host; resolved tenant storefront on tenant hosts; controlled unavailable state for suspended tenants.
 - `/menu`, `/cart`, `/checkout`, `/checkout/result`, `/reserve`, `/login`: tenant customer journeys.
 - `/panel`: authenticated client overview, profile, orders/detail, and reservations/detail.
-- `/admin`: tenant owner/staff overview, site/media, menu, orders, reservations, analytics, subscription, invoices, and payment result.
-- `/platform`: separate platform operations surface.
+- `/admin`: tenant owner/staff overview, site/media, menu, orders, reservations, support tickets, analytics, subscription, invoices, and payment result.
+- `/platform`: separate platform operations surface; `/platform/support` and `/platform/support/[ticketId]` provide the permission-filtered Support Center.
 - `/api/backend/[...path]`: same-origin API proxy.
 - `/health`: web liveness.
 
@@ -30,7 +30,7 @@ Admin and client session providers are separate. Both keep short-lived access to
 
 - Tenant site content/theme/media from the API remains authoritative; uploaded cafe logo takes precedence over platform fallback branding.
 - The storefront is one curated template with controlled CSS variables—not arbitrary tenant CSS or a page builder.
-- Owner and platform admin have separate CSS/shells and permission-aware navigation.
+- Owner and platform admin have separate CSS/shells and permission-aware navigation. Platform Support reuses the Platform session and styles; navigation visibility does not replace API authorization.
 - Self-hosted Vazir fonts support the Persian interface. Keep touch targets, labels, focus states, empty/loading/error/success states, and mobile layouts usable.
 - Motion uses CSS/GSAP/Three only where already established. Every effect must retain complete content under `prefers-reduced-motion` and avoid layout/scroll trapping.
 - Security headers are configured in `apps/web/next.config.ts`; account for CSP before adding remote images/scripts/connections.
