@@ -1,11 +1,14 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 import { DataSource, EntityManager, MoreThan } from "typeorm";
 import { CoffeeShop, CoffeeShopStatus } from "../database/entities";
 import { NotificationType } from "../notifications/notification-type";
 import { NotificationsService } from "../notifications/notifications.service";
 import { UpdatePlanDto } from "./dto/update-plan.dto";
-import { PlanStatus, Subscription, SubscriptionOperation, SubscriptionPayment, SubscriptionPaymentStatus, SubscriptionPeriod, SubscriptionPlan, SubscriptionStatus } from "./entities";
-import { mergePlanFeatures, projectPlanFeatures, subscriptionFeatureCatalog, SubscriptionFeatureKey } from "./subscription-features";
+import { PlanDisplayFeatureDefinition, PlanDisplayFeatureValue, PlanStatus, Subscription, SubscriptionOperation, SubscriptionPayment, SubscriptionPaymentStatus, SubscriptionPeriod, SubscriptionPlan, SubscriptionStatus } from "./entities";
+import { CreatePlanDisplayFeatureDto, SetPlanDisplayFeatureValueDto, UpdatePlanDisplayFeatureDefinitionDto } from "./dto/plan-display-feature.dto";
+import { groupPlanDisplayFeatures, PlanDisplayFeatureValueRow } from "./plan-display-feature.util";
+import { mergePlanFeatures, PlanDisplayFeature, projectPlanFeatures, subscriptionFeatureCatalog, SubscriptionFeatureKey } from "./subscription-features";
 import { addDays, addUtcMonths, effectiveSubscriptionStatus, prorateToman } from "./subscription-lifecycle";
 import { TRIAL_DAYS, TRIAL_ENTITLEMENT_PLAN_KEY } from "./trial-policy";
 import { renewalWindow } from "./subscription-summary.util";
@@ -30,6 +33,98 @@ export class SubscriptionsService {
   constructor(private readonly dataSource: DataSource, private readonly notifications: NotificationsService) {}
 
   async listPlans() { return this.dataSource.getRepository(SubscriptionPlan).find({ order: { sortOrder: "ASC" } }); }
+
+  async listPlanDisplayFeatureManagement() {
+    const definitions = await this.dataSource.getRepository(PlanDisplayFeatureDefinition).find({ order: { sortOrder: "ASC", key: "ASC" } });
+    const values = await this.dataSource.query<Array<PlanDisplayFeatureValueRow & { planKey: string }>>(`
+      SELECT p.id AS "planId", p.key AS "planKey", d.id AS "featureId", d.key, d.label, d.sort_order AS "sortOrder", v.value
+      FROM plan_display_feature_values v
+      JOIN subscription_plans p ON p.id = v.plan_id
+      JOIN plan_display_feature_definitions d ON d.id = v.feature_definition_id
+      ORDER BY p.sort_order, d.sort_order, d.key
+    `);
+    return { definitions: definitions.map(({ id, key, label, sortOrder }) => ({ id, key, label, sortOrder })), values };
+  }
+
+  async getPlanDisplayFeatures(planIds: string[]) {
+    if (!planIds.length) return new Map<string, PlanDisplayFeature[]>();
+    const rows = await this.dataSource.query<PlanDisplayFeatureValueRow[]>(`
+      SELECT p.id AS "planId", p.key AS "planKey", d.id AS "featureId", d.key, d.label, d.sort_order AS "sortOrder", v.value
+      FROM plan_display_feature_values v
+      JOIN subscription_plans p ON p.id = v.plan_id
+      JOIN plan_display_feature_definitions d ON d.id = v.feature_definition_id
+      WHERE p.id = ANY($1::uuid[])
+      ORDER BY p.sort_order, d.sort_order, d.key
+    `, [planIds]);
+    return groupPlanDisplayFeatures(rows);
+  }
+
+  async createPlanDisplayFeature(input: CreatePlanDisplayFeatureDto) {
+    const label = this.requiredDisplayText(input.label, "label");
+    await this.ensureUniqueDisplayLabel(label);
+    const repository = this.dataSource.getRepository(PlanDisplayFeatureDefinition);
+    const lastOrder = await repository.createQueryBuilder("feature").select("COALESCE(MAX(feature.sortOrder), 0)", "max").getRawOne<{ max: string | number }>();
+    const entity = repository.create({ key: `display-${randomUUID()}`, label, sortOrder: input.sortOrder ?? Number(lastOrder?.max ?? 0) + 10 });
+    try { return this.displayFeatureDefinition(await repository.save(entity)); }
+    catch (error) { if (this.databaseConflict(error)) throw new ConflictException("A display feature with this label already exists"); throw error; }
+  }
+
+  async updatePlanDisplayFeatureDefinition(featureId: string, input: UpdatePlanDisplayFeatureDefinitionDto) {
+    if (input.label == null && input.sortOrder == null) throw new BadRequestException("At least one field is required");
+    const repository = this.dataSource.getRepository(PlanDisplayFeatureDefinition);
+    const feature = await repository.findOneBy({ id: featureId });
+    if (!feature) throw new NotFoundException("Plan display feature not found");
+    if (input.label != null) {
+      feature.label = this.requiredDisplayText(input.label, "label");
+      await this.ensureUniqueDisplayLabel(feature.label, feature.id);
+    }
+    if (input.sortOrder != null) feature.sortOrder = input.sortOrder;
+    try { return this.displayFeatureDefinition(await repository.save(feature)); }
+    catch (error) { if (this.databaseConflict(error)) throw new ConflictException("A display feature with this label already exists"); throw error; }
+  }
+
+  async deletePlanDisplayFeatureDefinition(featureId: string) {
+    const result = await this.dataSource.getRepository(PlanDisplayFeatureDefinition).delete(featureId);
+    if (!result.affected) throw new NotFoundException("Plan display feature not found");
+    return { deleted: true };
+  }
+
+  async setPlanDisplayFeatureValue(planKey: string, featureId: string, input: SetPlanDisplayFeatureValueDto) {
+    const [plan, definition] = await Promise.all([
+      this.dataSource.getRepository(SubscriptionPlan).findOneBy({ key: planKey }),
+      this.dataSource.getRepository(PlanDisplayFeatureDefinition).findOneBy({ id: featureId }),
+    ]);
+    if (!plan) throw new NotFoundException("Subscription plan not found");
+    if (!definition) throw new NotFoundException("Plan display feature not found");
+    const value = this.requiredDisplayText(input.value, "value");
+    await this.dataSource.getRepository(PlanDisplayFeatureValue).save({ planId: plan.id, featureDefinitionId: definition.id, value });
+    return { planKey, featureId: definition.id, key: definition.key, label: definition.label, value, sortOrder: definition.sortOrder };
+  }
+
+  async deletePlanDisplayFeatureValue(planKey: string, featureId: string) {
+    const plan = await this.dataSource.getRepository(SubscriptionPlan).findOneBy({ key: planKey });
+    if (!plan) throw new NotFoundException("Subscription plan not found");
+    const result = await this.dataSource.getRepository(PlanDisplayFeatureValue).delete({ planId: plan.id, featureDefinitionId: featureId });
+    if (!result.affected) throw new NotFoundException("Plan display feature value not found");
+    return { deleted: true };
+  }
+
+  private displayFeatureDefinition(feature: PlanDisplayFeatureDefinition) { return { id: feature.id, key: feature.key, label: feature.label, sortOrder: feature.sortOrder }; }
+
+  private requiredDisplayText(value: string, field: string) {
+    const normalized = value.trim();
+    if (!normalized) throw new BadRequestException(`${field} cannot be empty`);
+    return normalized;
+  }
+
+  private async ensureUniqueDisplayLabel(label: string, excludingId?: string) {
+    const query = this.dataSource.getRepository(PlanDisplayFeatureDefinition).createQueryBuilder("feature")
+      .where("lower(btrim(feature.label)) = lower(btrim(:label))", { label });
+    if (excludingId) query.andWhere("feature.id <> :excludingId", { excludingId });
+    if (await query.getOne()) throw new ConflictException("A display feature with this label already exists");
+  }
+
+  private databaseConflict(error: unknown) { return typeof error === "object" && error !== null && "code" in error && (error as { code?: string }).code === "23505"; }
 
   async updatePlan(planKey: string, input: UpdatePlanDto) {
     const repository = this.dataSource.getRepository(SubscriptionPlan);
@@ -213,6 +308,7 @@ export class SubscriptionsService {
     const subscription = await this.getForTenant(coffeeShopId);
     const effective = effectiveSubscriptionStatus(subscription, now, subscription.plan.graceDays).status;
     const plans = await this.dataSource.getRepository(SubscriptionPlan).find({ where: { status: PlanStatus.Active }, order: { sortOrder: "ASC" } });
+    const displayFeatures = await this.getPlanDisplayFeatures(plans.map((plan) => plan.id));
     return {
       featureCatalog: subscriptionFeatureCatalog,
       trialCard: effective === SubscriptionStatus.Trialing ? { kind: "TRIAL", name: "دوره آزمایشی", active: true, endsAt: subscription.trialEndsAt, features: projectPlanFeatures((await this.entitlementPlan(subscription, effective))?.features ?? {}) } : null,
@@ -220,6 +316,7 @@ export class SubscriptionsService {
         ...this.planSummary(plan),
         highlightedFeatures: projectPlanFeatures(plan.features).filter((feature) => plan.highlightedFeatureKeys.includes(feature.key)),
         features: projectPlanFeatures(plan.features),
+        displayFeatures: displayFeatures.get(plan.id) ?? [],
         relationship: plan.id === subscription.planId ? "CURRENT" : plan.id === subscription.pendingPlanId ? "PENDING" : "AVAILABLE",
         action: this.actionFor(effective, subscription, plan),
       })),

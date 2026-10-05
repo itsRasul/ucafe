@@ -1,0 +1,20 @@
+.platform-plan-editor{display:grid;gap:1rem}
+.display-feature-admin{display:grid;gap:.75rem;padding:1rem;border:1px solid var(--platform-line);border-radius:.65rem;background:#fff}
+.display-feature-admin>header h2{margin:0;font-size:1rem}
+.display-feature-admin>header p,.functional-plan-features>p,.plan-display-features>p{margin:.3rem 0;color:#64748b;font-size:.78rem;line-height:1.7}
+.display-feature-create,.display-feature-definition,.plan-display-value,.plan-display-add{display:grid;grid-template-columns:minmax(0,2fr) minmax(7rem,.7fr) auto;align-items:end;gap:.55rem}
+.display-feature-definitions{display:grid;gap:.45rem}
+.display-feature-definition{padding:.6rem;border:1px solid var(--platform-line);border-radius:.5rem;background:#fbfdff}
+.display-feature-admin small{color:#64748b;line-height:1.7}
+.display-feature-create button,.display-feature-definition button,.plan-display-value button,.plan-display-add button{min-height:2.35rem}
+.platform-plan-card{display:grid;gap:.7rem}
+.platform-plan-card>h2{margin:0;font-size:1rem}
+.platform-plan-card>button{min-height:2.5rem}
+.platform-plan-card .functional-plan-features,.platform-plan-card .plan-display-features{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.45rem;max-height:none;overflow:visible}
+.platform-plan-card .functional-plan-features legend,.platform-plan-card .plan-display-features legend,.platform-plan-card .functional-plan-features>p,.platform-plan-card .plan-display-features>p,.plan-display-add{grid-column:1/-1}
+.platform-plan-card .functional-plan-features label{display:flex;align-items:center;gap:.45rem;padding:.5rem;border:1px solid var(--platform-line);border-radius:.5rem;background:#fbfdff}
+.platform-plan-card .plan-display-value{grid-column:1/-1;grid-template-columns:minmax(0,1fr) auto auto;align-items:end}
+.plan-display-add{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto}
+.platform-plan-card .danger{border-color:#fecaca;background:#fff7f7;color:#991b1b}
+.display-feature-admin .empty{margin:0;color:#64748b;font-size:.8rem}
+@media(max-width:38rem){.display-feature-create,.display-feature-definition,.plan-display-add{grid-template-columns:1fr}.display-feature-definition button,.display-feature-create button,.plan-display-add button{width:100%}.platform-plan-card .functional-plan-features,.platform-plan-card .plan-display-features{grid-template-columns:1fr}.platform-plan-card .plan-display-value{grid-template-columns:1fr 1fr}.platform-plan-card .plan-display-value label{grid-column:1/-1}.platform-plan-card .plan-display-value button{width:100%}}

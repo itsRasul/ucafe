@@ -5,6 +5,13 @@ import { DataSource } from "typeorm";
 import { mergePlanFeatures, SubscriptionFeatures } from "./subscription-features";
 import { SubscriptionStatus, SubscriptionPlan } from "./entities";
 import { SubscriptionsService } from "./subscriptions.service";
+import { defaultPlanFeatures } from "./plan-defaults";
+
+test("canonical Bronze, Silver, and Golden functional feature defaults", () => {
+  assert.deepEqual(defaultPlanFeatures.bronze, { menu: true, reservations: true, onlineOrdering: false, analytics: false, tenant_crm: false, inventory: false });
+  assert.deepEqual(defaultPlanFeatures.silver, { menu: true, reservations: true, onlineOrdering: true, analytics: true, tenant_crm: false, inventory: false });
+  assert.deepEqual(defaultPlanFeatures.golden, { menu: true, reservations: true, onlineOrdering: true, analytics: true, tenant_crm: true, inventory: true });
+});
 
 test("plan module updates preserve existing non-module features", () => {
   assert.deepEqual(mergePlanFeatures({ menu: false }, { reservations: true, onlineOrdering: false }), {
@@ -108,7 +115,7 @@ test("Golden defaults on and platform plan edits can turn it off or enable Silve
       const silver = await manager.getRepository(SubscriptionPlan).findOneByOrFail({ key: "silver" });
       assert.equal(golden.features.analytics, true);
       assert.equal(golden.features.inventory, true);
-      assert.notEqual(silver.features.analytics, true);
+      assert.equal(silver.features.analytics, true);
       assert.notEqual(silver.features.inventory, true);
       await service.updatePlan("golden", { features: { analytics: false } });
       await service.updatePlan("silver", { features: { analytics: true, inventory: true } });

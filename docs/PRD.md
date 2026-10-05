@@ -52,7 +52,7 @@ The product is aimed at independent cafes that need a professional storefront, e
 
 ### Plans, subscriptions, invoices, and payments
 
-- Plans store editable name, description, price, billing length, display rank, status, fixed 30-day initial trial / configurable paid grace days, highlighted features, and typed feature values. Seed values are defaults, not permanent commercial constants.
+- Plans store editable name, description, price, billing length, display rank, status, fixed 30-day initial trial / configurable paid grace days, and functional entitlement values. Platform operators separately manage shared, ordered display-only comparison features with per-plan text values; those values never grant access. Cards show up to seven assigned functional features first, then display features, while the full comparison includes every registered functional feature and every configured display feature. Seed values are defaults, not permanent commercial constants.
 - Active initial trials receive configured Golden features for 30 elapsed days; unpaid trial expiry immediately locks paid features while keeping the owner panel, billing and support accessible. Four trial lifecycle SMS reminders reuse the existing outbox. Historical trial dates remain unchanged.
 - Tenant subscriptions support virtual trial presentation, authoritative prepaid entitlement periods, grace, suspension/reactivation, immediate prorated upgrades, and scheduled downgrades.
 - Tenant plan catalog and preview endpoints decide the allowed action and price. A payment intent is the immutable owner/platform-facing invoice; successful verified settlement records the payment, entitlement, lifecycle projection, cafe state, and notification atomically.

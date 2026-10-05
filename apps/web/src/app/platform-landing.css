@@ -102,6 +102,9 @@
 .uc-plan-price strong { font-size: var(--uc-font-h2); font-variant-numeric: tabular-nums; }
 .uc-plan-price span { color: var(--color-text-secondary); font-size: var(--uc-font-body-small); }
 .uc-price-card ul { margin: 0 0 auto; font-size: var(--uc-font-body-small); min-height: 10rem; }
+.uc-price-card li { display: flex; align-items: baseline; gap: .55rem; }
+.uc-feature-value-marker { display: none; }
+.uc-plan-empty { margin: 0 0 auto; color: var(--color-text-secondary); font-size: var(--uc-font-body-small); }
 .uc-price-card>small { font-size: var(--uc-font-caption); color: var(--color-text-muted); }
 .uc-comparison { margin-top: var(--uc-space-16); }
 .uc-comparison h3 { margin-bottom: var(--uc-space-6); }

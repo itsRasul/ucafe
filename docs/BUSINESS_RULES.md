@@ -39,6 +39,8 @@ Critical rules are summarized here. Domain documents contain the corresponding l
 - Plan description, price, billing length, status, rank, paid grace lengths, highlights, and registered features are mutable platform-managed data. Rank alone classifies upgrades and downgrades.
 - New explicit trials last 30 UTC elapsed days, resolve dynamic Golden features, and preserve the selected future paid plan and historical stored trial boundaries.
 - Feature access requires both an entitled effective subscription status (`TRIALING`, `ACTIVE`, or `GRACE`) and a true effective-plan feature flag.
+- Functional feature keys are the only plan data used for entitlements. Shared plan display-feature definitions and their per-plan text values are marketing/comparison data and must never be read by authorization.
+- The default functional sets are Bronze (`menu`, `reservations`), Silver (those plus `onlineOrdering`, `analytics`), and Golden (those plus `tenant_crm`, `inventory`). Platform assignments remain mutable after the one-time defaults migration.
 - Trial expiry suspends immediately. A paid period moves to grace for the plan's configured duration, then suspends.
 - Trial conversion and post-grace reactivation begin at verified payment time. Active and grace renewal begin at the previous `paid_through_at`; a grace-created intent keeps that anchor until its 15-minute expiry.
 - An upgrade takes effect at verification, keeps `paid_through_at`, updates remaining entitlement periods, and charges timestamp-prorated target cost less source credit with half-up whole-toman rounding.

@@ -24,13 +24,26 @@ import { SimulatedGateway } from "./simulated.gateway";
 test("public catalog exposes active plans and registered boolean entitlements only", () => {
   const plan = (key: string, status: PlanStatus, sortOrder: number) => Object.assign(new SubscriptionPlan(), { id: randomUUID(), key, status, sortOrder, name: key, description: "test", priceToman: "1234567", billingMonths: 3, trialDays: 7, graceDays: 2, features: { menu: true, inventory: false, analytics: "true", secret: "private" }, highlightedFeatureKeys: ["menu", "secret", "inventory"] });
   const result = publicPlanCatalog([plan("later", PlanStatus.Postponed, 1), plan("second", PlanStatus.Active, 3), plan("first", PlanStatus.Active, 2), plan("old", PlanStatus.Archived, 4)]);
-  assert.deepEqual(result.map((item) => item.key), ["first", "second"]);
-  assert.equal(result[0]!.priceToman, "1234567"); assert.equal(result[0]!.billingMonths, 3);
-  assert.equal(result[0]!.features.find((item) => item.key === "analytics")!.included, false);
-  assert.deepEqual(result[0]!.highlightedFeatures.map((item) => item.key), ["menu"]);
+  assert.deepEqual(result.plans.map((item) => item.key), ["first", "second"]);
+  assert.equal(result.plans[0]!.priceToman, "1234567"); assert.equal(result.plans[0]!.billingMonths, 3);
+  assert.equal(result.plans[0]!.features.find((item) => item.key === "analytics")!.included, false);
+  assert.deepEqual(result.plans[0]!.highlightedFeatures.map((item) => item.key), ["menu"]);
+  assert.deepEqual(result.plans[0]!.displayFeatures, []);
   assert.equal(JSON.stringify(result).includes("private"), false);
-  assert.equal("id" in result[0]!, false);
-  assert.equal("updatedAt" in result[0]!, false);
+  assert.equal("id" in result.plans[0]!, false);
+  assert.equal("updatedAt" in result.plans[0]!, false);
+});
+
+test("display-only CRM marketing text is public presentation data and does not grant CRM entitlement", async () => {
+  const id = randomUUID();
+  const plan = Object.assign(new SubscriptionPlan(), { id, key: "bronze", status: PlanStatus.Active, sortOrder: 1, name: "برنزی", description: "", priceToman: "537000", billingMonths: 1, trialDays: 30, graceDays: 7, features: { menu: true, reservations: true, tenant_crm: false }, highlightedFeatureKeys: [] });
+  const result = publicPlanCatalog([plan], new Map([[id, [{ key: "display-crm", label: "CRM", value: "دارد", sortOrder: 10 }]]]));
+  assert.equal(result.plans[0]!.displayFeatures[0]!.label, "CRM");
+  assert.equal(result.plans[0]!.displayFeatures[0]!.value, "دارد");
+  assert.equal(result.plans[0]!.features.find((feature) => feature.key === "tenant_crm")!.included, false);
+  const subscription = { status: "ACTIVE", plan: { ...plan, updatedAt: new Date(), paidThroughAt: undefined }, trialEndsAt: null, currentPeriodEndsAt: new Date("2026-12-01T00:00:00Z"), paidThroughAt: new Date("2026-12-01T00:00:00Z"), graceEndsAt: null };
+  const service = new SubscriptionsService({ getRepository: () => ({ findOne: async () => subscription }) } as never, {} as never);
+  assert.equal((await service.featureState("tenant-a", "tenant_crm", new Date("2026-10-01T00:00:00Z"))).enabled, false);
 });
 
 test("public DTOs reject browser prices, owner identity, malformed hosts and stale checkout input", async () => {

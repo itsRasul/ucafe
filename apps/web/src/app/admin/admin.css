@@ -1239,6 +1239,22 @@
     transform: rotate(-45deg)
 }
 
+.plan-card li.plan-feature-value {
+    padding-right: 0
+}
+
+.plan-card li.plan-feature-value::before,
+.plan-card li.plan-feature-value::after {
+    display: none
+}
+
+.plan-card-empty {
+    align-self: start;
+    margin: 0;
+    color: #64748b;
+    font-size: .75rem
+}
+
 .plan-card-actions {
     display: grid;
     gap: .45rem

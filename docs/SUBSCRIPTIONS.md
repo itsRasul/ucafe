@@ -2,22 +2,25 @@
 
 ## Model
 
-- `subscription_plans`: fixed-key catalog with editable description, rank, price, billing months, status, trial/grace days, highlights, and JSON feature values.
+- `subscription_plans`: fixed-key catalog with editable description, rank, price, billing months, status, trial/grace days, highlights, and JSON functional entitlement values.
+- `plan_display_feature_definitions` / `plan_display_feature_values`: shared labels and ordering with a text value per plan. They are marketing/comparison data and do not participate in entitlement evaluation.
 - `subscriptions`: one current lifecycle projection per cafe, including paid-through, pending change, and optimistic version.
 - `subscription_periods`: authoritative paid-entitlement schedule with plan/price/billing snapshots and funding payment.
 - `subscription_payments`: immutable financial-operation, pricing, period, and provider/manual snapshots.
 - `payment_intents`: immutable checkout/invoice snapshots; see [PAYMENTS.md](PAYMENTS.md).
 
-Migration defaults are Silver 1,900,000 toman and Golden 2,900,000 toman, originally both with seven trial/grace days; the 30-day trial migration updates only catalog trial lengths. The ordering migration activates Golden, seeds Silver with reservations on/ordering off, and Golden with both on. Platform operators can later change name, price, status, paid grace lengths, and module flags; never treat seed or a local database's current values as permanent policy.
+Bronze is introduced at 537,000 toman per one-month billing period, with menu and reservations. The existing Silver and Golden rows and IDs are retained. `billing_months` records the price period (currently one month unless an operator changes it). A forward migration aligns the canonical functional feature defaults while preserving unrelated JSON keys; later Platform Admin assignment changes remain dynamic. These seed values are defaults, not permanent commercial constants.
 
 ## Feature gates
 
-Current registered plan features are menu, reservations, onlineOrdering, analytics, and inventory. Their Persian labels, types, order, and enforcement semantics live in one registry. Feature values are administrator-editable; defaults do not create plan-name access rules. Platform edits preserve unknown legacy JSON keys. A module is enabled only when:
+Current registered plan features are `menu`, `reservations`, `onlineOrdering`, `analytics`, `tenant_crm`, and `inventory`. Their Persian labels, types, order, and enforcement semantics live in one registry. Feature values are administrator-editable; defaults do not create plan-name access rules. Platform edits preserve unknown legacy JSON keys. Bronze defaults to menu and reservations; Silver adds online ordering and analytics; Golden adds tenant CRM and inventory. A module is enabled only when:
 
 1. the subscription effective status is `TRIALING`, `ACTIVE`, or `GRACE`; and
 2. the effective entitlement plan feature value is `true`. Active trials resolve the current Golden feature configuration through `SubscriptionsService.entitlementState`; the stored plan remains the intended paid plan. Paid access uses its paid plan.
 
 Services enforce these checks server-side. Menu remains part of the plan model but public availability is also controlled by tenant lifecycle.
+
+Platform Admin manages display-feature definitions separately from functional assignment: definitions have a stable key, unique normalized label, and shared sort order; each plan may store one bounded text value for a definition. Editing a definition updates every plan using it. Deleting a definition cascades its values. Display data is included in the public plan catalog and tenant plan catalog, but `entitlementState` reads only the registered functional JSON flags. Public/tenant cards take the first seven assigned functional features in registry order before adding ordered display features; comparison rows include the full functional catalog and one row per shared display definition used by any shown plan.
 
 ## Lifecycle
 
@@ -62,6 +65,8 @@ Owners receive deduplicated reminders three, two, and one day before paid-throug
 New trials last 30 elapsed UTC days. Existing active and expired trial timestamps, paid periods, and paid grace are unchanged; no historical trials reopen. Existing active trials now receive configured Golden entitlements until their stored boundary. The forward migration changes catalog trial days/default only.
 
 Tenant Admin access projects every registered feature and a subscription reason. Locked sections stay visible to authorized staff; navigation rechecks server entitlements and a shared native dialog links to `/admin/subscription`. API feature denials also open it, while access refreshes on window focus and every 30 seconds. Menu/site/promotions, Orders, and Reservations admin controllers use the reusable feature guard; Analytics, Inventory and CRM retain their service checks. Login, overview, subscription/invoices, support and staff remain independently permissioned. Public expiry retains the existing suspended-site response.
+
+The public landing catalog is fetched from the read-only `/public/platform/plans` API during server rendering; that endpoint is `no-store`, and the web loader uses request-scoped React caching. Tenant Admin reads the protected `/tenant/subscription/plans` projection. Both pages use server-provided feature metadata and values; neither contains plan-specific feature arrays.
 
 ## Tenant CRM entitlement
 

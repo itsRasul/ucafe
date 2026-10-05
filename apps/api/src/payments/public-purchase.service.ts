@@ -18,7 +18,8 @@ export class PublicPurchaseService {
   constructor(private readonly db: DataSource, private readonly config: ConfigService, private readonly tenants: TenantsService, private readonly subscriptions: SubscriptionsService, private readonly payments: PaymentsService) {}
 
   async catalog() {
-    return { plans: publicPlanCatalog(await this.db.getRepository(SubscriptionPlan).findBy({ status: PlanStatus.Active })) };
+    const plans = await this.db.getRepository(SubscriptionPlan).findBy({ status: PlanStatus.Active });
+    return publicPlanCatalog(plans, await this.subscriptions.getPlanDisplayFeatures(plans.map((plan) => plan.id)));
   }
 
   async availability(slug: string) {

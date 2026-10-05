@@ -4,12 +4,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAdminSession } from "../admin-session";
+import { buildPlanComparisonRows, planCardFeatureRows } from "../../plan-presentation.js";
 
-type Feature = { key: string; label: string; type: "BOOLEAN" | "NUMBER" | "UNLIMITED" | "TEXT"; value: boolean | number | string | null };
-type Plan = { id: string; key: string; name: string; description: string; priceToman: string; billingMonths: number; updatedAt: string; highlightedFeatures: Feature[]; features: Feature[]; relationship: "CURRENT" | "PENDING" | "AVAILABLE"; action: { type: Action; enabled: boolean } };
+type Feature = { key: string; label: string; order: number; type: "BOOLEAN" | "NUMBER" | "UNLIMITED" | "TEXT"; value: boolean | number | string | null };
+type DisplayFeature = { key: string; label: string; value: string; sortOrder: number };
+type Plan = { id: string; key: string; name: string; description: string; priceToman: string; billingMonths: number; updatedAt: string; highlightedFeatures: Feature[]; features: Feature[]; displayFeatures: DisplayFeature[]; relationship: "CURRENT" | "PENDING" | "AVAILABLE"; action: { type: Action; enabled: boolean } };
 type Action = "PURCHASE" | "RENEW" | "UPGRADE" | "SCHEDULE_DOWNGRADE" | "CHANGE_DOWNGRADE" | "REACTIVATE" | "TRIAL_TO_PAID" | "NONE";
 type Summary = { status: string; trialEndsAt: string | null; currentPeriodStartedAt: string | null; currentPeriodEndsAt: string | null; paidThroughAt: string | null; graceEndsAt: string | null; daysUntilPeriodEnd: number | null; isRenewalWarning: boolean; version: number; pendingChange: { plan: { name: string; key: string }; effectiveAt: string } | null; plan: { key: string; name: string; priceToman: string; billingMonths: number; graceDays: number } };
-type Catalog = { trialCard: { name: string; endsAt: string | null; features: Feature[] } | null; plans: Plan[] };
+type Catalog = { featureCatalog: Array<{ key: string; label: string; order: number }>; trialCard: { name: string; endsAt: string | null; features: Feature[] } | null; plans: Plan[] };
 type Quote = { action: Action; subscriptionVersion: number; targetPlan: { key: string; name: string; updatedAt: string }; sourcePlan: { name: string } | null; amountToman: string; pricing: { sourceCreditToman: string; targetCostToman: string; amountDueToman: string }; effectiveTiming: "ON_PAYMENT" | "PERIOD_END" | "NONE"; periodStartedAt: string | null; periodEndsAt: string | null; currentAccessEndsAt: string | null };
 
 const statusLabels: Record<string, string> = { TRIALING: "دوره آزمایشی", ACTIVE: "فعال", GRACE: "مهلت پرداخت", SUSPENDED: "تعلیق", CANCELED: "لغوشده" };
@@ -72,7 +74,7 @@ export default function SubscriptionPage() {
 
   if (!canRead) return <section className="admin-section-state"><h1>اشتراک</h1><p>نقش شما اجازه مشاهده این بخش را ندارد.</p><Link href="/admin">بازگشت به نمای کلی</Link></section>;
   if ((!summary || !catalog) && !error) return <section className="admin-section-state loading-state" aria-live="polite"><span className="admin-spinner" /><h1>در حال آماده‌سازی پلن‌ها…</h1></section>;
-  const allFeatures = catalog?.plans[0]?.features.map(({ key, label, type }) => ({ key, label, type })) ?? [];
+  const comparisonRows = catalog ? buildPlanComparisonRows(catalog.featureCatalog, catalog.plans) : [];
   return <section className="admin-readonly-section subscription-workspace">
     <header><div><h1>اشتراک کافه</h1><p>پلن، زمان باقی‌مانده و تغییر بعدی اشتراک را یک‌جا مدیریت کنید.</p></div><Link className="admin-preview-link" href="/admin/invoices">سوابق پرداخت</Link></header>
     {error && <p className="admin-message error" role="alert">{error}</p>}
@@ -86,17 +88,17 @@ export default function SubscriptionPage() {
       <section className="subscription-plans" aria-labelledby="plans-title">
         <div className="subscription-section-heading"><div><h2 id="plans-title">پلن‌های قابل انتخاب</h2><p>قیمت و امکان هر پلن مستقیماً از تنظیمات پلتفرم دریافت می‌شود.</p></div><a href="#plan-comparison">مقایسه کامل امکانات</a></div>
         <div className="plan-card-grid">
-          {catalog.trialCard && <article className="plan-card active trial-card"><div className="plan-card-title"><div><span>فعال</span><h3>{catalog.trialCard.name}</h3></div><strong>رایگان</strong></div><p>فرصت آشنایی با امکانات پلن فعلی تا {date(catalog.trialCard.endsAt)}.</p><ul>{catalog.trialCard.features.filter((feature) => feature.value === true).map((feature) => <li key={feature.key}>{feature.label}</li>)}</ul><button disabled>دوره فعال</button></article>}
+          {catalog.trialCard && <article className="plan-card active trial-card"><div className="plan-card-title"><div><span>فعال</span><h3>{catalog.trialCard.name}</h3></div><strong>رایگان</strong></div><p>فرصت آشنایی با امکانات پلن فعلی تا {date(catalog.trialCard.endsAt)}.</p>{planCardFeatureRows(catalog.trialCard.features, []).length ? <ul>{planCardFeatureRows(catalog.trialCard.features, []).map((feature) => <li className={feature.checked ? "plan-feature-check" : "plan-feature-value"} key={feature.key}>{feature.label}</li>)}</ul> : <p className="plan-card-empty">امکاناتی برای نمایش ثبت نشده است.</p>}<button disabled>دوره فعال</button></article>}
           {catalog.plans.map((plan) => <article className={`plan-card ${plan.relationship === "CURRENT" && summary.status !== "TRIALING" ? "active" : ""} ${plan.relationship === "PENDING" ? "pending" : ""}`} key={plan.id}>
             <div className="plan-card-title"><div>{plan.relationship === "CURRENT" && summary.status !== "TRIALING" && <span>پلن فعال</span>}{plan.relationship === "PENDING" && <span>پلن آینده</span>}<h3>{plan.name}</h3></div><strong>{money(plan.priceToman)}<small> / {nf.format(plan.billingMonths)} ماه</small></strong></div>
             <p>{plan.description || "پلن اشتراک یو کافه با امکانات قابل مدیریت."}</p>
-            <ul>{plan.highlightedFeatures.map((feature) => <li key={feature.key}>{feature.label}</li>)}</ul>
+            {planCardFeatureRows(plan.features, plan.displayFeatures).length ? <ul>{planCardFeatureRows(plan.features, plan.displayFeatures).map((feature) => <li className={feature.checked ? "plan-feature-check" : "plan-feature-value"} key={feature.key}>{feature.label}</li>)}</ul> : <p className="plan-card-empty">امکاناتی برای نمایش ثبت نشده است.</p>}
             <div className="plan-card-actions"><button type="button" disabled={!plan.action.enabled || !canCheckout || busy} onClick={() => void choose(plan)}>{actionLabel(plan)}</button><a href="#plan-comparison">مشاهده امکانات</a></div>
           </article>)}
         </div>
       </section>
 
-      <section className="plan-comparison" id="plan-comparison" aria-labelledby="comparison-title"><div className="subscription-section-heading"><div><h2 id="comparison-title">مقایسه امکانات</h2><p>امکانات واقعی هر پلن؛ بدون اطلاعات ثابت در رابط کاربری.</p></div></div><div className="comparison-scroll"><table><thead><tr><th scope="col">امکانات</th>{catalog.plans.map((plan) => <th scope="col" key={plan.id}>{plan.name}</th>)}</tr></thead><tbody>{allFeatures.map((feature) => <tr key={feature.key}><th scope="row">{feature.label}</th>{catalog.plans.map((plan) => { const value = plan.features.find((item) => item.key === feature.key)?.value; return <td key={plan.id}>{typeof value === "boolean" ? <span className={value ? "feature-yes" : "feature-no"} aria-label={value ? "دارد" : "ندارد"}>{value ? "دارد" : "ندارد"}</span> : value == null ? "—" : String(value)}</td>; })}</tr>)}</tbody></table></div></section>
+      <section className="plan-comparison" id="plan-comparison" aria-labelledby="comparison-title"><div className="subscription-section-heading"><div><h2 id="comparison-title">مقایسه امکانات</h2><p>همه امکانات کاربردی و نمایشی پلن‌ها، با داده‌های به‌روز سرور.</p></div></div><div className="comparison-scroll"><table><thead><tr><th scope="col">امکانات</th>{catalog.plans.map((plan) => <th scope="col" key={plan.id}>{plan.name}</th>)}</tr></thead><tbody>{comparisonRows.map((row) => <tr key={row.key}><th scope="row">{row.label}</th>{catalog.plans.map((plan) => { const value = row.values[plan.key]; return <td key={plan.id}>{row.kind === "functional" ? <span className={value === true ? "feature-yes" : "feature-no"} aria-label={value === true ? "دارد" : "ندارد"}>{value === true ? "دارد" : "ندارد"}</span> : value ?? "—"}</td>; })}</tr>)}</tbody></table></div></section>
     </>}
 
     <dialog ref={dialog} className="subscription-dialog" onClose={() => { setQuote(undefined); setCancelPending(false); }}>

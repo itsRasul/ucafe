@@ -9,7 +9,7 @@ PostgreSQL 17 is the business system of record. TypeORM entities describe the ap
 - clients: `clients`, `client_auth_sessions`, `client_addresses`
 - catalog/commerce: menu categories/items/variants, promotions/targets, ordering settings, orders/items
 - reservations: settings and reservations
-- subscriptions/payments: plans, subscription lifecycle projections, entitlement periods, subscription payments, payment intents
+- subscriptions/payments: plans, shared plan display-feature definitions and per-plan values, subscription lifecycle projections, entitlement periods, subscription payments, payment intents
 - operations: notification deliveries, platform audit events, platform consultation requests
 
 The code, entities, and migrations—not this overview—are the column-level schema source of truth.
@@ -28,6 +28,7 @@ Examples include role assignment, menu item/variant/category, reservation branch
 - one subscription per cafe; paired pending-plan fields; valid entitlement ranges; unique payment-intent/provider references
 - tenant/client order idempotency, tenant checkout idempotency, manual-payment idempotency, and at most one live checkout per tenant
 - positive/nonnegative plan, menu, order, promotion reward/target, capacity, interval, and image metadata checks
+- unique normalized plan display-feature labels and one text value per `(plan_id, feature_definition_id)`; deleting a definition cascades its plan values
 - one active logo/hero and menu-item image slot; gallery/key/focal/order constraints
 - globally unique notification deduplication key
 - `(coffee_shop_id, status, status_changed_at)` index for tenant outcome-time analytics
