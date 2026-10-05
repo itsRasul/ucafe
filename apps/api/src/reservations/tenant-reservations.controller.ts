@@ -1,3 +1,5 @@
+import { RequireSubscriptionFeature, SubscriptionFeatureGuard } from "../subscriptions/subscription-feature.guard";
+import { SubscriptionFeatures } from "../subscriptions/subscription-features";
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
 import { AccessTokenGuard } from "../auth/access-token.guard";
 import { AUTH_PRINCIPAL, AuthorizedRequest } from "../authorization/auth-principal";
@@ -10,7 +12,8 @@ import { AdminCreateReservationDto, ReservationListQueryDto, UpdateReservationDt
 import { ReservationsService } from "./reservations.service";
 
 @Controller("tenant/reservations")
-@UseGuards(AccessTokenGuard, TenantContextGuard, TenantPermissionGuard)
+@UseGuards(AccessTokenGuard, TenantContextGuard, TenantPermissionGuard, SubscriptionFeatureGuard)
+@RequireSubscriptionFeature(SubscriptionFeatures.Reservations)
 export class TenantReservationsController {
   constructor(private readonly reservations: ReservationsService) {}
   private tenant(req: TenantContextRequest) { return req[TENANT_CONTEXT]!.coffeeShopId; }

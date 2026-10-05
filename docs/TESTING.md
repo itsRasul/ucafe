@@ -49,3 +49,7 @@ UI work needs mobile and desktop verification for Persian/RTL semantics, keyboar
 
 Run the smallest focused check while iterating, but finish cross-domain/security work with the full applicable suite, typechecks/builds, migrations, and live Docker path.
 
+
+## 2026-10-05 trial lifecycle verification
+
+Workspace typechecks/builds passed. Final API suite: 246 passed, 35 optional integrations skipped, with trial/public-purchase PostgreSQL integration enabled. It used transpile-only loading with independent strict typechecks. Web suite: 29 passed. New tests cover dates, effective trial/paid access, immediate expiry, reminder windows, durable deduplication, current payment/recipient eligibility and competing dispatchers. Live active/expired API and desktop/375px dialog, focus/Escape and billing CTA checks passed. See [TRIAL_LIFECYCLE_IMPLEMENTATION.md](TRIAL_LIFECYCLE_IMPLEMENTATION.md) for scope, compatibility and deployment requirements.

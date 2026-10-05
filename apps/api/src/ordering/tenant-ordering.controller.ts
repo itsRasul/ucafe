@@ -1,3 +1,5 @@
+import { RequireSubscriptionFeature, SubscriptionFeatureGuard } from "../subscriptions/subscription-feature.guard";
+import { SubscriptionFeatures } from "../subscriptions/subscription-features";
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Query, Req, UseGuards } from "@nestjs/common";
 import { AccessTokenGuard } from "../auth/access-token.guard";
 import { AUTH_PRINCIPAL, AuthorizedRequest } from "../authorization/auth-principal";
@@ -10,7 +12,8 @@ import { OrdersQueryDto, UpdateOnlineOrderingSettingsDto, UpdateOrderStatusDto }
 import { OrderingService } from "./ordering.service";
 
 @Controller("tenant")
-@UseGuards(AccessTokenGuard, TenantContextGuard, TenantPermissionGuard)
+@UseGuards(AccessTokenGuard, TenantContextGuard, TenantPermissionGuard, SubscriptionFeatureGuard)
+@RequireSubscriptionFeature(SubscriptionFeatures.OnlineOrdering)
 export class TenantOrderingController {
   constructor(private readonly ordering: OrderingService) {}
   private tenant(req: TenantContextRequest) { return req[TENANT_CONTEXT]!.coffeeShopId; }

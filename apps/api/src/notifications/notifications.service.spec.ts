@@ -48,3 +48,36 @@ test("provider failure retries one recipient and dispatch continues for other re
   assert.ok(retry?.nextAttemptAt instanceof Date);
   assert.equal(sent?.status, NotificationStatus.Sent);
 });
+
+test("competing dispatchers atomically claim a lifecycle delivery once", async () => {
+  const config = new ConfigService({ AUTH_PEPPER: "test-only-auth-pepper-with-at-least-32-characters", PII_ENCRYPTION_KEY: Buffer.alloc(32, 4).toString("base64"), SMS_PROVIDER: "development" });
+  const crypto = new AuthCryptoService(config);
+  const job = { id: "trial-delivery", coffeeShopId: "tenant", type: NotificationType.TrialExpired, relatedEntityType: "subscription", relatedEntityId: "trial", deduplicationKey: "trial:event:owner", recipientCiphertext: crypto.encryptPhone("+989120000001"), payload: { cafeName: "test" }, status: NotificationStatus.Pending, attempts: 0 } as unknown as NotificationDelivery;
+  let status = NotificationStatus.Pending;
+  let sends = 0;
+  const repository = {
+    createQueryBuilder(alias?: string) {
+      const builder: Record<string, (...args: unknown[]) => unknown> = {};
+      for (const method of ["update", "set", "where", "addSelect", "orderBy", "take"]) builder[method] = () => builder;
+      builder.execute = async () => ({ affected: 0 });
+      builder.getMany = async () => alias ? [job] : [];
+      return builder;
+    },
+    update: async (criteria: unknown, values: { status?: NotificationStatus }) => {
+      if (typeof criteria === "object" && status !== NotificationStatus.Pending) return { affected: 0 };
+      if (values.status) status = values.status;
+      return { affected: 1 };
+    },
+  };
+  const sms = { sendTemplate: async () => { sends++; return { providerMessageId: "sent-once" }; } };
+  const services = [0, 1].map(() => new NotificationsService({ getRepository: () => repository } as never, crypto, config, sms as never));
+  for (const service of services) {
+    const internals = service as unknown as { lastScheduledSweep: number; isStillEligible: () => Promise<boolean> };
+    internals.lastScheduledSweep = Date.now();
+    internals.isStillEligible = async () => true;
+  }
+  await Promise.all(services.map(service => service.dispatch()));
+  await services[0]!.dispatch();
+  assert.equal(sends, 1);
+  assert.equal(status, NotificationStatus.Sent);
+});

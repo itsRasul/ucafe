@@ -1,3 +1,5 @@
+import { RequireSubscriptionFeature, SubscriptionFeatureGuard } from "../subscriptions/subscription-feature.guard";
+import { SubscriptionFeatures } from "../subscriptions/subscription-features";
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Req, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { AccessTokenGuard } from "../auth/access-token.guard";
@@ -14,7 +16,8 @@ import { UpdateMediaDto, UploadMenuItemImageDto } from "../media/dto/media.dto";
 import { MAX_MEDIA_BYTES } from "../media/media-image.util";
 
 @Controller("tenant/menu")
-@UseGuards(AccessTokenGuard, TenantContextGuard, TenantPermissionGuard)
+@UseGuards(AccessTokenGuard, TenantContextGuard, TenantPermissionGuard, SubscriptionFeatureGuard)
+@RequireSubscriptionFeature(SubscriptionFeatures.Menu)
 export class TenantMenuController {
   constructor(private readonly menu: MenuService, private readonly media: MediaService) {}
   private tenantId(request: TenantContextRequest) { return request[TENANT_CONTEXT]!.coffeeShopId; }

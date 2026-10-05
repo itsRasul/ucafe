@@ -1,3 +1,4 @@
+import { dueTrialReminder, trialReminderTypes } from "./trial-reminder";
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { DataSource, EntityManager, LessThanOrEqual } from "typeorm";
@@ -108,10 +109,31 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
           }
         }
       }
+    } catch {
+      this.logger.warn("Notification dispatch deferred error=DISPATCH_UNAVAILABLE");
     } finally { this.running = false; }
   }
 
   private async isStillEligible(job: NotificationDelivery) {
+    if (trialReminderTypes.includes(job.type)) {
+      const rows = await this.db.query<Array<{ trialEndsAt: Date }>>(
+        `SELECT s.trial_ends_at AS "trialEndsAt" FROM subscriptions s
+         JOIN coffee_shops c ON c.id=s.coffee_shop_id AND c.deleted_at IS NULL AND c.archived_at IS NULL
+         WHERE s.id=$1 AND s.coffee_shop_id=$2 AND s.status<>'CANCELED'
+           AND s.paid_through_at IS NULL AND s.current_period_ends_at IS NULL
+           AND s.trial_started_at IS NOT NULL AND s.trial_ends_at IS NOT NULL
+           AND (c.status IN ('ACTIVE','PREVIEW') OR (c.status='SUSPENDED' AND s.trial_ends_at<=now()))
+           AND EXISTS (SELECT 1 FROM coffee_shop_memberships m
+             JOIN membership_roles mr ON mr.membership_id=m.id
+             JOIN roles r ON r.id=mr.role_id AND r.scope='TENANT' AND r.key='owner'
+             JOIN users u ON u.id=m.user_id AND u.status='ACTIVE' AND u.deleted_at IS NULL
+             WHERE m.coffee_shop_id=s.coffee_shop_id AND m.status='ACTIVE'
+               AND u.id::text=$3 AND u.phone=$4)`,
+        [job.relatedEntityId, job.coffeeShopId, job.deduplicationKey.split(":").at(-1), this.crypto.decryptPhone(job.recipientCiphertext)],
+      );
+      const end = rows[0]?.trialEndsAt;
+      return Boolean(end && job.deduplicationKey.includes(end.toISOString()) && dueTrialReminder(end, new Date()) === job.type);
+    }
     if (job.type === NotificationType.ReservationReminder) {
       const rows = await this.db.query<Array<{ eligible: boolean }>>(
         `SELECT EXISTS(SELECT 1 FROM reservations r JOIN branches b ON b.id=r.branch_id WHERE r.id=$1 AND r.coffee_shop_id=$2 AND r.status='CONFIRMED' AND ((r.reservation_date+r.start_time) AT TIME ZONE b.timezone)>now()) AS eligible`,
@@ -147,6 +169,22 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         deduplicationKey: `${NotificationType.ReservationReminder}:${row.id}`, phone: row.phone,
         payload: { customerName: row.customerName, cafeName: row.cafeName, time: row.startTime.slice(0, 5), guestCount: String(row.partySize) },
       });
+
+      const trials = await manager.query<Array<{ id: string; coffeeShopId: string; cafeName: string; trialEndsAt: Date }>>(
+        `SELECT s.id, s.coffee_shop_id AS "coffeeShopId", c.name AS "cafeName", s.trial_ends_at AS "trialEndsAt"
+         FROM subscriptions s JOIN coffee_shops c ON c.id=s.coffee_shop_id
+         WHERE s.status<>'CANCELED' AND s.paid_through_at IS NULL AND s.current_period_ends_at IS NULL
+           AND s.trial_started_at IS NOT NULL AND s.trial_ends_at>$1::timestamptz-interval '7 days'
+           AND s.trial_ends_at<=$1::timestamptz+interval '7 days' AND c.deleted_at IS NULL AND c.archived_at IS NULL
+           AND (c.status IN ('ACTIVE','PREVIEW') OR (c.status='SUSPENDED' AND s.trial_ends_at<=$1))`, [now],
+      );
+      for (const row of trials) {
+        const type = dueTrialReminder(row.trialEndsAt, now);
+        if (type) await this.enqueueOwners(manager, {
+          coffeeShopId: row.coffeeShopId, type, relatedEntityType: "subscription", relatedEntityId: row.id,
+          deduplicationKey: `${type}:${row.id}:${row.trialEndsAt.toISOString()}`, payload: { cafeName: row.cafeName },
+        });
+      }
 
       const subscriptions = await manager.query<Array<{ id:string; coffeeShopId:string; cafeName:string; timezone:string; planName:string; currentPeriodEndsAt:Date; graceDays:number; graceEndsAt:Date|null }>>(
         `SELECT s.id, s.coffee_shop_id AS "coffeeShopId", c.name AS "cafeName", c.timezone, p.name AS "planName",

@@ -8,14 +8,14 @@
 - `subscription_payments`: immutable financial-operation, pricing, period, and provider/manual snapshots.
 - `payment_intents`: immutable checkout/invoice snapshots; see [PAYMENTS.md](PAYMENTS.md).
 
-Migration defaults are Silver 1,900,000 toman and Golden 2,900,000 toman, both with seven trial/grace days. The ordering migration activates Golden, seeds Silver with reservations on/ordering off, and Golden with both on. Platform operators can later change name, price, status, trial/grace lengths, and module flags; never treat seed or a local database's current values as permanent policy.
+Migration defaults are Silver 1,900,000 toman and Golden 2,900,000 toman, originally both with seven trial/grace days; the 30-day trial migration updates only catalog trial lengths. The ordering migration activates Golden, seeds Silver with reservations on/ordering off, and Golden with both on. Platform operators can later change name, price, status, paid grace lengths, and module flags; never treat seed or a local database's current values as permanent policy.
 
 ## Feature gates
 
 Current registered plan features are menu, reservations, onlineOrdering, analytics, and inventory. Their Persian labels, types, order, and enforcement semantics live in one registry. Feature values are administrator-editable; defaults do not create plan-name access rules. Platform edits preserve unknown legacy JSON keys. A module is enabled only when:
 
 1. the subscription effective status is `TRIALING`, `ACTIVE`, or `GRACE`; and
-2. the current plan feature value is `true`.
+2. the effective entitlement plan feature value is `true`. Active trials resolve the current Golden feature configuration through `SubscriptionsService.entitlementState`; the stored plan remains the intended paid plan. Paid access uses its paid plan.
 
 Services enforce these checks server-side. Menu remains part of the plan model but public availability is also controlled by tenant lifecycle.
 
@@ -29,7 +29,7 @@ explicit start -> TRIALING -> SUSPENDED (trial expires unpaid)
                                                      +-- payment -------+
 ```
 
-- A platform operator explicitly starts a trial on an active plan; only one subscription may exist per cafe.
+- A platform operator explicitly starts a 30-day trial on an active plan; only one subscription may exist per cafe. `trial-policy.ts` is the runtime source of truth, and plan updates reject other initial-trial durations. Golden must be active when a trial starts. Draft provisioning (Platform/CLI) still requires explicit trial start; public purchase still activates only on verified payment.
 - Trial entitlement ends at `trial_ends_at` and receives no paid grace assumption.
 - A prepaid period lasts `billing_months` calendar months, clamping end-of-month dates.
 - Trial conversion starts immediately at payment verification. Active/grace renewal appends from `paid_through_at`; post-grace reactivation starts at verification.
@@ -55,7 +55,13 @@ Lifecycle mutations use one per-cafe PostgreSQL advisory transaction lock. Subsc
 
 ## Notifications
 
-Owners receive deduplicated reminders three, two, and one day before paid-through, on the last day, at expiration, and three days after expiration, plus successful-payment and failed-verification events. Scheduled delivery rechecks paid-through before sending.
+Owners receive deduplicated reminders three, two, and one day before paid-through, on the last day, at expiration, and three days after expiration, plus successful-payment and failed-verification events. Scheduled delivery rechecks paid-through before sending. Trial events reuse the same outbox and owner policy: 7 days before, 2 days before, unpaid expiry, and 3 days after. Delivery rechecks trial boundary, paid entitlement, tenant availability, and the current active owner membership. See [NOTIFICATIONS.md](NOTIFICATIONS.md) for windows and provider limits.
+
+## Trial compatibility and locks
+
+New trials last 30 elapsed UTC days. Existing active and expired trial timestamps, paid periods, and paid grace are unchanged; no historical trials reopen. Existing active trials now receive configured Golden entitlements until their stored boundary. The forward migration changes catalog trial days/default only.
+
+Tenant Admin access projects every registered feature and a subscription reason. Locked sections stay visible to authorized staff; navigation rechecks server entitlements and a shared native dialog links to `/admin/subscription`. API feature denials also open it, while access refreshes on window focus and every 30 seconds. Menu/site/promotions, Orders, and Reservations admin controllers use the reusable feature guard; Analytics, Inventory and CRM retain their service checks. Login, overview, subscription/invoices, support and staff remain independently permissioned. Public expiry retains the existing suspended-site response.
 
 ## Tenant CRM entitlement
 

@@ -5,7 +5,6 @@ import { AuthorizationService } from "../authorization/authorization.service";
 import { TENANT_CONTEXT } from "./tenant-context";
 import { TenantContextGuard } from "./tenant-context.guard";
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
-import { SubscriptionFeatures } from "../subscriptions/subscription-features";
 
 @Controller("tenant/admin")
 @UseGuards(AccessTokenGuard, TenantContextGuard)
@@ -17,14 +16,12 @@ export class TenantAdminAccessController {
     const tenant = request[TENANT_CONTEXT]!;
     const access = await this.authorization.getTenantAccess(request[AUTH_PRINCIPAL]!.userId, tenant.coffeeShopId);
     if (!access) throw new ForbiddenException("Active tenant membership is required");
+    const entitlement = await this.subscriptions.entitlementState(tenant.coffeeShopId);
     return {
       tenant: { slug: tenant.slug, status: tenant.status, locale: tenant.locale, timezone: tenant.timezone },
       permissions: access.permissions,
-      features: {
-        inventory: (await this.subscriptions.featureState(tenant.coffeeShopId, SubscriptionFeatures.Inventory)).enabled,
-        reservations: (await this.subscriptions.featureState(tenant.coffeeShopId, SubscriptionFeatures.Reservations)).enabled,
-        tenant_crm: (await this.subscriptions.featureState(tenant.coffeeShopId, SubscriptionFeatures.TenantCrm)).enabled,
-      },
+      features: entitlement.features,
+      subscription: { status: entitlement.status, reason: entitlement.reason },
     };
   }
 }

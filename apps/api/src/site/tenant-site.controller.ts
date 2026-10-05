@@ -1,3 +1,5 @@
+import { RequireSubscriptionFeature, SubscriptionFeatureGuard } from "../subscriptions/subscription-feature.guard";
+import { SubscriptionFeatures } from "../subscriptions/subscription-features";
 import { Body, Controller, Get, Put, Req, UseGuards } from "@nestjs/common";
 import { AccessTokenGuard } from "../auth/access-token.guard";
 import { RequireTenantPermissions } from "../authorization/authorization.decorators";
@@ -9,7 +11,8 @@ import { UpdateSiteDto } from "./dto/update-site.dto";
 import { SiteService } from "./site.service";
 
 @Controller("tenant/site")
-@UseGuards(AccessTokenGuard, TenantContextGuard, TenantPermissionGuard)
+@UseGuards(AccessTokenGuard, TenantContextGuard, TenantPermissionGuard, SubscriptionFeatureGuard)
+@RequireSubscriptionFeature(SubscriptionFeatures.Menu)
 @RequireTenantPermissions(TenantPermissions.SiteManage)
 export class TenantSiteController {
   constructor(private readonly site: SiteService) {}

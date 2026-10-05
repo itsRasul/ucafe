@@ -713,3 +713,9 @@ A CRM Offer links one existing Promotion to one saved active Tenant CRM Segment.
 - **Status:** Implemented on 2026-10-01.
 - **Decision:** After administrative OTP verification, provision one unpublished DRAFT café per unfinished owner through the existing provisioning transaction. Bind owner identity from the server User, quote from existing active plans, and settle through existing payment intents/subscription ledger. Activation and publishing occur only on verified payment. Keep consultation and its Platform CRM transaction independent.
 - **Consequences:** No schema or second ordering/auth/payment system is needed. Unpaid drafts retain their hostname for recovery; lifecycle cleanup is a future operational enhancement. Platform-host receipts allow recovery before a draft resolves as a tenant. Tenant-admin entry reuses OTP on that host instead of sending credentials in URLs. A configured trusted platform origin supplies redirects and canonical metadata. See [PUBLIC_ACQUISITION.md](PUBLIC_ACQUISITION.md).
+
+## 2026-10-05: Fixed initial trial policy
+
+Use a canonical 30-day duration for newly started initial trials rather than editable per-plan trial durations. Resolve trial access from current Golden feature data without overwriting the intended paid plan. Preserve all explicit historical boundaries; existing active trials expire on their original dates and expired trials never reopen. Draft provisioning and verified public purchase retain their existing distinct activation contracts.
+
+Reuse notification deliveries for trial SMS, with UTC semantic windows, owner-policy fan-out, durable boundary-based keys and delivery-time payment/recipient checks. Retain provider retry ambiguity and committed-verification payment authority; do not introduce queues or redesign payments. New sms.ir templates require deployment configuration.

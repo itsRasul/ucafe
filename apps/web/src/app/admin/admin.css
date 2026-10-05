@@ -3854,3 +3854,12 @@
   .support-ticket-metadata { gap: .6rem 1.2rem; }
   .support-message { width: 100%; }
 }
+
+.subscription-required-dialog { border: 1px solid #e5e7eb; border-radius: 16px; padding: 24px; width: min(480px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow: auto; color: #111827; font-family: Vazir, Tahoma, sans-serif; }
+.subscription-required-dialog::backdrop { background: rgb(17 24 39 / 55%); }
+.subscription-required-dialog h2 { font-size: 20px; margin: 0 0 16px; }
+.subscription-required-dialog p { line-height: 1.9; }
+.subscription-required-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+.subscription-required-actions a, .subscription-required-actions button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 16px; border: 1px solid #d1d5db; border-radius: 8px; background: white; color: #111827; font: inherit; cursor: pointer; }
+.subscription-required-actions a { background: #111827; color: white; }
+.subscription-required-actions :focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }

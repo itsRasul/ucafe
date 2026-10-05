@@ -1,3 +1,4 @@
+import { SubscriptionFeatureGuard } from "./subscription-feature.guard";
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { AuthModule } from "../auth/auth.module";
@@ -14,7 +15,7 @@ import { NotificationsModule } from "../notifications/notifications.module";
 @Module({
   imports: [NotificationsModule, TypeOrmModule.forFeature([CoffeeShop, SubscriptionPlan, Subscription, SubscriptionPayment, SubscriptionPeriod]), AuthModule, AuthorizationModule, AuditModule],
   controllers: [PlatformSubscriptionsController, PlatformPlansController, TenantSubscriptionController],
-  providers: [SubscriptionsService],
-  exports: [SubscriptionsService],
+  providers: [SubscriptionsService, SubscriptionFeatureGuard],
+  exports: [SubscriptionsService, SubscriptionFeatureGuard],
 })
 export class SubscriptionsModule {}

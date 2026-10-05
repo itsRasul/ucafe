@@ -7,6 +7,7 @@ import { UpdatePlanDto } from "./dto/update-plan.dto";
 import { PlanStatus, Subscription, SubscriptionOperation, SubscriptionPayment, SubscriptionPaymentStatus, SubscriptionPeriod, SubscriptionPlan, SubscriptionStatus } from "./entities";
 import { mergePlanFeatures, projectPlanFeatures, subscriptionFeatureCatalog, SubscriptionFeatureKey } from "./subscription-features";
 import { addDays, addUtcMonths, effectiveSubscriptionStatus, prorateToman } from "./subscription-lifecycle";
+import { TRIAL_DAYS, TRIAL_ENTITLEMENT_PLAN_KEY } from "./trial-policy";
 import { renewalWindow } from "./subscription-summary.util";
 
 export type SubscriptionAction = "PURCHASE" | "RENEW" | "UPGRADE" | "SCHEDULE_DOWNGRADE" | "CHANGE_DOWNGRADE" | "REACTIVATE" | "TRIAL_TO_PAID" | "NONE";
@@ -44,24 +45,33 @@ export class SubscriptionsService {
     if (input.sortOrder != null) plan.sortOrder = input.sortOrder;
     if (input.billingMonths != null) plan.billingMonths = input.billingMonths;
     if (input.status != null) plan.status = input.status;
-    if (input.trialDays != null) plan.trialDays = input.trialDays;
+    if (input.trialDays != null && input.trialDays !== TRIAL_DAYS) throw new ConflictException("Initial trials last 30 days");
+    plan.trialDays = TRIAL_DAYS;
     if (input.graceDays != null) plan.graceDays = input.graceDays;
     if (input.features != null) plan.features = mergePlanFeatures(plan.features, input.features);
     if (input.highlightedFeatureKeys != null) plan.highlightedFeatureKeys = input.highlightedFeatureKeys;
     return repository.save(plan);
   }
 
-  async featureState(coffeeShopId: string, feature: SubscriptionFeatureKey, now = new Date(), manager?: EntityManager) {
+  async entitlementState(coffeeShopId: string, now = new Date(), manager?: EntityManager) {
     const subscription = await (manager ? manager.getRepository(Subscription) : this.dataSource.getRepository(Subscription)).findOne({ where: { coffeeShopId }, relations: { plan: true } });
-    if (!subscription) return { enabled: false, status: null, plan: null, feature };
+    if (!subscription) return { status: null, reason: "SUBSCRIPTION_REQUIRED", plan: null, features: {} as Record<SubscriptionFeatureKey, boolean> };
     const effective = effectiveSubscriptionStatus(subscription, now, subscription.plan.graceDays);
-    const enabled = [SubscriptionStatus.Trialing, SubscriptionStatus.Active, SubscriptionStatus.Grace].includes(effective.status) && subscription.plan.features?.[feature] === true;
-    return { enabled, status: effective.status, plan: { key: subscription.plan.key, name: subscription.plan.name, features: subscription.plan.features }, feature };
+    const plan = await this.entitlementPlan(subscription, effective.status, manager, now);
+    const entitled = [SubscriptionStatus.Trialing, SubscriptionStatus.Active, SubscriptionStatus.Grace].includes(effective.status);
+    const features = Object.fromEntries(subscriptionFeatureCatalog.map(({ key }) => [key, entitled && plan?.features?.[key] === true])) as Record<SubscriptionFeatureKey, boolean>;
+    const reason = !subscription.paidThroughAt && !subscription.currentPeriodEndsAt && subscription.trialEndsAt && now >= subscription.trialEndsAt ? "TRIAL_EXPIRED" : [SubscriptionStatus.Suspended, SubscriptionStatus.Canceled].includes(effective.status) ? "SUBSCRIPTION_EXPIRED" : "PLAN_FEATURE_UNAVAILABLE";
+    return { status: effective.status, reason, plan: plan ? { key: plan.key, name: plan.name, features: plan.features } : null, features };
+  }
+
+  async featureState(coffeeShopId: string, feature: SubscriptionFeatureKey, now = new Date(), manager?: EntityManager) {
+    const state = await this.entitlementState(coffeeShopId, now, manager);
+    return { ...state, enabled: state.features[feature] === true, feature };
   }
 
   async requireFeature(coffeeShopId: string, feature: SubscriptionFeatureKey) {
     const state = await this.featureState(coffeeShopId, feature);
-    if (!state.enabled) throw new ForbiddenException({ code: "FEATURE_UNAVAILABLE", feature, message: "This feature is not available for the current subscription plan" });
+    if (!state.enabled) throw new ForbiddenException({ code: "FEATURE_UNAVAILABLE", feature, reason: state.reason, message: "This feature is not available for the current subscription plan" });
     return state;
   }
 
@@ -184,6 +194,9 @@ export class SubscriptionsService {
     return {
       status: subscription.status,
       trialEndsAt: subscription.trialEndsAt,
+      trialStartedAt: subscription.trialStartedAt,
+      accessReason: !subscription.paidThroughAt && !subscription.currentPeriodEndsAt && subscription.trialEndsAt && now >= subscription.trialEndsAt ? "TRIAL_EXPIRED" : null,
+      effectiveFeatures: (await this.entitlementState(coffeeShopId, now)).features,
       currentPeriodStartedAt: subscription.currentPeriodStartedAt,
       currentPeriodEndsAt: subscription.currentPeriodEndsAt,
       paidThroughAt: subscription.paidThroughAt,
@@ -202,7 +215,7 @@ export class SubscriptionsService {
     const plans = await this.dataSource.getRepository(SubscriptionPlan).find({ where: { status: PlanStatus.Active }, order: { sortOrder: "ASC" } });
     return {
       featureCatalog: subscriptionFeatureCatalog,
-      trialCard: effective === SubscriptionStatus.Trialing ? { kind: "TRIAL", name: "دوره آزمایشی", active: true, endsAt: subscription.trialEndsAt, features: projectPlanFeatures(subscription.plan.features) } : null,
+      trialCard: effective === SubscriptionStatus.Trialing ? { kind: "TRIAL", name: "دوره آزمایشی", active: true, endsAt: subscription.trialEndsAt, features: projectPlanFeatures((await this.entitlementPlan(subscription, effective))?.features ?? {}) } : null,
       plans: plans.map((plan) => ({
         ...this.planSummary(plan),
         highlightedFeatures: projectPlanFeatures(plan.features).filter((feature) => plan.highlightedFeatureKeys.includes(feature.key)),
@@ -333,7 +346,9 @@ export class SubscriptionsService {
       if (!cafe) throw new NotFoundException("Coffee shop not found");
       if (await manager.existsBy(Subscription, { coffeeShopId })) throw new ConflictException("A trial or subscription already exists");
       if (!plan || plan.status !== PlanStatus.Active) throw new ConflictException("The selected plan is not available");
-      const subscription = await manager.save(Subscription, manager.create(Subscription, { coffeeShopId, planId: plan.id, status: SubscriptionStatus.Trialing, trialStartedAt: now, trialEndsAt: addDays(now, plan.trialDays), version: 0 }));
+      if (cafe.status === CoffeeShopStatus.Suspended || cafe.status === CoffeeShopStatus.Archived) throw new ConflictException("Tenant is unavailable for trial");
+      if (!await manager.findOneBy(SubscriptionPlan, { key: TRIAL_ENTITLEMENT_PLAN_KEY, status: PlanStatus.Active })) throw new ConflictException("Trial entitlement plan is unavailable");
+      const subscription = await manager.save(Subscription, manager.create(Subscription, { coffeeShopId, planId: plan.id, status: SubscriptionStatus.Trialing, trialStartedAt: now, trialEndsAt: addDays(now, TRIAL_DAYS), version: 0 }));
       cafe.status = CoffeeShopStatus.Preview; cafe.suspendedAt = null; await manager.save(cafe); return subscription;
     });
   }
@@ -381,6 +396,12 @@ export class SubscriptionsService {
     if (plan.id === subscription.planId) return { type: "RENEW", enabled: true };
     if (plan.sortOrder > subscription.plan.sortOrder) return { type: "UPGRADE", enabled: true };
     return { type: plan.id === subscription.pendingPlanId ? "CHANGE_DOWNGRADE" : "SCHEDULE_DOWNGRADE", enabled: true };
+  }
+
+  private async entitlementPlan(subscription: Subscription, status: SubscriptionStatus, manager = this.dataSource.manager, now = new Date()) {
+    if (status === SubscriptionStatus.Trialing) return manager.findOneBy(SubscriptionPlan, { key: TRIAL_ENTITLEMENT_PLAN_KEY });
+    if (subscription.pendingPlanId && subscription.pendingPlanEffectiveAt && subscription.pendingPlanEffectiveAt <= now) return manager.findOneBy(SubscriptionPlan, { id: subscription.pendingPlanId });
+    return subscription.plan;
   }
 
   private planSummary(plan: SubscriptionPlan) { return { id: plan.id, key: plan.key, name: plan.name, description: plan.description, priceToman: plan.priceToman, billingMonths: plan.billingMonths, trialDays: plan.trialDays, graceDays: plan.graceDays, sortOrder: plan.sortOrder, status: plan.status, updatedAt: plan.updatedAt, features: plan.features, highlightedFeatureKeys: plan.highlightedFeatureKeys }; }

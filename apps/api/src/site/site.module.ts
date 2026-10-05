@@ -1,3 +1,4 @@
+import { SubscriptionsModule } from "../subscriptions/subscriptions.module";
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { AuthModule } from "../auth/auth.module";
@@ -13,7 +14,7 @@ import { TenantSiteController } from "./tenant-site.controller";
 import { MediaModule } from "../media/media.module";
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CoffeeShop, Branch, WebsiteSettings, BranchOpeningHour]), AuthModule, AuthorizationModule, MediaModule],
+  imports: [SubscriptionsModule, TypeOrmModule.forFeature([CoffeeShop, Branch, WebsiteSettings, BranchOpeningHour]), AuthModule, AuthorizationModule, MediaModule],
   controllers: [PublicSiteController, TenantSiteController, PlatformSiteController],
   providers: [SiteService, TenantContextGuard, PublicTenantAvailableGuard],
   exports: [SiteService],

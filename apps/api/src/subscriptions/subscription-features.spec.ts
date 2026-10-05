@@ -79,7 +79,7 @@ test("analytics entitlement follows feature value and subscription lifecycle, no
   const now = new Date("2026-09-23T00:00:00Z");
   const plan = { key: "silver", name: "Silver", features: { analytics: true }, graceDays: 7 };
   const subscription = { status: SubscriptionStatus.Active, plan, trialEndsAt: null, currentPeriodEndsAt: new Date("2026-10-01T00:00:00Z"), paidThroughAt: new Date("2026-10-01T00:00:00Z"), graceEndsAt: null };
-  const service = new SubscriptionsService({ getRepository: () => ({ findOne: async () => subscription }) } as never, {} as never);
+  const service = new SubscriptionsService({ manager: { findOneBy: async () => plan }, getRepository: () => ({ findOne: async () => subscription }) } as never, {} as never);
   assert.equal((await service.featureState("tenant-a", SubscriptionFeatures.Analytics, now)).enabled, true);
   plan.features.analytics = false;
   assert.equal((await service.featureState("tenant-a", SubscriptionFeatures.Analytics, now)).enabled, false);

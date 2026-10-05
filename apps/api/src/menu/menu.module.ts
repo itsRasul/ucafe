@@ -1,3 +1,4 @@
+import { SubscriptionsModule } from "../subscriptions/subscriptions.module";
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { AuthModule } from "../auth/auth.module";
@@ -13,7 +14,7 @@ import { PublicMenuController } from "./public-menu.controller";
 import { TenantMenuController } from "./tenant-menu.controller";
 
 @Module({
-  imports: [TypeOrmModule.forFeature([MenuCategory, MenuItem, MenuItemVariant]), AuthModule, AuthorizationModule, MediaModule, PromotionsModule],
+  imports: [SubscriptionsModule, TypeOrmModule.forFeature([MenuCategory, MenuItem, MenuItemVariant]), AuthModule, AuthorizationModule, MediaModule, PromotionsModule],
   controllers: [PublicMenuController, TenantMenuController, PlatformMenuController],
   providers: [MenuService, TenantContextGuard, PublicTenantAvailableGuard],
 })

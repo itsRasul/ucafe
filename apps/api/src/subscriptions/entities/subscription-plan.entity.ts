@@ -1,3 +1,4 @@
+import { TRIAL_DAYS } from "../trial-policy";
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 
 export enum PlanStatus {
@@ -32,7 +33,7 @@ export class SubscriptionPlan {
   @Column({ name: "billing_months", type: "smallint", default: 1 })
   billingMonths!: number;
 
-  @Column({ name: "trial_days", type: "smallint", default: 7 })
+  @Column({ name: "trial_days", type: "smallint", default: TRIAL_DAYS })
   trialDays!: number;
 
   @Column({ name: "grace_days", type: "smallint", default: 7 })

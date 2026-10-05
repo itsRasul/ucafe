@@ -1,14 +1,16 @@
 "use client";
 
 import { FormEvent, createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { SubscriptionRequiredDialog } from "./subscription-required-dialog";
 import Link from "next/link";
 import { BrandLogo } from "../brand-logo";
 import { OtpCodeFields } from "../otp-code-fields";
 
 export type TenantPermission = "site.manage" | "menu.read" | "menu.manage" | "reservations.read" | "reservations.manage" | "orders.read" | "orders.manage" | "analytics.read" | "inventory.read" | "inventory.manage" | "tenant_crm.read" | "tenant_crm.manage" | "support.tickets.use" | "staff.manage" | "subscription.read" | "subscription.checkout";
-type Access = { tenant: { slug: string; status: string; locale: string; timezone: string }; permissions: TenantPermission[]; features?: { inventory?: boolean; reservations?: boolean; tenant_crm?: boolean } };
-type ApiError = { message?: string | string[]; code?: string; feature?: string };
-type SessionContext = { access: Access; api: <T>(path: string, init?: RequestInit) => Promise<T>; signOut: () => Promise<void> };
+export type SubscriptionFeature = "menu" | "reservations" | "onlineOrdering" | "analytics" | "inventory" | "tenant_crm";
+type Access = { tenant: { slug: string; status: string; locale: string; timezone: string }; permissions: TenantPermission[]; features?: Partial<Record<SubscriptionFeature, boolean>>; subscription?: { status: string | null; reason: string } };
+type ApiError = { message?: string | string[]; code?: string; feature?: string; reason?: string };
+type SessionContext = { access: Access; api: <T>(path: string, init?: RequestInit) => Promise<T>; signOut: () => Promise<void>; checkFeature: (feature: SubscriptionFeature) => Promise<boolean> };
 
 const AdminSessionContext = createContext<SessionContext | null>(null);
 const accessKey = "ucafe_owner_access";
@@ -27,7 +29,7 @@ async function request<T>(path: string, token?: string, init?: RequestInit): Pro
   const response = await fetch(`/api/backend${path}`, { ...init, cache: "no-store", credentials: "same-origin", headers });
   if (!response.ok) {
     const body = await response.json().catch(() => ({})) as ApiError;
-    throw Object.assign(new Error(messageFor(response, body)), { status: response.status, code: body.code, feature: body.feature });
+    throw Object.assign(new Error(messageFor(response, body)), { status: response.status, code: body.code, feature: body.feature, reason: body.reason });
   }
   if (response.status === 204) return {} as T;
   return response.headers.get("content-type")?.includes("json") ? await response.json() as T : await response.blob() as T;
@@ -38,6 +40,7 @@ export function AdminSessionProvider({ children }: { children: React.ReactNode }
   const [access, setAccess] = useState<Access | null>(null);
   const [state, setState] = useState<"loading" | "login" | "ready" | "error">("loading");
   const [error, setError] = useState("");
+  const [lockReason, setLockReason] = useState<string | null>(null);
 
   const establish = useCallback(async (accessToken: string) => {
     const result = await request<Access>("/tenant/admin/access", accessToken);
@@ -58,13 +61,42 @@ export function AdminSessionProvider({ children }: { children: React.ReactNode }
   }, [establish, refresh]);
 
   const api = useCallback(async <T,>(path: string, init?: RequestInit) => {
-    try { return await request<T>(path, token, init); }
+    const send = async (accessToken: string) => {
+      try { return await request<T>(path, accessToken, init); }
+      catch (reason) {
+        const failure = reason as ApiError & { status?: number };
+        if (failure.code === "FEATURE_UNAVAILABLE") {
+          setLockReason(failure.reason ?? "PLAN_FEATURE_UNAVAILABLE");
+          void request<Access>("/tenant/admin/access", accessToken).then(setAccess).catch(() => undefined);
+        }
+        throw reason;
+      }
+    };
+    try { return await send(token); }
     catch (reason) {
       if ((reason as { status?: number }).status !== 401) throw reason;
-      try { return await request<T>(path, await refresh(), init); }
+      let refreshedToken: string;
+      try { refreshedToken = await refresh(); }
       catch (refreshError) { sessionStorage.removeItem(accessKey); setToken(""); setAccess(null); setState("login"); throw refreshError; }
+      return send(refreshedToken);
     }
   }, [refresh, token]);
+
+  const checkFeature = useCallback(async (feature: SubscriptionFeature) => {
+    const current = await api<Access>("/tenant/admin/access");
+    setAccess(current);
+    if (current.features?.[feature] === true) return true;
+    setLockReason(current.subscription?.reason ?? "PLAN_FEATURE_UNAVAILABLE");
+    return false;
+  }, [api]);
+
+  useEffect(() => {
+    if (!token) return;
+    const update = () => void request<Access>("/tenant/admin/access", token).then(setAccess).catch(() => undefined);
+    const timer = setInterval(update, 30_000);
+    window.addEventListener("focus", update);
+    return () => { clearInterval(timer); window.removeEventListener("focus", update); };
+  }, [token]);
 
   async function signOut() {
     try { await request("/auth/logout", undefined, { method: "POST" }); } finally { sessionStorage.removeItem(accessKey); setToken(""); setAccess(null); setState("login"); }
@@ -73,7 +105,7 @@ export function AdminSessionProvider({ children }: { children: React.ReactNode }
   if (state === "loading") return <AdminState title="در حال آماده‌سازی پنل…" detail="نشست امن شما بررسی می‌شود." busy />;
   if (state === "error") return <AdminState title="دسترسی مدیریت فعال نیست" detail={error} />;
   if (state === "login" || !access) return <AdminLogin onAuthenticated={establish} />;
-  return <AdminSessionContext.Provider value={{ access, api, signOut }}>{children}</AdminSessionContext.Provider>;
+  return <AdminSessionContext.Provider value={{ access, api, signOut, checkFeature }}>{children}<SubscriptionRequiredDialog reason={lockReason} onClose={() => setLockReason(null)} /></AdminSessionContext.Provider>;
 }
 
 function AdminLogin({ onAuthenticated }: { onAuthenticated: (token: string) => Promise<void> }) {

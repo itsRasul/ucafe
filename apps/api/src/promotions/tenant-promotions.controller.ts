@@ -1,3 +1,5 @@
+import { RequireSubscriptionFeature, SubscriptionFeatureGuard } from "../subscriptions/subscription-feature.guard";
+import { SubscriptionFeatures } from "../subscriptions/subscription-features";
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import { AccessTokenGuard } from "../auth/access-token.guard";
 import { AUTH_PRINCIPAL, AuthorizedRequest } from "../authorization/auth-principal";
@@ -12,7 +14,8 @@ import { PromotionsService } from "./promotions.service";
 type TenantAdminRequest = TenantContextRequest & AuthorizedRequest;
 
 @Controller("tenant/promotions")
-@UseGuards(AccessTokenGuard, TenantContextGuard, TenantPermissionGuard)
+@UseGuards(AccessTokenGuard, TenantContextGuard, TenantPermissionGuard, SubscriptionFeatureGuard)
+@RequireSubscriptionFeature(SubscriptionFeatures.Menu)
 export class TenantPromotionsController {
   constructor(private readonly promotions: PromotionsService) {}
   private tenantId(request: TenantContextRequest) { return request[TENANT_CONTEXT]!.coffeeShopId; }
